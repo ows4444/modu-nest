@@ -49,3 +49,4 @@ yarn.lock
 
 # Ignore log files
 *.log
+test-output
