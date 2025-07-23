@@ -5,6 +5,9 @@
   "references": [
     {
       "path": "./libs/common/config"
+    },
+    {
+      "path": "./libs/plugin/types"
     }
   ]
 }
