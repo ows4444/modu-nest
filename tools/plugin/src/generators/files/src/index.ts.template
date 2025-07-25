@@ -1,1 +1,3 @@
-const variable = "<%= name %>";
+export * from './<%= name %>.module';
+export * from './<%= name %>.service';
+export * from './<%= name %>.controller';

@@ -1,0 +1,14 @@
+import { Controller, Get } from '@nestjs/common';
+import { <%= className %>Service } from './<%= name %>.service';
+
+@Controller('api/<%= name %>')
+export class <%= className %>Controller {
+  constructor(private readonly <%= propertyName %>Service: <%= className %>Service) {}
+
+  @Get()
+  getHello(): string {
+    return this.<%= propertyName %>Service.getHello();
+  }
+  
+  // Add your plugin controller methods here
+}

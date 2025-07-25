@@ -1,0 +1,11 @@
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class <%= className %>Service {
+  
+  getHello(): string {
+    return 'Hello from <%= className %> plugin!';
+  }
+  
+  // Add your plugin service methods here
+}

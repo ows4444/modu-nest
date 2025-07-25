@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "Plugin Publish executor",
+  "description": "Schema for plugin publish executor",
+  "type": "object",
+  "properties": {
+    "outputPath": {
+      "type": "string",
+      "description": "Build output directory to publish from",
+      "default": "dist"
+    },
+    "pluginsDir": {
+      "type": "string",
+      "description": "Directory to publish plugin to",
+      "default": "./plugins"
+    }
+  },
+  "required": []
+}

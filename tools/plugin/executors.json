@@ -7,12 +7,12 @@
     },
     "plugin-publish": {
       "implementation": "./dist/executors/plugin-publish",
-      "schema": "./dist/executors/schema.json",
+      "schema": "./dist/executors/plugin-publish-schema.json",
       "description": "plugin-publish executor"
     },
     "plugin-validate": {
       "implementation": "./dist/executors/plugin-validate",
-      "schema": "./dist/executors/schema.json",
+      "schema": "./dist/executors/plugin-validate-schema.json",
       "description": "plugin-validate executor"
     }
   }
