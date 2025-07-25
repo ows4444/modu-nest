@@ -20,6 +20,9 @@
     },
     {
       "path": "./apps/plugin-registry"
+    },
+    {
+      "path": "./tools/plugin"
     }
   ]
 }

@@ -16,9 +16,11 @@
     "@nx/js": "21.3.5",
     "@nx/nest": "^21.3.5",
     "@nx/node": "21.3.5",
+    "@nx/plugin": "^21.3.5",
     "@nx/web": "21.3.5",
     "@nx/webpack": "21.3.5",
     "@swc-node/register": "~1.9.1",
+    "@swc/cli": "~0.6.0",
     "@swc/core": "~1.5.7",
     "@swc/helpers": "~0.5.11",
     "@swc/jest": "~0.2.38",
@@ -44,12 +46,14 @@
   "workspaces": [
     "libs/common/config",
     "libs/plugin/types",
-    "apps/*"
+    "apps/*",
+    "tools/*"
   ],
   "dependencies": {
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@nx/devkit": "21.3.5",
     "axios": "^1.6.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0"
