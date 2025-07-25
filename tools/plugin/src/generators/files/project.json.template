@@ -4,15 +4,6 @@
   "sourceRoot": "plugins/<%= name %>/src",
   "projectType": "library",
   "targets": {
-    "build": {
-      "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
-      "options": {
-        "outputPath": "dist/plugins/<%= name %>",
-        "tsConfig": "plugins/<%= name %>/tsconfig.lib.json",
-        "packageJson": "plugins/<%= name %>/package.json"
-      }
-    },
     "plugin-build": {
       "executor": "@modu-nest/plugin:plugin-build",
       "options": {

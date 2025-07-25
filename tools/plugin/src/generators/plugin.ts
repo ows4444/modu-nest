@@ -23,15 +23,6 @@ export async function pluginGenerator(
     projectType: 'library',
     sourceRoot: `${projectRoot}/src`,
     targets: {
-      build: {
-        executor: '@nx/js:tsc',
-        outputs: ['{options.outputPath}'],
-        options: {
-          outputPath: `dist/libs/${options.name}`,
-          tsConfig: `${projectRoot}/tsconfig.lib.json`,
-          packageJson: `${projectRoot}/package.json`,
-        },
-      },
       'plugin-build': {
         executor: '@modu-nest/plugin:plugin-build',
         options: {
