@@ -17,7 +17,5 @@
   "nx": {
     "name": "plugin-types"
   },
-  "dependencies": {
-    "tslib": "^2.3.0"
-  }
+  "dependencies": {}
 }

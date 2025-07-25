@@ -47,7 +47,8 @@
     "libs/common/config",
     "libs/plugin/types",
     "apps/*",
-    "tools/*"
+    "tools/*",
+    "plugins/*"
   ],
   "dependencies": {
     "@nestjs/common": "^11.0.0",

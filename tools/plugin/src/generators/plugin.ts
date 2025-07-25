@@ -12,7 +12,7 @@ export async function pluginGenerator(
   tree: Tree,
   options: PluginGeneratorSchema
 ) {
-  const projectRoot = `libs/plugins/${options.name}`;
+  const projectRoot = `plugins/${options.name}`;
   const normalizedOptions = {
     ...options,
     ...names(options.name),
