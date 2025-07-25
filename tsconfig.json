@@ -8,6 +8,18 @@
     },
     {
       "path": "./libs/plugin/types"
+    },
+    {
+      "path": "./apps/plugin-host-e2e"
+    },
+    {
+      "path": "./apps/plugin-host"
+    },
+    {
+      "path": "./apps/plugin-registry-e2e"
+    },
+    {
+      "path": "./apps/plugin-registry"
     }
   ]
 }

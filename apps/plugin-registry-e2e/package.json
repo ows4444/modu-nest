@@ -1,0 +1,27 @@
+{
+  "name": "@modu-nest/plugin-registry-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "plugin-registry-e2e",
+    "implicitDependencies": [
+      "plugin-registry"
+    ],
+    "targets": {
+      "e2e": {
+        "executor": "@nx/jest:jest",
+        "outputs": [
+          "{projectRoot}/test-output/jest/coverage"
+        ],
+        "options": {
+          "jestConfig": "apps/plugin-registry-e2e/jest.config.ts",
+          "passWithNoTests": true
+        },
+        "dependsOn": [
+          "plugin-registry:build",
+          "plugin-registry:serve"
+        ]
+      }
+    }
+  }
+}
