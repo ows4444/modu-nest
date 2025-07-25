@@ -1,12 +1,12 @@
 {
-  "cSpell.words": ["modu"],
+  "cSpell.words": ["modu", "swcrc"],
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
     "source.organizeImports": "explicit"
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "eslint.validate": ["typescript"],
+  "eslint.validate": ["typescript", "json"],
   "eslint.format.enable": true,
   "typescript.preferences.importModuleSpecifier": "relative",
   "typescript.updateImportsOnFileMove.enabled": "always",
@@ -81,5 +81,6 @@
   },
   "terminal.integrated.env.windows": {
     "NODE_ENV": "development"
-  }
+  },
+  "nxConsole.generateAiAgentRules": true
 }

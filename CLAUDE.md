@@ -252,4 +252,4 @@ The `plugin.manifest.json` contains complete plugin metadata:
 - **Dependency Management**: Load order ensures dependencies are available
 - **No Global Access**: Plugins cannot register global interceptors or guards
 - **Secure Execution**: Plugin code runs in controlled NestJS context without
-  sandboxing
+  direct access to host internals
