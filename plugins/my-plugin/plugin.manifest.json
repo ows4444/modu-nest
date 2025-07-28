@@ -1,0 +1,24 @@
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "description": "MyPlugin plugin for modu-nest",
+  "author": "Plugin Developer",
+  "license": "MIT",
+  "entryPoint": "MyPluginModule",
+  "dependencies": [],
+  "loadOrder": 100,
+  "compatibilityVersion": "1.0.0",
+  "routes": ["/api/my-plugin"],
+  "configuration": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the plugin"
+        }
+      }
+    }
+  }
+}

@@ -4,10 +4,10 @@
   "files": [],
   "references": [
     {
-      "path": "./libs/common/config"
+      "path": "./apps/plugin-registry-e2e"
     },
     {
-      "path": "./libs/plugin/types"
+      "path": "./apps/plugin-registry"
     },
     {
       "path": "./apps/plugin-host-e2e"
@@ -16,13 +16,13 @@
       "path": "./apps/plugin-host"
     },
     {
-      "path": "./apps/plugin-registry-e2e"
-    },
-    {
-      "path": "./apps/plugin-registry"
+      "path": "./libs/plugin-types"
     },
     {
       "path": "./tools/plugin"
+    },
+    {
+      "path": "./plugins/my-plugin"
     }
   ]
 }

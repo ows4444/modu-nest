@@ -43,10 +43,4 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Ignore specific files and directories
-package-lock.json
-yarn.lock
-
-# Ignore log files
-*.log
 test-output

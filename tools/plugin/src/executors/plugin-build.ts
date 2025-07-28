@@ -23,10 +23,7 @@ interface PluginManifest {
   };
 }
 
-const runExecutor: PromiseExecutor<PluginBuildExecutorSchema> = async (
-  options,
-  context: ExecutorContext
-) => {
+const runExecutor: PromiseExecutor<PluginBuildExecutorSchema> = async (options, context: ExecutorContext) => {
   const {
     outputPath = 'dist',
     tsConfig = 'tsconfig.json',
@@ -60,13 +57,9 @@ const runExecutor: PromiseExecutor<PluginBuildExecutorSchema> = async (
         return { success: false };
       }
 
-      const manifest: PluginManifest = JSON.parse(
-        fs.readFileSync(manifestPath, 'utf8')
-      );
+      const manifest: PluginManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
       if (!manifest.name || !manifest.version || !manifest.entryPoint) {
-        logger.error(
-          'Invalid manifest: missing required fields (name, version, entryPoint)'
-        );
+        logger.error('Invalid manifest: missing required fields (name, version, entryPoint)');
         return { success: false };
       }
       logger.info('✓ Manifest validation passed');
@@ -75,6 +68,11 @@ const runExecutor: PromiseExecutor<PluginBuildExecutorSchema> = async (
     // Compile TypeScript
     logger.info('Compiling TypeScript...');
     const tsConfigPath = path.join(sourceRoot, tsConfig);
+    // remove the output directory if it exists
+    if (fs.existsSync(outputDir)) {
+      fs.rmSync(outputDir, { recursive: true, force: true });
+      logger.info(`✓ Removed existing output directory: ${outputDir}`);
+    }
     await execAsync(`npx tsc --project ${tsConfigPath} --outDir ${outputDir}`);
     logger.info('✓ TypeScript compilation completed');
 

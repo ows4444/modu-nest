@@ -1,86 +1,59 @@
 {
-  "cSpell.words": ["modu", "swcrc"],
+  "files.autoSave": "off",
   "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "explicit"
-  },
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "eslint.validate": ["typescript", "json"],
-  "eslint.format.enable": true,
-  "typescript.preferences.importModuleSpecifier": "relative",
-  "typescript.updateImportsOnFileMove.enabled": "always",
-  "typescript.suggest.autoImports": true,
-  "typescript.preferences.includePackageJsonAutoImports": "on",
-  "prettier.requireConfig": true,
-  "files.exclude": {
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/coverage": true,
-    "**/.cache": true,
-    "**/.nx": true,
-    "**/*.tsbuildinfo": true
+  "editor.formatOnPaste": true,
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.git/**": true,
+    "**/out-tsc": true,
+    ".yarn*": true
   },
   "search.exclude": {
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/coverage": true,
-    "**/logs": true,
-    "**/*.log": true,
-    "apps/plugin-host/plugins": true,
-    "apps/plugin-registry/storage": true
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.git/**": true,
+    "**/out-tsc/**": true,
+    ".env": true,
+    ".env.*": true
   },
-  "files.associations": {
-    "*.env*": "properties",
-    "*.manifest.json": "json"
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "*.ts": "${capture}.ts, ${capture}.spec.ts"
   },
-  "emmet.includeLanguages": {
-    "typescript": "html"
-  },
-  "npm.enableRunFromFolder": true,
-  "jest.rootPath": "./",
-  "jest.jestCommandLine": "npm test",
-  "jest.runMode": "on-demand",
-  "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.tabSize": 2,
-    "editor.insertSpaces": true,
-    "editor.detectIndentation": false
-  },
-  "[json]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.tabSize": 2
-  },
-  "[jsonc]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.tabSize": 2
-  },
-  "[markdown]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.wordWrap": "on",
-    "editor.quickSuggestions": {
-      "comments": "off",
-      "strings": "off",
-      "other": "off"
-    }
-  },
-  "[yaml]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.tabSize": 2,
-    "editor.insertSpaces": true
-  },
-  "[shellscript]": {
-    "editor.tabSize": 4,
-    "editor.insertSpaces": true
-  },
-  "terminal.integrated.env.osx": {
-    "NODE_ENV": "development"
-  },
-  "terminal.integrated.env.linux": {
-    "NODE_ENV": "development"
-  },
-  "terminal.integrated.env.windows": {
-    "NODE_ENV": "development"
-  },
-  "nxConsole.generateAiAgentRules": true
+  "explorer.sortOrder": "modified",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.github": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    ".yarn*": true,
+    // ".vscode": true,
+    // ".nx": true,
+    // ".husky": true,
+    "apps/**/*-e2e": true,
+    // "apps/**/assets": true,
+    // "apps/**/webpack.config.js": true,
+    // "{apps,libs}/**/.spec.swcrc": true,
+    // "{apps,libs}/**/tsconfig.json": true,
+    // // "{apps,libs}/**/package.json": true,
+    // // "{apps,libs}/**/eslint.config.mjs": true,
+    // "{apps,libs}/**/jest.config.ts": true,
+    // "{apps,libs}/**/README.md": true,
+    // "tsconfig.json": true,
+    // "eslint.config.mjs": true,
+    // "jest.*": true,
+    // "*.lock": true,
+    // ".prettier*": true,
+    // "tools": true,
+    // "tmp": true,
+    // "**/dist": true,
+    "**/out-tsc": true,
+    "**/node_modules": true
+  }
 }

@@ -1,18 +1,8 @@
-import {
-  addProjectConfiguration,
-  formatFiles,
-  generateFiles,
-  names,
-  Tree,
-  updateJson,
-} from '@nx/devkit';
+import { addProjectConfiguration, formatFiles, generateFiles, names, Tree, updateJson } from '@nx/devkit';
 import * as path from 'path';
 import { PluginGeneratorSchema } from './schema';
 
-export async function pluginGenerator(
-  tree: Tree,
-  options: PluginGeneratorSchema
-) {
+export async function pluginGenerator(tree: Tree, options: PluginGeneratorSchema) {
   const projectRoot = `plugins/${options.name}`;
   const normalizedOptions = {
     ...options,
@@ -62,31 +52,22 @@ export async function pluginGenerator(
     },
   });
 
-  generateFiles(
-    tree,
-    path.join(__dirname, 'files'),
-    projectRoot,
-    normalizedOptions
-  );
+  generateFiles(tree, path.join(__dirname, 'files'), projectRoot, normalizedOptions);
 
   // Update root tsconfig.json to include the new plugin project
-  updateJson(tree, 'tsconfig.json', json => {
+  updateJson(tree, 'tsconfig.json', (json) => {
     if (!json.references) {
       json.references = [];
     }
     const projectRef = { path: `./${projectRoot}` };
-    if (
-      !json.references.some(
-        (ref: { path: string }) => ref.path === projectRef.path
-      )
-    ) {
+    if (!json.references.some((ref: { path: string }) => ref.path === projectRef.path)) {
       json.references.push(projectRef);
     }
     return json;
   });
 
   // Update root package.json to include the plugin in workspaces
-  updateJson(tree, 'package.json', json => {
+  updateJson(tree, 'package.json', (json) => {
     if (!json.workspaces) {
       json.workspaces = [];
     }

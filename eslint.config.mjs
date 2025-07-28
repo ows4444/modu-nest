@@ -1,4 +1,4 @@
-import nx from '@nx/eslint-plugin'
+import nx from '@nx/eslint-plugin';
 
 export default [
   {
@@ -13,13 +13,7 @@ export default [
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: [
-      '**/dist',
-      '**/node_modules',
-      '**/coverage',
-      '**/build',
-      '**/.vscode',
-    ],
+    ignores: ['**/dist'],
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
@@ -37,6 +31,7 @@ export default [
           ],
         },
       ],
+      '@typescript-eslint/no-unsafe-function-type': 'off',
     },
   },
   {
@@ -53,4 +48,4 @@ export default [
     // Override or add rules here
     rules: {},
   },
-]
+];

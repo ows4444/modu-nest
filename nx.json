@@ -27,6 +27,17 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
+      },
+      "exclude": ["libs/plugin-types/*", "plugins/my-plugin/*"]
+    },
+    {
+      "plugin": "@nx/webpack/plugin",
+      "options": {
+        "buildTargetName": "build",
+        "serveTargetName": "serve",
+        "previewTargetName": "preview",
+        "buildDepsTargetName": "build-deps",
+        "watchDepsTargetName": "watch-deps"
       }
     },
     {
@@ -40,16 +51,15 @@
       "options": {
         "targetName": "test"
       },
-      "exclude": ["apps/plugin-host-e2e/**/*", "apps/plugin-registry-e2e/**/*"]
+      "exclude": ["apps/plugin-registry-e2e/**/*", "apps/plugin-host-e2e/**/*"]
     },
     {
-      "plugin": "@nx/webpack/plugin",
+      "plugin": "@nx/js/typescript",
+      "include": ["libs/plugin-types/*", "plugins/sss/*"],
       "options": {
-        "buildTargetName": "build",
-        "serveTargetName": "serve",
-        "previewTargetName": "preview",
-        "buildDepsTargetName": "build-deps",
-        "watchDepsTargetName": "watch-deps"
+        "typecheck": {
+          "targetName": "typecheck"
+        }
       }
     }
   ],
@@ -62,5 +72,8 @@
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     }
+  },
+  "tui": {
+    "enabled": false
   }
 }

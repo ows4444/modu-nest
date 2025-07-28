@@ -1,19 +1,19 @@
 {
   "executors": {
-    "plugin-build": {
-      "implementation": "./dist/executors/plugin-build",
-      "schema": "./dist/executors/schema.json",
-      "description": "plugin-build executor"
+    "plugin-validate": {
+      "implementation": "./dist/executors/plugin-validate",
+      "schema": "./dist/executors/plugin-validate-schema.json",
+      "description": "plugin-validate executor"
     },
     "plugin-publish": {
       "implementation": "./dist/executors/plugin-publish",
       "schema": "./dist/executors/plugin-publish-schema.json",
       "description": "plugin-publish executor"
     },
-    "plugin-validate": {
-      "implementation": "./dist/executors/plugin-validate",
-      "schema": "./dist/executors/plugin-validate-schema.json",
-      "description": "plugin-validate executor"
+    "plugin-build": {
+      "implementation": "./dist/executors/plugin-build",
+      "schema": "./dist/executors/schema.json",
+      "description": "plugin-build executor"
     }
   }
 }

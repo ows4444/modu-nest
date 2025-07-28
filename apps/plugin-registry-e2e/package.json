@@ -1,5 +1,5 @@
 {
-  "name": "@modu-nest/plugin-registry-e2e",
+  "name": "@module-nest/plugin-registry-e2e",
   "version": "0.0.1",
   "private": true,
   "nx": {
