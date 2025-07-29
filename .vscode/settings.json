@@ -56,5 +56,6 @@
     "**/out-tsc": true,
     "**/node_modules": true
   },
-  "nxConsole.generateAiAgentRules": true
+  "nxConsole.generateAiAgentRules": true,
+  "cSpell.words": ["Modu"]
 }

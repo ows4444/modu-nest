@@ -54,7 +54,7 @@ npx nx plugin-publish my-first-plugin
 
 ## Project Structure
 
-This is a **ModuleNest** project - an Nx monorepo for building modular NestJS applications with a dynamic plugin system. The architecture consists of:
+This is a **ModuNest** project - an Nx monorepo for building modular NestJS applications with a dynamic plugin system. The architecture consists of:
 
 ### Apps Directory
 - **Plugin Host App** (`apps/plugin-host/`): Main NestJS application that dynamically loads and manages plugins
