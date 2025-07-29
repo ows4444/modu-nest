@@ -45,7 +45,7 @@ export class PluginConfigManager {
       value: options?.encrypt ? this.encrypt(value) : value,
       type: typeof value,
       encrypted: options?.encrypt || false,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
   }
 
@@ -128,7 +128,7 @@ export class PluginConfigManager {
 
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
