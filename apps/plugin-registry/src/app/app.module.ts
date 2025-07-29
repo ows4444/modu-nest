@@ -7,9 +7,17 @@ import { HealthController } from './controllers/health.controller';
 import { PluginRegistryService } from './services/plugin-registry.service';
 import { PluginStorageService } from './services/plugin-storage.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
+import { SharedConfigModule } from '@modu-nest/config';
 
 @Module({
   imports: [
+    SharedConfigModule.forRoot({
+      isGlobal: true,
+      expandVariables: true,
+      envFilePath: [__dirname],
+      load: [],
+    }),
+
     MulterModule.register({
       limits: {
         fileSize: parseInt(process.env.MAX_PLUGIN_SIZE || '52428800', 10), // 50MB default

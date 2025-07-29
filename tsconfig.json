@@ -20,6 +20,18 @@
     },
     {
       "path": "./tools/plugin"
+    },
+    {
+      "path": "./libs/shared/config"
+    },
+    {
+      "path": "./libs/shared/utils"
+    },
+    {
+      "path": "./libs/shared/config"
+    },
+    {
+      "path": "./libs/shared/const"
     }
   ]
 }
