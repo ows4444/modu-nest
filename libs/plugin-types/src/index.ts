@@ -1,9 +1,10 @@
 // Core plugin interfaces and types
 export * from './lib/plugin-interfaces';
 
-// Plugin module and controller decorators
+// Plugin provider module and controller decorators
 export * from './lib/plugin-types.module';
 export * from './lib/plugin-types.controller';
+export * from './lib/plugin-types.provider';
 
 // Plugin decorators for controllers and methods
 export {

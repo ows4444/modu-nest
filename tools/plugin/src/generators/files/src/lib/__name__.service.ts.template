@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { PluginInjectable } from '@modu-nest/plugin-types';
 
-@Injectable()
+@PluginInjectable()
 export class <%= className %>Service {
   
   getHello(): string {
