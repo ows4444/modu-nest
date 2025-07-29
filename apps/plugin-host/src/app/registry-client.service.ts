@@ -1,7 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { promisify } from 'util';
 import JSZip from 'jszip';
 import FormData from 'form-data';

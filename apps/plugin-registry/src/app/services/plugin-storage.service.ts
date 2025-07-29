@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { promisify } from 'util';
 import { StorageConfig } from '@modu-nest/plugin-types';
 import type { PluginMetadata, PluginPackage, StorageStats } from '@modu-nest/plugin-types';
@@ -17,7 +17,7 @@ export class PluginStorageService implements OnModuleInit {
 
   constructor() {
     const storageRoot = process.env.REGISTRY_STORAGE_PATH || path.join(process.cwd(), 'registry-storage');
-    
+
     this.config = {
       pluginsDir: path.join(storageRoot, 'plugins'),
       metadataFile: path.join(storageRoot, 'metadata.json'),
@@ -46,7 +46,7 @@ export class PluginStorageService implements OnModuleInit {
       if (fs.existsSync(this.config.metadataFile)) {
         const data = await readFile(this.config.metadataFile, 'utf-8');
         const pluginsArray: PluginPackage[] = JSON.parse(data);
-        this.plugins = new Map(pluginsArray.map(p => [p.metadata.name, p]));
+        this.plugins = new Map(pluginsArray.map((p) => [p.metadata.name, p]));
         this.logger.log(`Loaded ${this.plugins.size} plugins from metadata`);
       } else {
         this.logger.log('No existing metadata file found, starting with empty registry');
@@ -78,10 +78,10 @@ export class PluginStorageService implements OnModuleInit {
 
     try {
       await writeFile(filePath, pluginBuffer as any);
-      
+
       const pluginPackage: PluginPackage = {
         metadata,
-        filePath: fileName
+        filePath: fileName,
       };
 
       this.plugins.set(metadata.name, pluginPackage);
@@ -128,7 +128,7 @@ export class PluginStorageService implements OnModuleInit {
     }
 
     const fullPath = path.join(this.config.pluginsDir, plugin.filePath);
-    
+
     try {
       if (fs.existsSync(fullPath)) {
         await fs.promises.unlink(fullPath);
@@ -136,7 +136,7 @@ export class PluginStorageService implements OnModuleInit {
 
       this.plugins.delete(name);
       await this.saveMetadata();
-      
+
       this.logger.log(`Plugin ${name} deleted successfully`);
     } catch (error) {
       this.logger.error(`Failed to delete plugin ${name}:`, error);
@@ -160,7 +160,7 @@ export class PluginStorageService implements OnModuleInit {
     return {
       totalPlugins: this.plugins.size,
       totalSize,
-      storageLocation: this.config.pluginsDir
+      storageLocation: this.config.pluginsDir,
     };
   }
 }

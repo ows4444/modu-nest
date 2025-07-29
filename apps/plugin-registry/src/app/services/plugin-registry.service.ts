@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
-import * as crypto from 'crypto';
+import crypto from 'crypto';
 import JSZip from 'jszip';
 import { PluginValidator, PluginResponseDto } from '@modu-nest/plugin-types';
 import type { PluginMetadata, CreatePluginDto, RegistryStats, PluginListResponseDto } from '@modu-nest/plugin-types';

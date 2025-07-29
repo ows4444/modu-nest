@@ -1,7 +1,7 @@
-import { Injectable, Logger, DynamicModule, Type } from '@nestjs/common';
+import { Injectable, Logger, DynamicModule } from '@nestjs/common';
 import 'reflect-metadata';
-import * as path from 'path';
-import * as fs from 'fs';
+import path from 'path';
+import fs from 'fs';
 import { PluginManifest, LoadedPlugin } from '@modu-nest/plugin-types';
 
 @Injectable()

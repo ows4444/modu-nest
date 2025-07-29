@@ -1,5 +1,5 @@
-import * as crypto from 'crypto';
-import * as semver from 'semver';
+import crypto from 'crypto';
+import semver from 'semver';
 
 /**
  * Utility functions for plugin management
@@ -85,7 +85,7 @@ export class PluginUtils {
   static parseDependencies(dependencies?: string[]): { name: string; version?: string }[] {
     if (!dependencies) return [];
 
-    return dependencies.map(dep => {
+    return dependencies.map((dep) => {
       const [name, version] = dep.split('@');
       return { name, version };
     });
