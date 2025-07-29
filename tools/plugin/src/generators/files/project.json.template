@@ -10,7 +10,7 @@
         "outputPath": "dist",
         "tsConfig": "tsconfig.lib.json",
         "assets": ["plugin.manifest.json"]
-      }
+      },
       "dependsOn": ["@modu-nest/plugin-types:typecheck"]
     },
     "plugin-validate": {

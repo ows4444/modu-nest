@@ -8,6 +8,7 @@ export interface PluginBuildExecutorSchema {
 export interface PluginPublishExecutorSchema {
   outputPath?: string;
   pluginsDir?: string;
+  registryUrl?: string;
 }
 
 export interface PluginValidateExecutorSchema {

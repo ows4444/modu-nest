@@ -20,9 +20,6 @@
     },
     {
       "path": "./tools/plugin"
-    },
-    {
-      "path": "./plugins/my-plugin"
     }
   ]
 }

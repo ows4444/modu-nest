@@ -35,6 +35,13 @@ export async function pluginGenerator(tree: Tree, options: PluginGeneratorSchema
           pluginsDir: './plugins',
         },
       },
+      'plugin-registry-publish': {
+        executor: '@modu-nest/plugin:plugin-registry-publish',
+        options: {
+          outputPath: 'dist',
+          registryUrl: 'http://localhost:3001',
+        },
+      },
       lint: {
         executor: '@nx/eslint:lint',
         outputs: ['{options.outputFile}'],

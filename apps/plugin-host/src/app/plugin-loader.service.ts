@@ -2,19 +2,7 @@ import { Injectable, Logger, DynamicModule } from '@nestjs/common';
 import 'reflect-metadata';
 import * as path from 'path';
 import * as fs from 'fs';
-
-interface PluginManifest {
-  name: string;
-  entryPoint: string;
-  version: string;
-  description: string;
-}
-
-interface LoadedPlugin {
-  manifest: PluginManifest;
-  module: unknown;
-  instance: unknown;
-}
+import { PluginManifest, LoadedPlugin } from '@modu-nest/plugin-types';
 
 @Injectable()
 export class PluginLoaderService {
@@ -23,10 +11,6 @@ export class PluginLoaderService {
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
-  }
-
-  isPluginLoaded(pluginName: string): boolean {
-    return this.loadedPlugins.has(pluginName);
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
@@ -92,7 +76,7 @@ export class PluginLoaderService {
 
   private async createDynamicModuleFromPlugin(
     manifest: PluginManifest,
-    pluginModule: any
+    pluginModule: Record<string, unknown>
   ): Promise<DynamicModule | null> {
     try {
       const entryPointClass = pluginModule[manifest.entryPoint];
@@ -102,26 +86,26 @@ export class PluginLoaderService {
         return null;
       }
 
-      const controllers: any[] = [];
-      const providers: any[] = [];
-      const exports: any[] = [];
+      const controllers: DynamicModule['controllers'] = [];
+      const providers: DynamicModule['providers'] = [];
+      const exports: DynamicModule['exports'] = [];
 
       Object.keys(pluginModule).forEach((key) => {
         const exportedItem = pluginModule[key];
         if (typeof exportedItem === 'function') {
           if (key.toLowerCase().includes('controller')) {
-            controllers.push(exportedItem);
+            controllers.push(exportedItem as any);
             this.logger.log(`Found controller: ${key}`);
           } else if (key.toLowerCase().includes('service')) {
-            providers.push(exportedItem);
-            exports.push(exportedItem);
+            providers.push(exportedItem as any);
+            exports.push(exportedItem as any);
             this.logger.log(`Found service: ${key}`);
           }
         }
       });
 
       const dynamicModule: DynamicModule = {
-        module: entryPointClass,
+        module: entryPointClass as any,
         controllers,
         providers,
         exports,
@@ -137,7 +121,7 @@ export class PluginLoaderService {
     }
   }
 
-  async loadAndRegisterPluginModule(pluginName: string, pluginModule: any): Promise<void> {
+  async loadAndRegisterPluginModule(pluginName: string, pluginModule: Record<string, unknown>): Promise<void> {
     this.logger.log(`Loading and registering plugin module: ${pluginName}`);
 
     try {
@@ -150,7 +134,7 @@ export class PluginLoaderService {
 
       // Log what's available in the plugin module
       this.logger.log(`Available exports: ${Object.keys(pluginModule)}`);
-      this.logger.log(`Plugin class: ${PluginClass.name}`);
+      this.logger.log(`Plugin class: ${(PluginClass as any).name}`);
 
       // Get the controller and service from exports
       const MyPluginController = pluginModule.MyPluginController;
@@ -158,14 +142,22 @@ export class PluginLoaderService {
 
       // Create a dynamic module from the plugin exports
       const dynamicModule: DynamicModule = {
-        module: PluginClass,
-        controllers: MyPluginController ? [MyPluginController] : [],
-        providers: MyPluginService ? [MyPluginService] : [],
-        exports: MyPluginService ? [MyPluginService] : [],
+        module: PluginClass as any,
+        controllers: MyPluginController ? [MyPluginController as any] : [],
+        providers: MyPluginService ? [MyPluginService as any] : [],
+        exports: MyPluginService ? [MyPluginService as any] : [],
       };
 
       this.loadedPlugins.set(pluginName, {
-        manifest: { name: pluginName, entryPoint: 'MyPlugin', version: '1.0.0', description: 'Dynamic plugin' },
+        manifest: {
+          name: pluginName,
+          entryPoint: 'MyPlugin',
+          version: '1.0.0',
+          description: 'Dynamic plugin',
+          author: 'Unknown',
+          license: 'MIT',
+          compatibilityVersion: '1.0.0',
+        },
         module: dynamicModule,
         instance: PluginClass,
       });
@@ -183,7 +175,15 @@ export class PluginLoaderService {
     this.logger.log(`Registering plugin: ${pluginName}`);
 
     this.loadedPlugins.set(pluginName, {
-      manifest: { name: pluginName, entryPoint: 'MyPlugin', version: '1.0.0', description: 'Dynamic plugin' },
+      manifest: {
+        name: pluginName,
+        entryPoint: 'MyPlugin',
+        version: '1.0.0',
+        description: 'Dynamic plugin',
+        author: 'Unknown',
+        license: 'MIT',
+        compatibilityVersion: '1.0.0',
+      },
       module: pluginModule,
       instance: null,
     });

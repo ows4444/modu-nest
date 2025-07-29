@@ -14,6 +14,11 @@
       "implementation": "./dist/executors/plugin-build",
       "schema": "./dist/executors/schema.json",
       "description": "plugin-build executor"
+    },
+    "plugin-registry-publish": {
+      "implementation": "./dist/executors/plugin-registry-publish",
+      "schema": "./dist/executors/plugin-publish-schema.json",
+      "description": "plugin-registry-publish executor"
     }
   }
 }

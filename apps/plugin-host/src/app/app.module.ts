@@ -1,12 +1,12 @@
 import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { PluginLoaderService } from './plugin-loader.service';
+import { RegistryClientService } from './registry-client.service';
 
 @Module({
   imports: [],
   controllers: [AppController],
-  providers: [AppService, PluginLoaderService],
+  providers: [PluginLoaderService, RegistryClientService],
 })
 export class AppModule implements OnModuleInit {
   private static readonly logger = new Logger(AppModule.name);
@@ -14,9 +14,7 @@ export class AppModule implements OnModuleInit {
 
   static async register(): Promise<DynamicModule> {
     this.logger.log('Registering AppModule with dynamic plugins...');
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pluginLoaderInstance = new PluginLoaderService(null as any);
+    const pluginLoaderInstance = new PluginLoaderService();
     const pluginModules = await pluginLoaderInstance.scanAndLoadAllPlugins();
 
     this.logger.log(`Found ${pluginModules.length} plugins to import`);
@@ -25,7 +23,7 @@ export class AppModule implements OnModuleInit {
       module: AppModule,
       imports: pluginModules,
       controllers: [AppController],
-      providers: [AppService, PluginLoaderService],
+      providers: [PluginLoaderService, RegistryClientService],
     };
   }
 
@@ -33,12 +31,14 @@ export class AppModule implements OnModuleInit {
 
   async onModuleInit() {
     this.instanceLogger.log('AppModule initialized - plugins should be loaded');
-    
+
     const loadedPlugins = this.pluginLoader.getLoadedPlugins();
     this.instanceLogger.log(`Active plugins: ${Array.from(loadedPlugins.keys()).join(', ')}`);
-    
+
     loadedPlugins.forEach((plugin, name) => {
-      this.instanceLogger.log(`Plugin ${name}: ${plugin.manifest.description} (v${plugin.manifest.version})`);
+      this.instanceLogger.log(
+        `Plugin ${name}: ${plugin.manifest.description || 'No description'} (v${plugin.manifest.version || '1.0.0'})`
+      );
     });
   }
 }
