@@ -16,4 +16,34 @@ export default [
       parser: await import('jsonc-eslint-parser'),
     },
   },
+  {
+    files: ['**/*.ts'],
+    ignores: ['**/*.spec.ts', '**/jest.config.ts'], // Apply only to plugin source files, exclude tests
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            // Block common external dependencies
+            '@nestjs/common',
+            '@nestjs/core',
+            '@nestjs/platform-express',
+            'express',
+            'lodash',
+            'axios',
+            'rxjs',
+          ].map((pkg) => ({
+            name: pkg,
+            message: `Import of '${pkg}' is not allowed in plugins. Only @modu-nest/plugin-types and relative imports are allowed.`,
+          })),
+          patterns: [
+            {
+              group: ['@nestjs/*'],
+              message: 'Direct NestJS imports are not allowed in plugins. Use @modu-nest/plugin-types instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]

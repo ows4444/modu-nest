@@ -1,9 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Plugin } from '@modu-nest/plugin-types';
 import { <%= className %>Service } from './<%= name %>.service';
 import { <%= className %>Controller } from './<%= name %>.controller';
 
-@Module({
-  imports: [],
+@Plugin({ 
   controllers: [<%= className %>Controller],
   providers: [<%= className %>Service],
   exports: [<%= className %>Service],

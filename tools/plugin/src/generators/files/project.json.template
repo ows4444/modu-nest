@@ -19,12 +19,24 @@
         "tsConfig": "tsconfig.lib.json"
       }
     },
+    "plugin-zip": {
+      "executor": "@modu-nest/plugin:plugin-zip",
+      "options": {
+        "inputPath": "dist",
+        "outputPath": "releases",
+        "includeSourceMaps": false
+      },
+      "dependsOn": ["plugin-build"]
+    },
     "plugin-publish": {
       "executor": "@modu-nest/plugin:plugin-publish",
       "options": {
         "outputPath": "dist",
-        "pluginsDir": "./plugins"
-      }
+        "pluginsDir": "apps/plugin-host/src/assets/plugins",
+        "useZip": true,
+        "zipPath": "releases"
+      },
+      "dependsOn": ["plugin-zip"]
     },
     "lint": {
       "executor": "@nx/eslint:lint",

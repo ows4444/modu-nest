@@ -19,6 +19,11 @@
       "implementation": "./dist/executors/plugin-registry-publish",
       "schema": "./dist/executors/plugin-publish-schema.json",
       "description": "plugin-registry-publish executor"
+    },
+    "plugin-zip": {
+      "implementation": "./dist/executors/plugin-zip",
+      "schema": "./dist/executors/plugin-zip-schema.json",
+      "description": "plugin-zip executor"
     }
   }
 }

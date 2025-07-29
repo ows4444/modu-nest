@@ -14,6 +14,21 @@
       "type": "string",
       "description": "Directory to publish plugin to",
       "default": "./plugins"
+    },
+    "useZip": {
+      "type": "boolean",
+      "description": "Use ZIP-based deployment instead of directory copying",
+      "default": true
+    },
+    "zipPath": {
+      "type": "string",
+      "description": "Directory containing ZIP packages",
+      "default": "releases"
+    },
+    "keepZipFile": {
+      "type": "boolean",
+      "description": "Keep ZIP file instead of extracting (requires plugin-loader ZIP support)",
+      "default": true
     }
   },
   "required": []

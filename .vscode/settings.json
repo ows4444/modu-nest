@@ -57,5 +57,12 @@
     "**/node_modules": true
   },
   "nxConsole.generateAiAgentRules": true,
-  "cSpell.words": ["Modu"]
+  "cSpell.words": ["Modu"],
+  "eslint.useFlatConfig": true,
+  "eslint.enable": true,
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "eslint.validate": ["typescript", "javascript"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "always"
+  }
 }

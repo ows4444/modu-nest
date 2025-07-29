@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "Plugin Zip executor",
+  "description": "Schema for plugin zip executor",
+  "type": "object",
+  "properties": {
+    "inputPath": {
+      "type": "string",
+      "description": "Input directory containing built plugin files",
+      "default": "dist"
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "Output directory for ZIP package",
+      "default": "releases"
+    },
+    "includeSourceMaps": {
+      "type": "boolean",
+      "description": "Include JavaScript source maps in the ZIP package",
+      "default": false
+    }
+  },
+  "required": []
+}

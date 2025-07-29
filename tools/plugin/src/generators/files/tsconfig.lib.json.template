@@ -12,7 +12,7 @@
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
-    "experimentalDecorators": true,                                                                                                                                                               │ │
+    "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "noFallthroughCasesInSwitch": true
   },

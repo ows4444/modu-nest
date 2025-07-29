@@ -3,5 +3,7 @@
   "version": "1.0.0",
   "description": "<%= className %> plugin for modu-nest",
   "main": "src/index.ts",
-  "scripts": { }
+  "dependencies": {
+    "@modu-nest/plugin-types": "0.0.1"
+  }
 }

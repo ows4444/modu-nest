@@ -2,7 +2,7 @@ import { Module, ModuleMetadata } from '@nestjs/common';
 import 'reflect-metadata';
 
 export interface PluginModuleOptions {
-  name: string;
+  name?: string;
   version?: string;
   description?: string;
   isolated?: boolean;

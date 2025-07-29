@@ -27,6 +27,16 @@
       "type": "boolean",
       "description": "Validate plugin manifest during build",
       "default": true
+    },
+    "production": {
+      "type": "boolean",
+      "description": "Build in production mode with optimizations",
+      "default": false
+    },
+    "minify": {
+      "type": "boolean",
+      "description": "Minify JavaScript output (requires production mode)",
+      "default": false
     }
   },
   "required": []
