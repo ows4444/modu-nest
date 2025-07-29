@@ -1,4 +1,4 @@
-import { Injectable, Logger, DynamicModule } from '@nestjs/common';
+import { Injectable, Logger, DynamicModule, Type } from '@nestjs/common';
 import 'reflect-metadata';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -79,7 +79,7 @@ export class PluginLoaderService {
     pluginModule: Record<string, unknown>
   ): Promise<DynamicModule | null> {
     try {
-      const entryPointClass = pluginModule[manifest.entryPoint];
+      const entryPointClass = pluginModule[manifest.entryPoint] as DynamicModule['module'];
 
       if (!entryPointClass) {
         this.logger.error(`Entry point ${manifest.entryPoint} not found in plugin ${manifest.name}`);
@@ -105,7 +105,7 @@ export class PluginLoaderService {
       });
 
       const dynamicModule: DynamicModule = {
-        module: entryPointClass as any,
+        module: entryPointClass,
         controllers,
         providers,
         exports,

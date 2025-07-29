@@ -1,9 +1,16 @@
 const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
-const { join } = require('path');
+const path = require('path');
 
 module.exports = {
   output: {
-    path: join(__dirname, 'dist'),
+    devtoolModuleFilenameTemplate(info) {
+      const { absoluteResourcePath, namespace, resourcePath } = info;
+      if (path.isAbsolute(absoluteResourcePath)) {
+        return path.relative(path.join(__dirname, 'dist'), absoluteResourcePath);
+      }
+      return `webpack://${namespace}/${resourcePath}`;
+    },
+    path: path.join(__dirname, 'dist'),
   },
   plugins: [
     new NxAppWebpackPlugin({
@@ -15,21 +22,7 @@ module.exports = {
       optimization: false,
       outputHashing: 'none',
       generatePackageJson: true,
+      sourceMap: true,
     }),
   ],
-  resolve: {
-    fallback: {
-      fs: false,
-      path: false,
-    },
-  },
-  externals: {
-    // Mark dynamic plugin paths as external to avoid bundling warnings
-    plugins: 'commonjs2 plugins',
-  },
-  module: {
-    unknownContextCritical: false,
-    unknownContextRegExp: /assets\/plugins/,
-    unknownContextRequest: '.',
-  },
 };
