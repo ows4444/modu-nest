@@ -39,7 +39,7 @@ export const PLUGIN_METADATA_KEY = 'plugin:metadata';
 export const PLUGIN_ROUTE_PREFIX_KEY = 'plugin:route-prefix';
 export const PLUGIN_PERMISSIONS_KEY = 'plugin:permissions';
 
-export function PluginMetadata(metadata: Record<string, unknown>): ClassDecorator {
+export function PluginMetadataDecorator(metadata: Record<string, unknown>): ClassDecorator {
   return SetMetadata(PLUGIN_METADATA_KEY, metadata);
 }
 
@@ -51,6 +51,6 @@ export function PluginPermissions(permissions: string[]): MethodDecorator {
   return SetMetadata(PLUGIN_PERMISSIONS_KEY, permissions);
 }
 
-export function PluginLifecycleHook(hook: string): MethodDecorator {
+export function PluginLifecycleHookDecorator(hook: string): MethodDecorator {
   return SetMetadata(`plugin:hook:${hook}`, true);
 }

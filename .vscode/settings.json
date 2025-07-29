@@ -55,5 +55,6 @@
     // "**/dist": true,
     "**/out-tsc": true,
     "**/node_modules": true
-  }
+  },
+  "nxConsole.generateAiAgentRules": true
 }
