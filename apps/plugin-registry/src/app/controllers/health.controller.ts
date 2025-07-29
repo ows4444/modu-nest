@@ -1,12 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
 import { PluginRegistryService } from '../services/plugin-registry.service';
+import type { HealthResponse, RootResponse, RegistryStats } from '@modu-nest/plugin-types';
 
 @Controller()
 export class HealthController {
   constructor(private readonly pluginRegistryService: PluginRegistryService) {}
 
   @Get('health')
-  getHealth(): { status: string; timestamp: string } {
+  getHealth(): HealthResponse {
     return {
       status: 'ok',
       timestamp: new Date().toISOString()
@@ -14,12 +15,12 @@ export class HealthController {
   }
 
   @Get('stats')
-  async getStats() {
+  async getStats(): Promise<RegistryStats> {
     return this.pluginRegistryService.getRegistryStats();
   }
 
   @Get()
-  getRoot(): { message: string; version: string } {
+  getRoot(): RootResponse {
     return {
       message: 'Plugin Registry API',
       version: '1.0.0'

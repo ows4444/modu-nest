@@ -18,7 +18,6 @@ export class ErrorHandlingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       catchError((error) => {
         const request = context.switchToHttp().getRequest();
-        const response = context.switchToHttp().getResponse();
 
         // Log the error with context
         this.logger.error(

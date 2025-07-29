@@ -1,9 +1,9 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import JSZip from 'jszip';
-import { PluginMetadata, PluginValidator, PluginValidationResult } from '@modu-nest/plugin-types';
+import { PluginValidator, PluginResponseDto } from '@modu-nest/plugin-types';
+import type { PluginMetadata, CreatePluginDto, RegistryStats, PluginListResponseDto } from '@modu-nest/plugin-types';
 import { PluginStorageService } from './plugin-storage.service';
-import { CreatePluginDto, PluginResponseDto } from '../dto/plugin.dto';
 
 @Injectable()
 export class PluginRegistryService {
@@ -42,12 +42,15 @@ export class PluginRegistryService {
     await this.validatePluginStructure(pluginBuffer);
 
     // Create metadata
-    const checksum = crypto.createHash('sha256').update(pluginBuffer as any).digest('hex');
+    const checksum = crypto
+      .createHash('sha256')
+      .update(pluginBuffer as any)
+      .digest('hex');
     const metadata: PluginMetadata = {
       ...extractedManifest,
       uploadedAt: new Date().toISOString(),
       fileSize: pluginBuffer.length,
-      checksum
+      checksum,
     };
 
     // Store plugin
@@ -61,12 +64,10 @@ export class PluginRegistryService {
     try {
       const zip = new JSZip();
       const contents = await zip.loadAsync(pluginBuffer.buffer as ArrayBuffer);
-      
       const manifestFile = contents.file('plugin.manifest.json');
       if (!manifestFile) {
         throw new BadRequestException('Plugin manifest not found in uploaded file');
       }
-      
       const manifestContent = await manifestFile.async('text');
       return JSON.parse(manifestContent);
     } catch (error) {
@@ -79,10 +80,8 @@ export class PluginRegistryService {
     try {
       const zip = new JSZip();
       const contents = await zip.loadAsync(pluginBuffer.buffer as ArrayBuffer);
-      
       const files = Object.keys(contents.files);
       const validationResult = PluginValidator.validatePluginStructure(files);
-      
       if (!validationResult.isValid) {
         throw new BadRequestException(`Invalid plugin structure: ${validationResult.errors.join(', ')}`);
       }
@@ -96,16 +95,11 @@ export class PluginRegistryService {
     }
   }
 
-  async listPlugins(page?: number, limit?: number): Promise<{
-    plugins: PluginResponseDto[];
-    total: number;
-    page?: number;
-    limit?: number;
-  }> {
+  async listPlugins(page?: number, limit?: number): Promise<PluginListResponseDto> {
     const allPlugins = await this.storageService.getAllPlugins();
     const total = allPlugins.length;
 
-    let plugins = allPlugins.map(p => this.mapToResponseDto(p.metadata));
+    let plugins = allPlugins.map((p) => this.mapToResponseDto(p.metadata));
 
     // Apply pagination if specified
     if (page !== undefined && limit !== undefined) {
@@ -117,7 +111,7 @@ export class PluginRegistryService {
       plugins,
       total,
       ...(page !== undefined && { page }),
-      ...(limit !== undefined && { limit })
+      ...(limit !== undefined && { limit }),
     };
   }
 
@@ -140,10 +134,9 @@ export class PluginRegistryService {
     }
 
     const buffer = await this.storageService.getPluginBuffer(name);
-    
     return {
       buffer,
-      metadata: plugin.metadata
+      metadata: plugin.metadata,
     };
   }
 
@@ -157,17 +150,11 @@ export class PluginRegistryService {
     this.logger.log(`Plugin ${name} deleted successfully`);
   }
 
-  async getRegistryStats(): Promise<{
-    totalPlugins: number;
-    totalSize: number;
-    storageLocation: string;
-    uptime: string;
-  }> {
+  async getRegistryStats(): Promise<RegistryStats> {
     const stats = this.storageService.getStorageStats();
-    
     return {
       ...stats,
-      uptime: process.uptime().toString()
+      uptime: process.uptime().toString(),
     };
   }
 
@@ -186,7 +173,7 @@ export class PluginRegistryService {
       configuration: metadata.configuration,
       uploadedAt: metadata.uploadedAt,
       fileSize: metadata.fileSize,
-      checksum: metadata.checksum
+      checksum: metadata.checksum,
     };
   }
 }

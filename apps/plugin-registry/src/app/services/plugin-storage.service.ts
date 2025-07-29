@@ -2,17 +2,12 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
-import { PluginMetadata, PluginPackage } from '@modu-nest/plugin-types';
+import { StorageConfig } from '@modu-nest/plugin-types';
+import type { PluginMetadata, PluginPackage, StorageStats } from '@modu-nest/plugin-types';
 
 const writeFile = promisify(fs.writeFile);
 const readFile = promisify(fs.readFile);
 const mkdir = promisify(fs.mkdir);
-
-export interface StorageConfig {
-  pluginsDir: string;
-  metadataFile: string;
-  maxFileSize: number;
-}
 
 @Injectable()
 export class PluginStorageService implements OnModuleInit {
@@ -95,7 +90,7 @@ export class PluginStorageService implements OnModuleInit {
       this.logger.log(`Plugin ${metadata.name} v${metadata.version} stored successfully`);
     } catch (error) {
       this.logger.error(`Failed to store plugin ${metadata.name}:`, error);
-      throw new Error(`Plugin storage failed: ${error.message}`);
+      throw new Error(`Plugin storage failed: ${(error as Error).message}`);
     }
   }
 
@@ -122,7 +117,7 @@ export class PluginStorageService implements OnModuleInit {
       return await readFile(fullPath);
     } catch (error) {
       this.logger.error(`Failed to read plugin file ${name}:`, error);
-      throw new Error(`Failed to read plugin file: ${error.message}`);
+      throw new Error(`Failed to read plugin file: ${(error as Error).message}`);
     }
   }
 
@@ -145,7 +140,7 @@ export class PluginStorageService implements OnModuleInit {
       this.logger.log(`Plugin ${name} deleted successfully`);
     } catch (error) {
       this.logger.error(`Failed to delete plugin ${name}:`, error);
-      throw new Error(`Plugin deletion failed: ${error.message}`);
+      throw new Error(`Plugin deletion failed: ${(error as Error).message}`);
     }
   }
 
@@ -156,7 +151,7 @@ export class PluginStorageService implements OnModuleInit {
     return true;
   }
 
-  getStorageStats(): { totalPlugins: number; totalSize: number; storageLocation: string } {
+  getStorageStats(): StorageStats {
     let totalSize = 0;
     for (const plugin of this.plugins.values()) {
       totalSize += plugin.metadata.fileSize;

@@ -21,10 +21,7 @@ export {
   PluginMetadataDecorator,
   PluginRoutePrefix,
   PluginPermissions,
-  PluginLifecycleHookDecorator,
-  // Backward-compatible aliases
-  PluginMetadataDecorator as PluginMetadata,
-  PluginLifecycleHookDecorator as PluginLifecycleHook
+  PluginLifecycleHookDecorator
 } from './lib/plugin-decorators';
 
 // Plugin validation utilities
@@ -41,3 +38,6 @@ export * from './lib/plugin-configuration';
 
 // Plugin environment configuration
 export * from './lib/plugin-environment';
+
+// Plugin registry specific types and DTOs
+export * from './lib/plugin-registry-types';

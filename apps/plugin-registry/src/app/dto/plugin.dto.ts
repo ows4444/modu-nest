@@ -1,39 +1,40 @@
 import { IsString, IsOptional, IsArray, IsNumber, IsObject, Matches, MinLength, MaxLength } from 'class-validator';
-import { PluginManifest } from '@modu-nest/plugin-types';
+import { CREATE_PLUGIN_VALIDATION } from '@modu-nest/plugin-types';
+import type { CreatePluginDto } from '@modu-nest/plugin-types';
 
-export class CreatePluginDto implements Omit<PluginManifest, 'uploadedAt' | 'fileSize' | 'checksum'> {
+export class CreatePluginValidationDto implements CreatePluginDto {
   @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  @Matches(/^[a-z0-9-_]+$/, {
-    message: 'Plugin name must contain only lowercase letters, numbers, hyphens, and underscores',
+  @MinLength(CREATE_PLUGIN_VALIDATION.name.find(r => r.minLength)?.minLength || 2)
+  @MaxLength(CREATE_PLUGIN_VALIDATION.name.find(r => r.maxLength)?.maxLength || 50)
+  @Matches(CREATE_PLUGIN_VALIDATION.name.find(r => r.pattern)?.pattern || /^[a-z0-9-_]+$/, {
+    message: CREATE_PLUGIN_VALIDATION.name.find(r => r.message)?.message || 'Invalid name format',
   })
   name!: string;
 
   @IsString()
-  @Matches(/^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/, {
-    message: 'Version must follow semantic versioning (e.g., 1.0.0)',
+  @Matches(CREATE_PLUGIN_VALIDATION.version.find(r => r.pattern)?.pattern || /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/, {
+    message: CREATE_PLUGIN_VALIDATION.version.find(r => r.message)?.message || 'Invalid version format',
   })
   version!: string;
 
   @IsString()
-  @MinLength(10)
-  @MaxLength(500)
+  @MinLength(CREATE_PLUGIN_VALIDATION.description.find(r => r.minLength)?.minLength || 10)
+  @MaxLength(CREATE_PLUGIN_VALIDATION.description.find(r => r.maxLength)?.maxLength || 500)
   description!: string;
 
   @IsString()
-  @MinLength(2)
-  @MaxLength(100)
+  @MinLength(CREATE_PLUGIN_VALIDATION.author.find(r => r.minLength)?.minLength || 2)
+  @MaxLength(CREATE_PLUGIN_VALIDATION.author.find(r => r.maxLength)?.maxLength || 100)
   author!: string;
 
   @IsString()
-  @MinLength(2)
-  @MaxLength(50)
+  @MinLength(CREATE_PLUGIN_VALIDATION.license.find(r => r.minLength)?.minLength || 2)
+  @MaxLength(CREATE_PLUGIN_VALIDATION.license.find(r => r.maxLength)?.maxLength || 50)
   license!: string;
 
   @IsString()
-  @Matches(/^[A-Z][a-zA-Z0-9]*$/, {
-    message: 'Entry point should be a valid class name (PascalCase)',
+  @Matches(CREATE_PLUGIN_VALIDATION.entryPoint.find(r => r.pattern)?.pattern || /^[A-Z][a-zA-Z0-9]*$/, {
+    message: CREATE_PLUGIN_VALIDATION.entryPoint.find(r => r.message)?.message || 'Invalid entry point format',
   })
   entryPoint!: string;
 
@@ -47,8 +48,8 @@ export class CreatePluginDto implements Omit<PluginManifest, 'uploadedAt' | 'fil
   loadOrder?: number;
 
   @IsString()
-  @Matches(/^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/, {
-    message: 'Compatibility version must follow semantic versioning (e.g., 1.0.0)',
+  @Matches(CREATE_PLUGIN_VALIDATION.compatibilityVersion.find(r => r.pattern)?.pattern || /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/, {
+    message: CREATE_PLUGIN_VALIDATION.compatibilityVersion.find(r => r.message)?.message || 'Invalid compatibility version format',
   })
   compatibilityVersion!: string;
 
@@ -62,35 +63,4 @@ export class CreatePluginDto implements Omit<PluginManifest, 'uploadedAt' | 'fil
   configuration?: {
     schema: Record<string, unknown>;
   };
-}
-
-export class PluginResponseDto {
-  name!: string;
-  version!: string;
-  description!: string;
-  author!: string;
-  license!: string;
-  entryPoint!: string;
-  dependencies?: string[];
-  loadOrder?: number;
-  compatibilityVersion!: string;
-  routes?: string[];
-  configuration?: {
-    schema: Record<string, unknown>;
-  };
-  uploadedAt!: string;
-  fileSize!: number;
-  checksum!: string;
-}
-
-export class PluginListResponseDto {
-  plugins!: PluginResponseDto[];
-  total!: number;
-  page?: number;
-  limit?: number;
-}
-
-export class PluginDeleteResponseDto {
-  message!: string;
-  deletedPlugin!: string;
 }

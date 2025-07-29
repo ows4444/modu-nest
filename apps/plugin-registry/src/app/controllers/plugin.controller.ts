@@ -18,7 +18,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { PluginRegistryService } from '../services/plugin-registry.service';
-import { CreatePluginDto, PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '../dto/plugin.dto';
+import { CreatePluginValidationDto } from '../dto/plugin.dto';
+import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
 
 @Controller('plugins')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -29,7 +30,7 @@ export class PluginController {
   @UseInterceptors(FileInterceptor('plugin'))
   async uploadPlugin(
     @UploadedFile() file: any,
-    @Body() manifest?: CreatePluginDto
+    @Body() manifest?: CreatePluginValidationDto
   ): Promise<PluginResponseDto> {
     if (!file) {
       throw new BadRequestException('No plugin file provided');
