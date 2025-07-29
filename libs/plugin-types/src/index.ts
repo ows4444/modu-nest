@@ -1,12 +1,12 @@
 // Core plugin interfaces and types
 export * from './lib/plugin-interfaces';
 
-// Plugin module and controller decorators  
+// Plugin module and controller decorators
 export * from './lib/plugin-types.module';
 export * from './lib/plugin-types.controller';
 
 // Plugin decorators for controllers and methods
-export { 
+export {
   PluginGet,
   PluginPost,
   PluginPut,
@@ -21,7 +21,7 @@ export {
   PluginMetadataDecorator,
   PluginRoutePrefix,
   PluginPermissions,
-  PluginLifecycleHookDecorator
+  PluginLifecycleHookDecorator,
 } from './lib/plugin-decorators';
 
 // Plugin validation utilities
