@@ -14,13 +14,14 @@ export class PluginLoaderService {
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
-    this.logger.log('Scanning assets/plugins folder for available plugins...');
-    const pluginsPath = path.resolve(__dirname, 'assets', 'plugins');
+    this.logger.log('Scanning plugins folder for available plugins...');
+    const pluginsPath = process.env.PLUGINS_DIR || path.resolve(__dirname, 'assets', 'plugins');
     const dynamicModules: DynamicModule[] = [];
 
     try {
       if (!fs.existsSync(pluginsPath)) {
         this.logger.warn(`Plugins directory not found: ${pluginsPath}`);
+        this.logger.debug(`Expected path: ${pluginsPath}`);
         return dynamicModules;
       }
 
@@ -34,22 +35,31 @@ export class PluginLoaderService {
       for (const pluginDir of pluginDirs) {
         try {
           const pluginPath = path.join(pluginsPath, pluginDir);
-          const distPath = path.join(pluginPath, 'dist');
           const manifestPath = path.join(pluginPath, 'plugin.manifest.json');
+          const indexPath = path.join(pluginPath, 'index.js');
 
-          if (!fs.existsSync(distPath) || !fs.existsSync(manifestPath)) {
-            this.logger.warn(`Skipping ${pluginDir}: missing dist folder or manifest`);
+          // Check for required files
+          if (!fs.existsSync(manifestPath)) {
+            this.logger.warn(`Skipping ${pluginDir}: missing manifest file`);
             continue;
           }
-
-          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-          const indexPath = path.join(distPath, 'index.js');
 
           if (!fs.existsSync(indexPath)) {
-            this.logger.warn(`Skipping ${pluginDir}: missing index.js in dist`);
+            this.logger.warn(`Skipping ${pluginDir}: missing index.js file`);
             continue;
           }
 
+          // Load and validate manifest
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PluginManifest;
+
+          if (!manifest.name || !manifest.entryPoint) {
+            this.logger.warn(`Skipping ${pluginDir}: invalid manifest - missing name or entryPoint`);
+            continue;
+          }
+
+          this.logger.debug(`Loading plugin: ${manifest.name} (entry: ${manifest.entryPoint})`);
+
+          // Import plugin module
           const pluginModule = await import(/* webpackIgnore: true */ indexPath);
           const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
 
@@ -60,6 +70,7 @@ export class PluginLoaderService {
               module: dynamicModule,
               instance: pluginModule,
             });
+            this.logger.log(`✓ Successfully loaded plugin: ${manifest.name} v${manifest.version}`);
           }
         } catch (error) {
           this.logger.error(`Failed to load plugin ${pluginDir}:`, error);
@@ -79,41 +90,41 @@ export class PluginLoaderService {
     pluginModule: Record<string, unknown>
   ): Promise<DynamicModule | null> {
     try {
-      const entryPointClass = pluginModule[manifest.entryPoint] as DynamicModule['module'];
+      // Convert plugin name to PascalCase (e.g., 'x-test-plugin' -> 'XTestPlugin')
+      const name = manifest.name
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('');
 
-      if (!entryPointClass) {
-        this.logger.error(`Entry point ${manifest.entryPoint} not found in plugin ${manifest.name}`);
+      this.logger.debug(`Looking for plugin components with base name: ${name}`);
+      this.logger.debug(`Available exports: ${Object.keys(pluginModule).join(', ')}`);
+
+      // Try to find the module, service, and controller
+      const PluginModule = pluginModule[name + 'Module'];
+      const PluginService = pluginModule[name + 'Service'];
+      const PluginController = pluginModule[name + 'Controller'];
+
+      if (!PluginModule) {
+        this.logger.error(`No module found for ${manifest.name}. Expected: ${name}Module`);
         return null;
       }
 
-      const controllers: DynamicModule['controllers'] = [];
-      const providers: DynamicModule['providers'] = [];
-      const exports: DynamicModule['exports'] = [];
-
-      Object.keys(pluginModule).forEach((key) => {
-        const exportedItem = pluginModule[key];
-        if (typeof exportedItem === 'function') {
-          if (key.toLowerCase().includes('controller')) {
-            controllers.push(exportedItem as any);
-            this.logger.log(`Found controller: ${key}`);
-          } else if (key.toLowerCase().includes('service')) {
-            providers.push(exportedItem as any);
-            exports.push(exportedItem as any);
-            this.logger.log(`Found service: ${key}`);
-          }
-        }
-      });
+      // Build the dynamic module components
+      const controllers = PluginController ? [PluginController] : [];
+      const providers = PluginService ? [PluginService] : [];
+      const exports = PluginService ? [PluginService] : [];
 
       const dynamicModule: DynamicModule = {
-        module: entryPointClass,
-        controllers,
-        providers,
-        exports,
+        module: PluginModule as any,
+        controllers: controllers as any[],
+        providers: providers as any[],
+        exports: exports as any[],
       };
 
       this.logger.log(
-        `Created dynamic module for ${manifest.name} with ${controllers.length} controllers and ${providers.length} providers`
+        `✓ Created dynamic module for ${manifest.name} with ${controllers.length} controllers and ${providers.length} providers`
       );
+      
       return dynamicModule;
     } catch (error) {
       this.logger.error(`Failed to create dynamic module for ${manifest.name}:`, error);
@@ -121,73 +132,41 @@ export class PluginLoaderService {
     }
   }
 
-  async loadAndRegisterPluginModule(pluginName: string, pluginModule: Record<string, unknown>): Promise<void> {
-    this.logger.log(`Loading and registering plugin module: ${pluginName}`);
-
-    try {
-      // Get the main plugin class (assuming it's exported as MyPlugin)
-      const PluginClass = pluginModule.MyPlugin;
-
-      if (!PluginClass) {
-        throw new Error(`Plugin class not found in module: ${pluginName}`);
-      }
-
-      // Log what's available in the plugin module
-      this.logger.log(`Available exports: ${Object.keys(pluginModule)}`);
-      this.logger.log(`Plugin class: ${(PluginClass as any).name}`);
-
-      // Get the controller and service from exports
-      const MyPluginController = pluginModule.MyPluginController;
-      const MyPluginService = pluginModule.MyPluginService;
-
-      // Create a dynamic module from the plugin exports
-      const dynamicModule: DynamicModule = {
-        module: PluginClass as any,
-        controllers: MyPluginController ? [MyPluginController as any] : [],
-        providers: MyPluginService ? [MyPluginService as any] : [],
-        exports: MyPluginService ? [MyPluginService as any] : [],
-      };
-
-      this.loadedPlugins.set(pluginName, {
-        manifest: {
-          name: pluginName,
-          entryPoint: 'MyPlugin',
-          version: '1.0.0',
-          description: 'Dynamic plugin',
-          author: 'Unknown',
-          license: 'MIT',
-          compatibilityVersion: '1.0.0',
-        },
-        module: dynamicModule,
-        instance: PluginClass,
-      });
-
-      this.logger.log(`Successfully loaded plugin module: ${pluginName}`);
-      this.logger.log(`Plugin controllers: ${dynamicModule.controllers?.length || 0}`);
-      this.logger.log(`Plugin providers: ${dynamicModule.providers?.length || 0}`);
-    } catch (error) {
-      this.logger.error(`Failed to load plugin module ${pluginName}:`, error);
-      throw error;
-    }
+  /**
+   * Reloads all plugins from the plugins directory
+   * Useful for hot-reloading plugins in development
+   */
+  async reloadPlugins(): Promise<DynamicModule[]> {
+    this.logger.log('Reloading all plugins...');
+    this.loadedPlugins.clear();
+    return this.scanAndLoadAllPlugins();
   }
 
-  registerPlugin(pluginName: string, pluginModule: unknown): void {
-    this.logger.log(`Registering plugin: ${pluginName}`);
+  /**
+   * Gets a specific loaded plugin by name
+   */
+  getPlugin(name: string): LoadedPlugin | undefined {
+    return this.loadedPlugins.get(name);
+  }
 
-    this.loadedPlugins.set(pluginName, {
-      manifest: {
-        name: pluginName,
-        entryPoint: 'MyPlugin',
-        version: '1.0.0',
-        description: 'Dynamic plugin',
-        author: 'Unknown',
-        license: 'MIT',
-        compatibilityVersion: '1.0.0',
-      },
-      module: pluginModule,
-      instance: null,
-    });
-
-    this.logger.log(`Successfully registered plugin: ${pluginName}`);
+  /**
+   * Gets plugin statistics
+   */
+  getPluginStats() {
+    const plugins = Array.from(this.loadedPlugins.values());
+    return {
+      totalLoaded: plugins.length,
+      pluginNames: Array.from(this.loadedPlugins.keys()),
+      byVersion: plugins.reduce((acc, plugin) => {
+        const version = plugin.manifest.version || 'unknown';
+        acc[version] = (acc[version] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      byAuthor: plugins.reduce((acc, plugin) => {
+        const author = plugin.manifest.author || 'unknown';
+        acc[author] = (acc[author] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+    };
   }
 }

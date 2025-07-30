@@ -10,7 +10,8 @@ import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
 
 async function Bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+  const dynamicAppModule = await AppModule.register();
+  const app = await NestFactory.create<NestExpressApplication>(dynamicAppModule, {
     bufferLogs: true,
   });
   const logger = new Logger(Bootstrap.name);

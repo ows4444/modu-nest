@@ -21,10 +21,6 @@ export function Plugin({
   ...options
 }: PluginModuleOptions): ClassDecorator {
   return (target: Function) => {
-    if (!options.name) {
-      throw new Error('Plugin name is required');
-    }
-
     const moduleMetadata: ModuleMetadata = {
       providers,
       controllers,

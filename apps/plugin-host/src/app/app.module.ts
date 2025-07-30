@@ -21,17 +21,33 @@ export class AppModule implements OnModuleInit {
   private readonly instanceLogger = new Logger(AppModule.name);
 
   static async register(): Promise<DynamicModule> {
-    this.logger.log('Registering AppModule with dynamic plugins...');
+    this.logger.debug('Registering AppModule with dynamic plugins...');
     const pluginLoaderInstance = new PluginLoaderService();
     const pluginModules = await pluginLoaderInstance.scanAndLoadAllPlugins();
 
     this.logger.log(`Found ${pluginModules.length} plugins to import`);
 
+    // Add shared configuration module
+    const baseImports = [
+      SharedConfigModule.forRoot({
+        isGlobal: true,
+        expandVariables: true,
+        envFilePath: [__dirname],
+        load: [],
+      }),
+    ];
+
     return {
       module: AppModule,
-      imports: pluginModules,
+      imports: [...baseImports, ...pluginModules],
       controllers: [AppController],
-      providers: [PluginLoaderService, RegistryClientService],
+      providers: [
+        {
+          provide: PluginLoaderService,
+          useValue: pluginLoaderInstance, // Use the same instance that loaded the plugins
+        },
+        RegistryClientService
+      ],
     };
   }
 

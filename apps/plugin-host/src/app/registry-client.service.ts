@@ -137,7 +137,7 @@ export class RegistryClientService {
 
     try {
       this.logger.log(`Downloading plugin ${name} from registry...`);
-      
+
       // Get plugin info first
       const pluginInfo = await this.httpClient.get(`/api/plugins/${name}`);
       this.logger.debug(`Plugin info: ${pluginInfo.data.name} v${pluginInfo.data.version}`);
@@ -147,8 +147,8 @@ export class RegistryClientService {
         responseType: 'arraybuffer',
         headers: {
           'Content-Type': undefined,
-          'Accept': 'application/zip, application/octet-stream, */*'
-        }
+          Accept: 'application/zip, application/octet-stream, */*',
+        },
       });
 
       const pluginBuffer = Buffer.from(response.data);
@@ -221,14 +221,14 @@ export class RegistryClientService {
 
   private async validatePluginInstallation(pluginDir: string, pluginName: string): Promise<void> {
     const manifestPath = path.join(pluginDir, 'plugin.manifest.json');
-    const indexPath = path.join(pluginDir, 'dist', 'index.js');
+    const indexPath = path.join(pluginDir, 'index.js');
 
     if (!fs.existsSync(manifestPath)) {
       throw new Error('Plugin manifest not found after installation');
     }
 
     if (!fs.existsSync(indexPath)) {
-      throw new Error('Plugin entry point not found after installation');
+      throw new Error('Plugin entry point (index.js) not found after installation');
     }
 
     // Validate manifest content
