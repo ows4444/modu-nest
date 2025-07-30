@@ -91,7 +91,7 @@ export class RegistryClientService {
   async listAvailablePlugins(): Promise<RegistryPluginMetadata[]> {
     try {
       this.logger.debug('Fetching available plugins from registry');
-      const response = await this.httpClient.get<RegistryPluginMetadata[]>('/plugins');
+      const response = await this.httpClient.get<RegistryPluginMetadata[]>('/api/plugins');
       this.logger.log(`Found ${response.data.length} plugins in registry`);
       return response.data;
     } catch (error) {
@@ -107,7 +107,7 @@ export class RegistryClientService {
 
     try {
       this.logger.debug(`Fetching plugin info for: ${name}`);
-      const response = await this.httpClient.get<RegistryPluginMetadata>(`/plugins/${name}`);
+      const response = await this.httpClient.get<RegistryPluginMetadata>(`/api/plugins/${name}`);
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -137,12 +137,22 @@ export class RegistryClientService {
 
     try {
       this.logger.log(`Downloading plugin ${name} from registry...`);
+      
+      // Get plugin info first
+      const pluginInfo = await this.httpClient.get(`/api/plugins/${name}`);
+      this.logger.debug(`Plugin info: ${pluginInfo.data.name} v${pluginInfo.data.version}`);
 
-      const response = await this.httpClient.get(`/plugins/${name}/download`, {
+      // Download the plugin file
+      const response = await this.httpClient.get(`/api/plugins/${name}/download`, {
         responseType: 'arraybuffer',
+        headers: {
+          'Content-Type': undefined,
+          'Accept': 'application/zip, application/octet-stream, */*'
+        }
       });
 
-      const pluginBuffer = Buffer.from(response.data as ArrayBuffer);
+      const pluginBuffer = Buffer.from(response.data);
+      this.logger.debug(`Downloaded ${pluginBuffer.length} bytes`);
 
       await this.extractPluginToDirectory(pluginBuffer, pluginDir, name);
 
@@ -292,7 +302,7 @@ export class RegistryClientService {
         contentType: 'application/zip',
       });
 
-      const response = await this.httpClient.post<RegistryPluginMetadata>('/plugins/upload', formData, {
+      const response = await this.httpClient.post<RegistryPluginMetadata>('/api/plugins', formData, {
         headers: {
           ...formData.getHeaders(),
         },
@@ -320,7 +330,7 @@ export class RegistryClientService {
 
   async isRegistryAvailable(): Promise<boolean> {
     try {
-      await this.httpClient.get('/');
+      await this.httpClient.get('/api/health');
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

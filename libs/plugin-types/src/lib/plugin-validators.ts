@@ -74,7 +74,7 @@ export class PluginValidator {
     const warnings: string[] = [];
 
     // Check for required files
-    const requiredFiles = ['plugin.manifest.json', 'dist/index.js'];
+    const requiredFiles = ['plugin.manifest.json', 'index.js'];
     for (const file of requiredFiles) {
       if (!files.includes(file)) {
         errors.push(`Missing required file: ${file}`);

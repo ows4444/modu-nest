@@ -2,9 +2,17 @@ import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService } from './registry-client.service';
+import { SharedConfigModule } from '@modu-nest/config';
 
 @Module({
-  imports: [],
+  imports: [
+    SharedConfigModule.forRoot({
+      isGlobal: true,
+      expandVariables: true,
+      envFilePath: [__dirname],
+      load: [],
+    }),
+  ],
   controllers: [AppController],
   providers: [PluginLoaderService, RegistryClientService],
 })

@@ -2,8 +2,11 @@ import { Injectable, Logger, NotFoundException, ConflictException, BadRequestExc
 import crypto from 'crypto';
 import JSZip from 'jszip';
 import { PluginValidator, PluginResponseDto } from '@modu-nest/plugin-types';
-import type { PluginMetadata, CreatePluginDto, RegistryStats, PluginListResponseDto } from '@modu-nest/plugin-types';
+import { PluginMetadata, CreatePluginDto, RegistryStats, PluginListResponseDto } from '@modu-nest/plugin-types';
 import { PluginStorageService } from './plugin-storage.service';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
+import { CreatePluginValidationDto } from '../dto/plugin.dto';
 
 @Injectable()
 export class PluginRegistryService {
@@ -11,13 +14,17 @@ export class PluginRegistryService {
 
   constructor(private readonly storageService: PluginStorageService) {}
 
-  async uploadPlugin(pluginBuffer: Buffer, manifest?: CreatePluginDto): Promise<PluginMetadata> {
-    let extractedManifest: CreatePluginDto;
+  async uploadPlugin(pluginBuffer: Buffer): Promise<PluginMetadata> {
+    const extractedManifest: CreatePluginDto = await this.extractManifestFromZip(pluginBuffer);
 
-    if (manifest) {
-      extractedManifest = manifest;
-    } else {
-      extractedManifest = await this.extractManifestFromZip(pluginBuffer);
+    // Validate manifest with class-validator
+    const validationErrors = await validate(plainToInstance(CreatePluginValidationDto, extractedManifest));
+    if (validationErrors.length > 0) {
+      const errorMessages = validationErrors
+        .map((error) => Object.values(error.constraints || {}))
+        .flat()
+        .join(', ');
+      throw new BadRequestException(`Invalid plugin manifest: ${errorMessages}`);
     }
 
     // Validate manifest
@@ -42,10 +49,7 @@ export class PluginRegistryService {
     await this.validatePluginStructure(pluginBuffer);
 
     // Create metadata
-    const checksum = crypto
-      .createHash('sha256')
-      .update(pluginBuffer as any)
-      .digest('hex');
+    const checksum = crypto.createHash('sha256').update(new Uint8Array(pluginBuffer)).digest('hex');
     const metadata: PluginMetadata = {
       ...extractedManifest,
       uploadedAt: new Date().toISOString(),

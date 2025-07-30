@@ -12,14 +12,15 @@ import {
   Query,
   ParseIntPipe,
   ValidationPipe,
-  Body,
   UsePipes,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
+import type { Express } from 'express';
+import 'multer';
 import { PluginRegistryService } from '../services/plugin-registry.service';
-import { CreatePluginValidationDto } from '../dto/plugin.dto';
 import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 
 @Controller('plugins')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -28,15 +29,24 @@ export class PluginController {
 
   @Post()
   @UseInterceptors(FileInterceptor('plugin'))
-  async uploadPlugin(
-    @UploadedFile() file: any,
-    @Body() manifest?: CreatePluginValidationDto
-  ): Promise<PluginResponseDto> {
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        plugin: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async uploadPlugin(@UploadedFile() file: Express.Multer.File): Promise<PluginResponseDto> {
     if (!file) {
       throw new BadRequestException('No plugin file provided');
     }
 
-    const result = await this.pluginRegistryService.uploadPlugin(file.buffer, manifest);
+    const result = await this.pluginRegistryService.uploadPlugin(file.buffer);
     return result as PluginResponseDto;
   }
 
