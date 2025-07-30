@@ -17,13 +17,7 @@ export default [
     },
   },
   {
-    files: [
-      '**/package.json',
-      '**/generators.json',
-      '**/package.json',
-      '**/generators.json',
-      '**/executors.json',
-    ],
+    files: ['**/package.json', '**/generators.json', '**/package.json', '**/generators.json', '**/executors.json'],
     rules: {
       '@nx/nx-plugin-checks': 'error',
     },

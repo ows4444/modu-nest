@@ -1,11 +1,11 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
+import {
+  Controller,
+  Get,
+  Post,
   Delete,
-  Param, 
-  UploadedFile, 
-  UseInterceptors, 
+  Param,
+  UploadedFile,
+  UseInterceptors,
   BadRequestException,
   Res,
   Header,
@@ -13,7 +13,7 @@ import {
   ParseIntPipe,
   ValidationPipe,
   Body,
-  UsePipes
+  UsePipes,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
@@ -48,7 +48,7 @@ export class PluginController {
     // Set default pagination
     const defaultLimit = 50;
     const maxLimit = 100;
-    
+
     if (limit && limit > maxLimit) {
       throw new BadRequestException(`Limit cannot exceed ${maxLimit}`);
     }
@@ -63,12 +63,9 @@ export class PluginController {
 
   @Get(':name/download')
   @Header('Content-Type', 'application/zip')
-  async downloadPlugin(
-    @Param('name') name: string,
-    @Res() res: Response
-  ): Promise<void> {
+  async downloadPlugin(@Param('name') name: string, @Res() res: Response): Promise<void> {
     const { buffer, metadata } = await this.pluginRegistryService.downloadPlugin(name);
-    
+
     res.setHeader('Content-Disposition', `attachment; filename="${metadata.name}-${metadata.version}.zip"`);
     res.setHeader('Content-Length', buffer.length);
     res.setHeader('X-Plugin-Name', metadata.name);
@@ -79,9 +76,9 @@ export class PluginController {
   @Delete(':name')
   async deletePlugin(@Param('name') name: string): Promise<PluginDeleteResponseDto> {
     await this.pluginRegistryService.deletePlugin(name);
-    return { 
+    return {
       message: `Plugin ${name} deleted successfully`,
-      deletedPlugin: name
+      deletedPlugin: name,
     };
   }
 }

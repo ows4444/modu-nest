@@ -10,7 +10,7 @@ export class HealthController {
   getHealth(): HealthResponse {
     return {
       status: 'ok',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -23,7 +23,7 @@ export class HealthController {
   getRoot(): RootResponse {
     return {
       message: 'Plugin Registry API',
-      version: '1.0.0'
+      version: '1.0.0',
     };
   }
 }

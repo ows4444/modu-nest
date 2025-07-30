@@ -36,67 +36,43 @@ export const CREATE_PLUGIN_VALIDATION: FieldValidation = {
     { type: 'string' },
     { type: 'string', minLength: 2 },
     { type: 'string', maxLength: 50 },
-    { 
-      type: 'string', 
-      pattern: /^[a-z0-9-_]+$/, 
-      message: 'Plugin name must contain only lowercase letters, numbers, hyphens, and underscores' 
-    }
+    {
+      type: 'string',
+      pattern: /^[a-z0-9-_]+$/,
+      message: 'Plugin name must contain only lowercase letters, numbers, hyphens, and underscores',
+    },
   ],
   version: [
     { type: 'string' },
-    { 
-      type: 'string', 
-      pattern: /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/, 
-      message: 'Version must follow semantic versioning (e.g., 1.0.0)' 
-    }
+    {
+      type: 'string',
+      pattern: /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/,
+      message: 'Version must follow semantic versioning (e.g., 1.0.0)',
+    },
   ],
-  description: [
-    { type: 'string' },
-    { type: 'string', minLength: 10 },
-    { type: 'string', maxLength: 500 }
-  ],
-  author: [
-    { type: 'string' },
-    { type: 'string', minLength: 2 },
-    { type: 'string', maxLength: 100 }
-  ],
-  license: [
-    { type: 'string' },
-    { type: 'string', minLength: 2 },
-    { type: 'string', maxLength: 50 }
-  ],
+  description: [{ type: 'string' }, { type: 'string', minLength: 10 }, { type: 'string', maxLength: 500 }],
+  author: [{ type: 'string' }, { type: 'string', minLength: 2 }, { type: 'string', maxLength: 100 }],
+  license: [{ type: 'string' }, { type: 'string', minLength: 2 }, { type: 'string', maxLength: 50 }],
   entryPoint: [
     { type: 'string' },
-    { 
-      type: 'string', 
-      pattern: /^[A-Z][a-zA-Z0-9]*$/, 
-      message: 'Entry point should be a valid class name (PascalCase)' 
-    }
+    {
+      type: 'string',
+      pattern: /^[A-Z][a-zA-Z0-9]*$/,
+      message: 'Entry point should be a valid class name (PascalCase)',
+    },
   ],
-  dependencies: [
-    { type: 'optional' },
-    { type: 'array', itemType: 'string' }
-  ],
-  loadOrder: [
-    { type: 'optional' },
-    { type: 'number' }
-  ],
+  dependencies: [{ type: 'optional' }, { type: 'array', itemType: 'string' }],
+  loadOrder: [{ type: 'optional' }, { type: 'number' }],
   compatibilityVersion: [
     { type: 'string' },
-    { 
-      type: 'string', 
-      pattern: /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/, 
-      message: 'Compatibility version must follow semantic versioning (e.g., 1.0.0)' 
-    }
+    {
+      type: 'string',
+      pattern: /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/,
+      message: 'Compatibility version must follow semantic versioning (e.g., 1.0.0)',
+    },
   ],
-  routes: [
-    { type: 'optional' },
-    { type: 'array', itemType: 'string' }
-  ],
-  configuration: [
-    { type: 'optional' },
-    { type: 'object' }
-  ]
+  routes: [{ type: 'optional' }, { type: 'array', itemType: 'string' }],
+  configuration: [{ type: 'optional' }, { type: 'object' }],
 };
 
 export interface PluginResponseDto extends PluginMetadata {

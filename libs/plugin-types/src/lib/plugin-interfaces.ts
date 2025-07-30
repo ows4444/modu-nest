@@ -54,12 +54,7 @@ export enum PluginStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
   ERROR = 'error',
-  LOADING = 'loading'
+  LOADING = 'loading',
 }
 
-export type PluginLifecycleHook = 
-  | 'beforeLoad'
-  | 'afterLoad'
-  | 'beforeUnload'
-  | 'afterUnload'
-  | 'onError';
+export type PluginLifecycleHook = 'beforeLoad' | 'afterLoad' | 'beforeUnload' | 'afterUnload' | 'onError';

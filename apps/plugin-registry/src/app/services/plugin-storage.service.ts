@@ -1,13 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
+import { writeFile, mkdir, readFile } from 'fs/promises';
 import { StorageConfig } from '@modu-nest/plugin-types';
 import type { PluginMetadata, PluginPackage, StorageStats } from '@modu-nest/plugin-types';
-
-const writeFile = promisify(fs.writeFile);
-const readFile = promisify(fs.readFile);
-const mkdir = promisify(fs.mkdir);
 
 @Injectable()
 export class PluginStorageService implements OnModuleInit {

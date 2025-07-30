@@ -23,15 +23,8 @@ interface PluginManifest {
   };
 }
 
-const runExecutor: PromiseExecutor<PluginZipExecutorSchema> = async (
-  options,
-  context: ExecutorContext
-) => {
-  const { 
-    inputPath = 'dist', 
-    outputPath = 'releases',
-    includeSourceMaps = false 
-  } = options;
+const runExecutor: PromiseExecutor<PluginZipExecutorSchema> = async (options, context: ExecutorContext) => {
+  const { inputPath = 'dist', outputPath = 'releases', includeSourceMaps = false } = options;
 
   const projectName = context.projectName;
   if (!projectName) {
@@ -66,9 +59,7 @@ const runExecutor: PromiseExecutor<PluginZipExecutorSchema> = async (
       return { success: false };
     }
 
-    const manifest: PluginManifest = JSON.parse(
-      fs.readFileSync(manifestPath, 'utf8')
-    );
+    const manifest: PluginManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
     if (!manifest.name || !manifest.version) {
       logger.error('Invalid manifest: missing name or version');
@@ -102,36 +93,34 @@ const runExecutor: PromiseExecutor<PluginZipExecutorSchema> = async (
 
       // Create ZIP using system zip command
       await execAsync(`cd "${tempDir}" && zip -r "${zipFilePath}" .`);
-      
+
       // Verify ZIP was created and get its size
       if (fs.existsSync(zipFilePath)) {
         const stats = fs.statSync(zipFilePath);
         const sizeKB = Math.round(stats.size / 1024);
         logger.info(`✓ Created ZIP package: ${zipFileName} (${sizeKB} KB)`);
-        
+
         // Log package contents
         logger.info(`Package contents:`);
         const contents = await listZipContents(zipFilePath);
-        contents.forEach(file => logger.info(`   ${file}`));
-        
-        return { 
-          success: true, 
+        contents.forEach((file) => logger.info(`   ${file}`));
+
+        return {
+          success: true,
           zipPath: zipFilePath,
           fileName: zipFileName,
-          size: stats.size
+          size: stats.size,
         };
       } else {
         logger.error('Failed to create ZIP file');
         return { success: false };
       }
-
     } finally {
       // Clean up temporary directory
       if (fs.existsSync(tempDir)) {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
     }
-
   } catch (error) {
     logger.error(`ZIP creation failed: ${error}`);
     return { success: false };
@@ -139,44 +128,33 @@ const runExecutor: PromiseExecutor<PluginZipExecutorSchema> = async (
 };
 
 // Copy only the required files for production deployment
-async function copyRequiredFiles(
-  sourceDir: string, 
-  targetDir: string, 
-  includeSourceMaps: boolean
-): Promise<void> {
-  const requiredFiles = [
-    'plugin.manifest.json',
-    'package.json'
-  ];
-  
+async function copyRequiredFiles(sourceDir: string, targetDir: string, includeSourceMaps: boolean): Promise<void> {
+  const requiredFiles = ['plugin.manifest.json', 'package.json'];
+
   // Copy manifest and package.json
   for (const file of requiredFiles) {
     const sourcePath = path.join(sourceDir, file);
     const targetPath = path.join(targetDir, file);
-    
+
     if (fs.existsSync(sourcePath)) {
       fs.copyFileSync(sourcePath, targetPath);
     }
   }
-  
+
   // Copy all JavaScript files recursively, excluding source maps if not needed
   await copyJavaScriptFiles(sourceDir, targetDir, includeSourceMaps);
 }
 
 // Copy JavaScript files recursively
-async function copyJavaScriptFiles(
-  sourceDir: string, 
-  targetDir: string, 
-  includeSourceMaps: boolean
-): Promise<void> {
+async function copyJavaScriptFiles(sourceDir: string, targetDir: string, includeSourceMaps: boolean): Promise<void> {
   function copyRecursive(currentSource: string, currentTarget: string) {
     const items = fs.readdirSync(currentSource);
-    
+
     for (const item of items) {
       const sourcePath = path.join(currentSource, item);
       const targetPath = path.join(currentTarget, item);
       const stat = fs.statSync(sourcePath);
-      
+
       if (stat.isDirectory()) {
         // Create directory and recurse
         if (!fs.existsSync(targetPath)) {
@@ -185,10 +163,11 @@ async function copyJavaScriptFiles(
         copyRecursive(sourcePath, targetPath);
       } else if (stat.isFile()) {
         // Copy only JavaScript files and optionally source maps
-        const shouldCopy = item.endsWith('.js') || 
-                          item.endsWith('.d.ts') ||
-                          (includeSourceMaps && (item.endsWith('.js.map') || item.endsWith('.d.ts.map')));
-                          
+        const shouldCopy =
+          item.endsWith('.js') ||
+          item.endsWith('.d.ts') ||
+          (includeSourceMaps && (item.endsWith('.js.map') || item.endsWith('.d.ts.map')));
+
         if (shouldCopy) {
           // Ensure target directory exists
           const targetDirPath = path.dirname(targetPath);
@@ -200,7 +179,7 @@ async function copyJavaScriptFiles(
       }
     }
   }
-  
+
   copyRecursive(sourceDir, targetDir);
 }
 
@@ -210,15 +189,14 @@ async function listZipContents(zipPath: string): Promise<string[]> {
     const { stdout } = await execAsync(`unzip -l "${zipPath}"`);
     const lines = stdout.split('\n');
     const contents: string[] = [];
-    
+
     // Parse unzip -l output to extract file names
     for (const line of lines) {
       // Skip header and footer lines
-      if (line.includes('----') || line.includes('Archive:') || 
-          line.includes('files') || line.trim() === '') {
+      if (line.includes('----') || line.includes('Archive:') || line.includes('files') || line.trim() === '') {
         continue;
       }
-      
+
       // Extract filename from the line (format: length date time name)
       const parts = line.trim().split(/\s+/);
       if (parts.length >= 4) {
@@ -228,8 +206,8 @@ async function listZipContents(zipPath: string): Promise<string[]> {
         }
       }
     }
-    
-    return contents.filter(f => f.length > 0);
+
+    return contents.filter((f) => f.length > 0);
   } catch (error) {
     return ['(unable to list contents)'];
   }

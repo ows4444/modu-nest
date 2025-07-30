@@ -10,10 +10,7 @@ import FormData from 'form-data';
 const execAsync = promisify(exec);
 
 const runExecutor: PromiseExecutor<PluginPublishExecutorSchema> = async (options, context: ExecutorContext) => {
-  const {
-    outputPath = 'dist',
-    registryUrl = 'http://localhost:3001',
-  } = options;
+  const { outputPath = 'dist', registryUrl = 'http://localhost:3001' } = options;
 
   const projectName = context.projectName;
   if (!projectName) {
@@ -43,7 +40,7 @@ const runExecutor: PromiseExecutor<PluginPublishExecutorSchema> = async (options
     // Create a zip file of the built plugin
     const zipFileName = `${projectName}.zip`;
     const zipPath = path.join(sourceRoot, zipFileName);
-    
+
     // Remove existing zip if it exists
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
@@ -60,7 +57,7 @@ const runExecutor: PromiseExecutor<PluginPublishExecutorSchema> = async (options
 
     // Upload to registry
     logger.info(`Uploading plugin to registry at ${registryUrl}...`);
-    
+
     const formData = new FormData();
     formData.append('plugin', fs.createReadStream(zipPath));
 
@@ -86,13 +83,13 @@ const runExecutor: PromiseExecutor<PluginPublishExecutorSchema> = async (options
     return { success: true };
   } catch (error) {
     logger.error(`Failed to publish plugin to registry: ${error}`);
-    
+
     // Clean up zip file if it exists
     const zipPath = path.join(sourceRoot, `${projectName}.zip`);
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
     }
-    
+
     return { success: false };
   }
 };

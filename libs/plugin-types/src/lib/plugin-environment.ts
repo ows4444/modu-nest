@@ -134,7 +134,7 @@ export class PluginEnvironmentService {
 
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -163,7 +163,7 @@ export class PluginEnvironmentService {
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
       config: this.getConfig(),
-      configValid: this.validateConfiguration().valid
+      configValid: this.validateConfiguration().valid,
     };
   }
 }
@@ -174,15 +174,15 @@ export class PluginEnvironmentService {
 export function ValidateEnvironment() {
   return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
     const method = descriptor.value;
-    
+
     descriptor.value = function (...args: any[]) {
       const envService = new PluginEnvironmentService();
       const validation = envService.validateConfiguration();
-      
+
       if (!validation.valid) {
         throw new Error(`Environment configuration invalid: ${validation.errors.join(', ')}`);
       }
-      
+
       return method.apply(this, args);
     };
   };

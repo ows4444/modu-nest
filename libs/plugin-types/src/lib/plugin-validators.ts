@@ -8,7 +8,7 @@ export class PluginValidator {
     'author',
     'license',
     'entryPoint',
-    'compatibilityVersion'
+    'compatibilityVersion',
   ];
 
   private static readonly VERSION_REGEX = /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/;
@@ -65,7 +65,7 @@ export class PluginValidator {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -101,7 +101,7 @@ export class PluginValidator {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 }

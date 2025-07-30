@@ -1,8 +1,8 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import fs from 'fs';
+import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
-import { promisify } from 'util';
 import JSZip from 'jszip';
 import FormData from 'form-data';
 import { PluginManifest, LoadedPlugin, PluginUpdateInfo } from '@modu-nest/plugin-types';
@@ -13,10 +13,6 @@ export interface RegistryPluginMetadata extends PluginManifest {
   fileSize: number;
   checksum: string;
 }
-
-const writeFile = promisify(fs.writeFile);
-const mkdir = promisify(fs.mkdir);
-const readFile = promisify(fs.readFile);
 
 export interface RegistryClientConfig {
   registryUrl: string;
