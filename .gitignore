@@ -48,3 +48,4 @@ test-output
 
 host-storage
 registry-storage
+plugins/**/releases/

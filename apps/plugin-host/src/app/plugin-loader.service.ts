@@ -9,6 +9,42 @@ export class PluginLoaderService {
   private readonly logger = new Logger(PluginLoaderService.name);
   private loadedPlugins = new Map<string, LoadedPlugin>();
 
+  // Security: List of unsafe modules that plugins should not use
+  private readonly UNSAFE_MODULES = [
+    'fs',
+    'fs/promises',
+    'node:fs',
+    'node:fs/promises',
+    'child_process',
+    'node:child_process',
+    'process',
+    'node:process',
+    'os',
+    'node:os',
+    'path',
+    'node:path',
+    'crypto',
+    'node:crypto',
+    'net',
+    'node:net',
+    'http',
+    'node:http',
+    'https',
+    'node:https',
+    'url',
+    'node:url',
+    'stream',
+    'node:stream',
+    'events',
+    'node:events',
+    'util',
+    'node:util',
+    'cluster',
+    'node:cluster',
+    'worker_threads',
+    'node:worker_threads',
+  ];
+
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
   }
@@ -58,6 +94,17 @@ export class PluginLoaderService {
           }
 
           this.logger.debug(`Loading plugin: ${manifest.name}`);
+
+          // Security validation: scan for unsafe imports
+          const unsafeImportResults = this.scanDirectoryForUnsafeImports(pluginPath);
+          if (unsafeImportResults.length > 0) {
+            this.logger.error(`Security validation failed for plugin ${manifest.name} - unsafe imports detected:`);
+            for (const result of unsafeImportResults) {
+              this.logger.error(`   ${result.file}: ${result.imports.join(', ')}`);
+            }
+            this.logger.error('   Plugins are not allowed to use Node.js system modules for security reasons.');
+            continue;
+          }
 
           // Import plugin module
           const pluginModule = await import(/* webpackIgnore: true */ indexPath);
@@ -168,5 +215,59 @@ export class PluginLoaderService {
         return acc;
       }, {} as Record<string, number>),
     };
+  }
+
+  private scanForUnsafeImports(filePath: string): string[] {
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+
+    const content = fs.readFileSync(filePath, 'utf8');
+    const unsafeImports: string[] = [];
+
+    // Check for import statements and require calls
+    const importRegex = /(?:import\s+.*?\s+from\s+['"`]([^'"`]+)['"`]|require\s*\(\s*['"`]([^'"`]+)['"`]\s*\))/g;
+    let match;
+
+    while ((match = importRegex.exec(content)) !== null) {
+      const moduleName = match[1] || match[2];
+      if (this.UNSAFE_MODULES.includes(moduleName)) {
+        unsafeImports.push(moduleName);
+      }
+    }
+
+    return [...new Set(unsafeImports)]; // Remove duplicates
+  }
+
+  private scanDirectoryForUnsafeImports(dirPath: string): { file: string; imports: string[] }[] {
+    const results: { file: string; imports: string[] }[] = [];
+
+    const scanRecursive = (currentPath: string) => {
+      if (!fs.existsSync(currentPath)) {
+        return;
+      }
+
+      const items = fs.readdirSync(currentPath);
+
+      for (const item of items) {
+        const itemPath = path.join(currentPath, item);
+        const stat = fs.statSync(itemPath);
+
+        if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+          scanRecursive(itemPath);
+        } else if (stat.isFile() && (item.endsWith('.ts') || item.endsWith('.js'))) {
+          const unsafeImports = this.scanForUnsafeImports(itemPath);
+          if (unsafeImports.length > 0) {
+            results.push({
+              file: path.relative(dirPath, itemPath),
+              imports: unsafeImports,
+            });
+          }
+        }
+      }
+    };
+
+    scanRecursive(dirPath);
+    return results;
   }
 }

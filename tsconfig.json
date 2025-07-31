@@ -32,6 +32,9 @@
     },
     {
       "path": "./libs/shared/const"
+    },
+    {
+      "path": "./plugins/sample-plugin"
     }
   ]
 }
