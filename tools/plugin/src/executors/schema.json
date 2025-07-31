@@ -31,12 +31,12 @@
     "production": {
       "type": "boolean",
       "description": "Build in production mode with optimizations",
-      "default": false
+      "default": true
     },
     "minify": {
       "type": "boolean",
       "description": "Minify JavaScript output (requires production mode)",
-      "default": false
+      "default": true
     }
   },
   "required": []

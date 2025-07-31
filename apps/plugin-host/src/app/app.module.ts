@@ -46,7 +46,7 @@ export class AppModule implements OnModuleInit {
           provide: PluginLoaderService,
           useValue: pluginLoaderInstance, // Use the same instance that loaded the plugins
         },
-        RegistryClientService
+        RegistryClientService,
       ],
     };
   }

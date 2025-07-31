@@ -164,8 +164,7 @@ async function copyJavaScriptFiles(sourceDir: string, targetDir: string, include
         // Copy only JavaScript files and optionally source maps
         const shouldCopy =
           item.endsWith('.js') ||
-          item.endsWith('.d.ts') ||
-          (includeSourceMaps && (item.endsWith('.js.map') || item.endsWith('.d.ts.map')));
+          (includeSourceMaps && (item.endsWith('.d.ts') || item.endsWith('.js.map') || item.endsWith('.d.ts.map')));
 
         if (shouldCopy) {
           // Ensure target directory exists

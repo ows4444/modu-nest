@@ -125,10 +125,11 @@ class PluginBuilder {
     let tscOptions = `--project "${tsConfigPath}" --outDir "${this.outputDir}"`;
 
     if (options.production) {
-      tscOptions += ' --removeComments --skipLibCheck --declaration false --sourceMap false';
+      // For production builds, we need to be careful with composite projects
+      // Don't disable declarations or source maps as they may be required by the base config
+      tscOptions += ' --removeComments --skipLibCheck --noEmitOnError';
       logger.info('Building in production mode with optimizations...');
     } else {
-      tscOptions += ' --sourceMap';
       logger.info('Building in development mode...');
     }
 
