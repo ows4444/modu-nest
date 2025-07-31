@@ -356,24 +356,24 @@ class PluginBehaviorAnalyzer {
 
 ## 📊 **Security Level Comparison**
 
-| Security Measure | Protection Level | Implementation Complexity | Performance Impact | Cost |
-|------------------|------------------|---------------------------|-------------------|------|
-| **Host-Controlled Access** | 75% | Low | Minimal | $ |
-| **+ Process Isolation** | 85% | Medium | Low | $$ |
-| **+ Container Sandboxing** | 95% | High | Medium | $$$ |
-| **+ VM Isolation** | 98% | Very High | High | $$$$ |
-| **+ HSM + Formal Verification** | 99.9% | Extreme | High | $$$$$ |
+| Security Measure                | Protection Level | Implementation Complexity | Performance Impact | Cost  |
+| ------------------------------- | ---------------- | ------------------------- | ------------------ | ----- |
+| **Host-Controlled Access**      | 75%              | Low                       | Minimal            | $     |
+| **+ Process Isolation**         | 85%              | Medium                    | Low                | $$    |
+| **+ Container Sandboxing**      | 95%              | High                      | Medium             | $$$   |
+| **+ VM Isolation**              | 98%              | Very High                 | High               | $$$$  |
+| **+ HSM + Formal Verification** | 99.9%            | Extreme                   | High               | $$$$$ |
 
 ### **Threat Coverage Analysis:**
 
-| Threat Category | Host-Controlled | +Process | +Container | +VM | +HSM |
-|-----------------|----------------|----------|------------|-----|------|
-| **Memory Corruption** | ❌ | ✅ | ✅ | ✅ | ✅ |
-| **Runtime Exploits** | ❌ | ⚠️ | ✅ | ✅ | ✅ |
-| **Evasion Techniques** | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
-| **Resource Competition** | ⚠️ | ✅ | ✅ | ✅ | ✅ |
-| **Host System Exploits** | ❌ | ❌ | ⚠️ | ✅ | ✅ |
-| **Social Engineering** | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+| Threat Category          | Host-Controlled | +Process | +Container | +VM | +HSM |
+| ------------------------ | --------------- | -------- | ---------- | --- | ---- |
+| **Memory Corruption**    | ❌               | ✅        | ✅          | ✅   | ✅    |
+| **Runtime Exploits**     | ❌               | ⚠️        | ✅          | ✅   | ✅    |
+| **Evasion Techniques**   | ⚠️               | ⚠️        | ✅          | ✅   | ✅    |
+| **Resource Competition** | ⚠️               | ✅        | ✅          | ✅   | ✅    |
+| **Host System Exploits** | ❌               | ❌        | ⚠️          | ✅   | ✅    |
+| **Social Engineering**   | ⚠️               | ⚠️        | ⚠️          | ⚠️   | ✅    |
 
 **Legend:** ✅ Protected | ⚠️ Partially Protected | ❌ Not Protected
 
