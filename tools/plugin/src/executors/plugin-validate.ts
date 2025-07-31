@@ -13,7 +13,6 @@ interface PluginManifest {
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies?: string[];
   loadOrder?: number;
   compatibilityVersion: string;
@@ -84,7 +83,7 @@ class PluginValidator {
       const manifest: PluginManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
       // Required fields validation
-      const requiredFields: (keyof PluginManifest)[] = ['name', 'version', 'entryPoint', 'compatibilityVersion'];
+      const requiredFields: (keyof PluginManifest)[] = ['name', 'version', 'compatibilityVersion'];
 
       for (const field of requiredFields) {
         if (!manifest[field]) {
@@ -105,19 +104,6 @@ class PluginValidator {
       // Validate dependencies array if present
       if (manifest.dependencies && !Array.isArray(manifest.dependencies)) {
         this.errors.push('dependencies must be an array');
-      }
-
-      // Validate entry point exists
-      if (manifest.entryPoint) {
-        const entryPointPath = path.join(this.sourceRoot, 'src', manifest.entryPoint);
-        const entryPointExists =
-          fs.existsSync(entryPointPath) ||
-          fs.existsSync(`${entryPointPath}.ts`) ||
-          fs.existsSync(`${entryPointPath}.js`);
-
-        if (!entryPointExists) {
-          this.errors.push(`Entry point file not found: src/${manifest.entryPoint}`);
-        }
       }
 
       if (this.errors.length === 0) {
@@ -243,7 +229,7 @@ class PluginValidator {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
-      const nestDeps = ['@nestjs/common', '@nestjs/core'];
+      const nestDeps = ['@modu-nest/plugin-types'];
       const missingDeps = nestDeps.filter(
         (dep) =>
           !packageJson.dependencies?.[dep] &&

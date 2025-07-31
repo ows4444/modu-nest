@@ -165,7 +165,6 @@ export class PluginValidator {
     'description',
     'author',
     'license',
-    'entryPoint',
     'compatibilityVersion',
   ];
 
@@ -196,11 +195,6 @@ export class PluginValidator {
     // Validate compatibility version
     if (manifest.compatibilityVersion && !this.VERSION_REGEX.test(manifest.compatibilityVersion)) {
       errors.push('Compatibility version must follow semantic versioning (e.g., 1.0.0)');
-    }
-
-    // Validate entry point
-    if (manifest.entryPoint && !/^[A-Z][a-zA-Z0-9]*$/.test(manifest.entryPoint)) {
-      warnings.push('Entry point should be a valid class name (PascalCase)');
     }
 
     // Validate dependencies
@@ -1151,8 +1145,8 @@ export class PluginLoaderService {
           // Load and validate manifest
           const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PluginManifest;
 
-          if (!manifest.name || !manifest.entryPoint) {
-            this.logger.warn(`Skipping ${pluginDir}: invalid manifest - missing name or entryPoint`);
+          if (!manifest.name) {
+            this.logger.warn(`Skipping ${pluginDir}: invalid manifest - missing name`);
             continue;
           }
 
@@ -1172,7 +1166,7 @@ export class PluginLoaderService {
             securityValidation.warnings.forEach(warning => this.logger.warn(`  - ${warning}`));
           }
 
-          this.logger.debug(`Loading plugin: ${manifest.name} (entry: ${manifest.entryPoint})`);
+          this.logger.debug(`Loading plugin: ${manifest.name}`);
 
           // Create secure context for plugin
           const pluginContext = new PluginContext(manifest.name, this.hostServices);
@@ -1237,13 +1231,13 @@ export class PluginLoaderService {
       this.logger.debug(`Looking for plugin components with base name: ${name}`);
       this.logger.debug(`Available exports: ${Object.keys(pluginModule).join(', ')}`);
 
-      // Try to find the module, service, and controller using manifest entryPoint
-      const PluginModule = pluginModule[manifest.entryPoint] || pluginModule[name + 'Module'];
+      // Try to find the module, service, and controller using manifest 
+      const PluginModule =  pluginModule[name + 'Module'];
       const PluginService = pluginModule[name + 'Service'];
       const PluginController = pluginModule[name + 'Controller'];
 
       if (!PluginModule) {
-        this.logger.error(`No module found for ${manifest.name}. Expected: ${manifest.entryPoint}`);
+        this.logger.error(`No module found for ${manifest.name}. Expected: ${name}Module`);
         return null;
       }
 
@@ -1591,18 +1585,18 @@ export { setPluginContext } from './lib/example-plugin.service';
 
 ### **✅ Threats Mitigated:**
 
-| Threat Category | Risk Level | Mitigation |
-|----------------|------------|------------|
-| **Path Traversal** | CRITICAL → ✅ **BLOCKED** | Host validates all file paths |
-| **Network Attacks** | CRITICAL → ✅ **CONTROLLED** | All requests go through host validation |
-| **Code Injection** | HIGH → ✅ **BLOCKED** | Static analysis blocks dangerous patterns |
-| **Resource Exhaustion** | HIGH → ✅ **MONITORED** | Host controls and monitors all resources |
-| **Data Exfiltration** | HIGH → ✅ **CONTROLLED** | All network requests logged and validated |
-| **System Access** | CRITICAL → ✅ **BLOCKED** | No direct access to Node.js system modules |
-| **Cross-Plugin Attacks** | MEDIUM → ✅ **ISOLATED** | Plugin-to-plugin communication controlled |
-| **Database Attacks** | CRITICAL → ✅ **CONTROLLED** | Each plugin has isolated tables with validated queries |
-| **SQL Injection** | HIGH → ✅ **BLOCKED** | All queries validated and parameterized |
-| **Cross-Plugin Data Access** | HIGH → ✅ **BLOCKED** | Plugins can only access their own tables |
+| Threat Category              | Risk Level                  | Mitigation                                             |
+| ---------------------------- | --------------------------- | ------------------------------------------------------ |
+| **Path Traversal**           | CRITICAL → ✅ **BLOCKED**    | Host validates all file paths                          |
+| **Network Attacks**          | CRITICAL → ✅ **CONTROLLED** | All requests go through host validation                |
+| **Code Injection**           | HIGH → ✅ **BLOCKED**        | Static analysis blocks dangerous patterns              |
+| **Resource Exhaustion**      | HIGH → ✅ **MONITORED**      | Host controls and monitors all resources               |
+| **Data Exfiltration**        | HIGH → ✅ **CONTROLLED**     | All network requests logged and validated              |
+| **System Access**            | CRITICAL → ✅ **BLOCKED**    | No direct access to Node.js system modules             |
+| **Cross-Plugin Attacks**     | MEDIUM → ✅ **ISOLATED**     | Plugin-to-plugin communication controlled              |
+| **Database Attacks**         | CRITICAL → ✅ **CONTROLLED** | Each plugin has isolated tables with validated queries |
+| **SQL Injection**            | HIGH → ✅ **BLOCKED**        | All queries validated and parameterized                |
+| **Cross-Plugin Data Access** | HIGH → ✅ **BLOCKED**        | Plugins can only access their own tables               |
 
 ### **✅ Security Features:**
 
@@ -1623,13 +1617,13 @@ export { setPluginContext } from './lib/example-plugin.service';
 
 ### **Overhead Analysis:**
 
-| Operation | Direct Node.js | Host-Controlled | Overhead |
-|-----------|---------------|-----------------|----------|
-| **File Read** | ~1ms | ~2ms | +1ms (validation) |
-| **HTTP Request** | ~50ms | ~52ms | +2ms (validation) |
-| **Database Query** | ~5ms | ~7ms | +2ms (validation) |
-| **Plugin Load** | ~10ms | ~25ms | +15ms (security scan) |
-| **Memory Usage** | Baseline | +5-10MB | (audit logs, caches) |
+| Operation          | Direct Node.js | Host-Controlled | Overhead              |
+| ------------------ | -------------- | --------------- | --------------------- |
+| **File Read**      | ~1ms           | ~2ms            | +1ms (validation)     |
+| **HTTP Request**   | ~50ms          | ~52ms           | +2ms (validation)     |
+| **Database Query** | ~5ms           | ~7ms            | +2ms (validation)     |
+| **Plugin Load**    | ~10ms          | ~25ms           | +15ms (security scan) |
+| **Memory Usage**   | Baseline       | +5-10MB         | (audit logs, caches)  |
 
 ### **Performance Optimizations:**
 

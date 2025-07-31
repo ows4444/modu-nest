@@ -206,7 +206,7 @@ The centralized plugin registry provides a complete plugin lifecycle management 
 
 Each plugin follows a standard structure:
 
-- `plugin.manifest.json`: Contains plugin metadata (name, version, entryPoint, etc.)
+- `plugin.manifest.json`: Contains plugin metadata (name, version, etc.)
 - `src/index.ts`: Main entry point that exports the plugin module
 - `src/lib/<name>.module.ts`: NestJS module class
 - `src/lib/<name>.controller.ts`: REST API controller
@@ -229,7 +229,6 @@ The `PluginLoaderService` in the plugin host app:
 - **Metadata Decorators**: Use `@PluginMetadata()` for plugin metadata and `@PluginPermissions()` for method permissions
 - **Lifecycle Hooks**: Use `@PluginLifecycleHook()` for plugin lifecycle events
 - **Naming Convention**: Plugin classes should follow `<Name>Plugin`, `<Name>Controller`, `<Name>Service` pattern
-- **Entry Point**: The main module class must be exported with the name specified in `manifest.entryPoint`
 
 ### Complete Plugin Example
 
@@ -536,7 +535,6 @@ npx nx plugin-build <plugin-name> --verbose
 
 **Plugin Loading Errors:**
 
-- Verify `plugin.manifest.json` has correct `entryPoint`
 - Ensure the exported class name matches the manifest entry point
 - Check that all dependencies are properly installed
 

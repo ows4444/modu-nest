@@ -13,7 +13,6 @@ interface PluginManifest {
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies?: string[];
   loadOrder?: number;
   compatibilityVersion: string;
@@ -76,7 +75,7 @@ class PluginBuilder {
     try {
       const manifest: PluginManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-      const requiredFields = ['name', 'version', 'entryPoint'];
+      const requiredFields = ['name', 'version'];
       for (const field of requiredFields) {
         if (!manifest[field as keyof PluginManifest]) {
           throw new Error(`Invalid manifest: missing required field '${field}'`);
@@ -86,12 +85,6 @@ class PluginBuilder {
       // Validate semantic versioning
       if (!this.isValidSemver(manifest.version)) {
         throw new Error(`Invalid version format: ${manifest.version}. Must follow semantic versioning.`);
-      }
-
-      // Check if entry point file exists
-      const entryPointExists = this.checkEntryPointExists(manifest.entryPoint);
-      if (!entryPointExists) {
-        throw new Error(`Entry point file not found: src/${manifest.entryPoint}`);
       }
 
       logger.info('✅ Manifest validation passed');
@@ -107,17 +100,6 @@ class PluginBuilder {
     const semverRegex =
       /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
     return semverRegex.test(version);
-  }
-
-  private checkEntryPointExists(entryPoint: string): boolean {
-    const srcDir = path.join(this.sourceRoot, 'src');
-    const possiblePaths = [
-      path.join(srcDir, entryPoint),
-      path.join(srcDir, `${entryPoint}.ts`),
-      path.join(srcDir, `${entryPoint}.js`),
-    ];
-
-    return possiblePaths.some((p) => fs.existsSync(p));
   }
 
   private async cleanOutput(): Promise<void> {

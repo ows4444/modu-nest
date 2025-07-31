@@ -52,12 +52,12 @@ export class PluginLoaderService {
           // Load and validate manifest
           const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PluginManifest;
 
-          if (!manifest.name || !manifest.entryPoint) {
-            this.logger.warn(`Skipping ${pluginDir}: invalid manifest - missing name or entryPoint`);
+          if (!manifest.name) {
+            this.logger.warn(`Skipping ${pluginDir}: invalid manifest - missing name`);
             continue;
           }
 
-          this.logger.debug(`Loading plugin: ${manifest.name} (entry: ${manifest.entryPoint})`);
+          this.logger.debug(`Loading plugin: ${manifest.name}`);
 
           // Import plugin module
           const pluginModule = await import(/* webpackIgnore: true */ indexPath);
@@ -124,7 +124,7 @@ export class PluginLoaderService {
       this.logger.log(
         `✓ Created dynamic module for ${manifest.name} with ${controllers.length} controllers and ${providers.length} providers`
       );
-      
+
       return dynamicModule;
     } catch (error) {
       this.logger.error(`Failed to create dynamic module for ${manifest.name}:`, error);

@@ -169,7 +169,6 @@ export class PluginRegistryService {
       description: metadata.description,
       author: metadata.author,
       license: metadata.license,
-      entryPoint: metadata.entryPoint,
       dependencies: metadata.dependencies,
       loadOrder: metadata.loadOrder,
       compatibilityVersion: metadata.compatibilityVersion,

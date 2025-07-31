@@ -4,7 +4,6 @@
   "description": "<%= className %> plugin for modu-nest",
   "author": "Plugin Developer",
   "license": "MIT",
-  "entryPoint": "index",
   "dependencies": [],
   "loadOrder": 100,
   "compatibilityVersion": "1.0.0",

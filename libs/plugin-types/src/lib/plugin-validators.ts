@@ -7,7 +7,6 @@ export class PluginValidator {
     'description',
     'author',
     'license',
-    'entryPoint',
     'compatibilityVersion',
   ];
 
@@ -38,11 +37,6 @@ export class PluginValidator {
     // Validate compatibility version
     if (manifest.compatibilityVersion && !this.VERSION_REGEX.test(manifest.compatibilityVersion)) {
       errors.push('Compatibility version must follow semantic versioning (e.g., 1.0.0)');
-    }
-
-    // Validate entry point
-    if (manifest.entryPoint && !/^[A-Z][a-zA-Z0-9]*$/.test(manifest.entryPoint)) {
-      warnings.push('Entry point should be a valid class name (PascalCase)');
     }
 
     // Validate dependencies

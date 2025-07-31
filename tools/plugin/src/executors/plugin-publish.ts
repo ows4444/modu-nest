@@ -13,7 +13,6 @@ interface PluginManifest {
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies?: string[];
   loadOrder?: number;
   compatibilityVersion: string;
@@ -29,7 +28,6 @@ interface PluginRegistryEntry {
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies: string[];
   loadOrder: number;
   compatibilityVersion: string;
@@ -330,7 +328,6 @@ class PluginPublisher {
       description: manifest.description || '',
       author: manifest.author || '',
       license: manifest.license || '',
-      entryPoint: manifest.entryPoint,
       dependencies: manifest.dependencies || [],
       loadOrder: manifest.loadOrder || 100,
       compatibilityVersion: manifest.compatibilityVersion,
@@ -351,7 +348,7 @@ class PluginPublisher {
   }
 
   private async createPluginIndex(manifest: PluginManifest, pluginTargetDir: string): Promise<void> {
-    const indexContent = `module.exports = require('./${manifest.entryPoint || 'index'}');`;
+    const indexContent = `module.exports = require('./index);`;
     const indexPath = path.join(pluginTargetDir, 'plugin.js');
     fs.writeFileSync(indexPath, indexContent);
     logger.info(`✅ Created plugin index: plugin.js`);

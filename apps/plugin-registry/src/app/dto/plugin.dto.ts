@@ -32,12 +32,6 @@ export class CreatePluginValidationDto implements CreatePluginDto {
   @MaxLength(CREATE_PLUGIN_VALIDATION.license.find((r) => r.maxLength)?.maxLength || 50)
   license!: string;
 
-  @IsString()
-  @Matches(CREATE_PLUGIN_VALIDATION.entryPoint.find((r) => r.pattern)?.pattern || /^[A-Z][a-zA-Z0-9]*$/, {
-    message: CREATE_PLUGIN_VALIDATION.entryPoint.find((r) => r.message)?.message || 'Invalid entry point format',
-  })
-  entryPoint!: string;
-
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

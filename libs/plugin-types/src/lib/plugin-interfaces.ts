@@ -4,7 +4,6 @@ export interface PluginManifest {
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies?: string[];
   loadOrder?: number;
   compatibilityVersion: string;

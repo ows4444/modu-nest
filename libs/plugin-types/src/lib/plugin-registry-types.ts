@@ -7,7 +7,6 @@ export interface CreatePluginDto extends Omit<PluginManifest, 'uploadedAt' | 'fi
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies?: string[];
   loadOrder?: number;
   compatibilityVersion: string;
@@ -53,14 +52,6 @@ export const CREATE_PLUGIN_VALIDATION: FieldValidation = {
   description: [{ type: 'string' }, { type: 'string', minLength: 10 }, { type: 'string', maxLength: 500 }],
   author: [{ type: 'string' }, { type: 'string', minLength: 2 }, { type: 'string', maxLength: 100 }],
   license: [{ type: 'string' }, { type: 'string', minLength: 2 }, { type: 'string', maxLength: 50 }],
-  entryPoint: [
-    { type: 'string' },
-    {
-      type: 'string',
-      pattern: /^[A-Z][a-zA-Z0-9]*$/,
-      message: 'Entry point should be a valid class name (PascalCase)',
-    },
-  ],
   dependencies: [{ type: 'optional' }, { type: 'array', itemType: 'string' }],
   loadOrder: [{ type: 'optional' }, { type: 'number' }],
   compatibilityVersion: [
@@ -81,7 +72,6 @@ export interface PluginResponseDto extends PluginMetadata {
   description: string;
   author: string;
   license: string;
-  entryPoint: string;
   dependencies?: string[];
   loadOrder?: number;
   compatibilityVersion: string;
