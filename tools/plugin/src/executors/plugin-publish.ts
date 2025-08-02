@@ -15,10 +15,11 @@ interface PluginManifest {
   license: string;
   dependencies?: string[];
   loadOrder?: number;
-  compatibilityVersion: string;
-  routes?: string[];
-  configuration?: {
-    schema: Record<string, unknown>;
+  module?: {
+    controllers?: string[];
+    providers?: string[];
+    exports?: string[];
+    imports?: string[];
   };
 }
 
@@ -30,11 +31,6 @@ interface PluginRegistryEntry {
   license: string;
   dependencies: string[];
   loadOrder: number;
-  compatibilityVersion: string;
-  routes: string[];
-  configuration?: {
-    schema: Record<string, unknown>;
-  };
   publishedAt: string;
   path: string;
 }
@@ -330,9 +326,6 @@ class PluginPublisher {
       license: manifest.license || '',
       dependencies: manifest.dependencies || [],
       loadOrder: manifest.loadOrder || 100,
-      compatibilityVersion: manifest.compatibilityVersion,
-      routes: manifest.routes || [],
-      configuration: manifest.configuration,
       publishedAt: new Date().toISOString(),
       path: path.relative(this.targetPluginsDir, pluginPath),
     };

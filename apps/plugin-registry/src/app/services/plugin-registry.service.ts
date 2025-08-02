@@ -51,9 +51,6 @@ export class PluginRegistryService {
     // Perform security validation
     await this.validatePluginSecurity(pluginBuffer);
 
-    // Validate plugin structure and files
-    await this.validatePluginFiles(pluginBuffer, extractedManifest.name);
-
     // Create metadata
     const checksum = crypto.createHash('sha256').update(new Uint8Array(pluginBuffer)).digest('hex');
     const metadata: PluginMetadata = {
@@ -109,15 +106,15 @@ export class PluginRegistryService {
     try {
       const zip = new JSZip();
       const contents = await zip.loadAsync(pluginBuffer.buffer as ArrayBuffer);
-      
+
       const unsafeResults: { file: string; imports: string[] }[] = [];
-      
+
       // Check all TypeScript and JavaScript files for unsafe imports
       for (const [filePath, file] of Object.entries(contents.files)) {
         if (!file.dir && (filePath.endsWith('.ts') || filePath.endsWith('.js'))) {
           const content = await file.async('text');
           const unsafeImports = this.scanForUnsafeImports(content);
-          
+
           if (unsafeImports.length > 0) {
             unsafeResults.push({
               file: filePath,
@@ -126,7 +123,7 @@ export class PluginRegistryService {
           }
         }
       }
-      
+
       if (unsafeResults.length > 0) {
         const errorMessages = ['Security validation failed - unsafe imports detected:'];
         for (const result of unsafeResults) {
@@ -134,92 +131,14 @@ export class PluginRegistryService {
         }
         errorMessages.push('   Plugins are not allowed to use Node.js system modules for security reasons.');
         errorMessages.push('   Please remove these imports and use NestJS/framework provided alternatives.');
-        
+
         throw new BadRequestException(errorMessages.join('\n'));
       }
-      
+
       this.logger.log('Security validation passed - no unsafe imports found');
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Failed to validate plugin security');
-    }
-  }
-
-  private async validatePluginFiles(pluginBuffer: Buffer, pluginName: string): Promise<void> {
-    try {
-      const zip = new JSZip();
-      const contents = await zip.loadAsync(pluginBuffer.buffer as ArrayBuffer);
-      const files = Object.keys(contents.files);
-      
-      const errors: string[] = [];
-      
-      // Check for required src/index.ts
-      const hasIndexTs = files.some(f => f === 'src/index.ts' || f === 'index.ts');
-      if (!hasIndexTs) {
-        errors.push('Missing required file: src/index.ts');
-      }
-      
-      // Check for lib directory structure (new Nx pattern) or flat structure
-      const hasLibDir = files.some(f => f.startsWith('src/lib/'));
-      
-      if (hasLibDir) {
-        // New lib structure validation
-        const expectedFiles = [
-          `src/lib/${pluginName}.module.ts`,
-          `src/lib/${pluginName}.service.ts`,
-          `src/lib/${pluginName}.controller.ts`,
-        ];
-        
-        for (const expectedFile of expectedFiles) {
-          if (!files.includes(expectedFile)) {
-            errors.push(`Missing required file: ${expectedFile}`);
-          }
-        }
-        
-        // Validate module exports for lib structure
-        const indexFile = contents.file('src/index.ts');
-        if (indexFile) {
-          const indexContent = await indexFile.async('text');
-          const moduleExportPattern = new RegExp(`export.*from.*lib/${pluginName}\\.module`, 'i');
-          
-          if (!moduleExportPattern.test(indexContent)) {
-            errors.push(`index.ts must export the plugin module from lib/${pluginName}.module`);
-          }
-        }
-      } else {
-        // Flat structure validation
-        const expectedFiles = [
-          `src/${pluginName}.module.ts`,
-          `src/${pluginName}.service.ts`,
-          `src/${pluginName}.controller.ts`,
-        ];
-        
-        for (const expectedFile of expectedFiles) {
-          if (!files.includes(expectedFile)) {
-            errors.push(`Missing required file: ${expectedFile}`);
-          }
-        }
-        
-        // Validate module exports for flat structure
-        const indexFile = contents.file('src/index.ts');
-        if (indexFile) {
-          const indexContent = await indexFile.async('text');
-          const moduleExportPattern = new RegExp(`export.*from.*${pluginName}\\.module`, 'i');
-          
-          if (!moduleExportPattern.test(indexContent)) {
-            errors.push(`index.ts must export the plugin module`);
-          }
-        }
-      }
-      
-      if (errors.length > 0) {
-        throw new BadRequestException(`Plugin file structure validation failed:\n${errors.join('\n')}`);
-      }
-      
-      this.logger.log('Plugin file structure validation passed');
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException('Failed to validate plugin file structure');
     }
   }
 
@@ -261,18 +180,18 @@ export class PluginRegistryService {
 
   private scanForUnsafeImports(content: string): string[] {
     const unsafeImports: string[] = [];
-    
+
     // Check for import statements and require calls
     const importRegex = /(?:import\s+.*?\s+from\s+['"`]([^'"`]+)['"`]|require\s*\(\s*['"`]([^'"`]+)['"`]\s*\))/g;
     let match;
-    
+
     while ((match = importRegex.exec(content)) !== null) {
       const moduleName = match[1] || match[2];
       if (this.UNSAFE_MODULES.includes(moduleName)) {
         unsafeImports.push(moduleName);
       }
     }
-    
+
     return [...new Set(unsafeImports)]; // Remove duplicates
   }
 
@@ -348,9 +267,7 @@ export class PluginRegistryService {
       license: metadata.license,
       dependencies: metadata.dependencies,
       loadOrder: metadata.loadOrder,
-      compatibilityVersion: metadata.compatibilityVersion,
-      routes: metadata.routes,
-      configuration: metadata.configuration,
+      module: metadata.module,
       uploadedAt: metadata.uploadedAt,
       fileSize: metadata.fileSize,
       checksum: metadata.checksum,

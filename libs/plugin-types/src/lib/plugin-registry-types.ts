@@ -9,11 +9,6 @@ export interface CreatePluginDto extends Omit<PluginManifest, 'uploadedAt' | 'fi
   license: string;
   dependencies?: string[];
   loadOrder?: number;
-  compatibilityVersion: string;
-  routes?: string[];
-  configuration?: {
-    schema: Record<string, unknown>;
-  };
 }
 
 // Validation metadata for DTOs
@@ -54,16 +49,6 @@ export const CREATE_PLUGIN_VALIDATION: FieldValidation = {
   license: [{ type: 'string' }, { type: 'string', minLength: 2 }, { type: 'string', maxLength: 50 }],
   dependencies: [{ type: 'optional' }, { type: 'array', itemType: 'string' }],
   loadOrder: [{ type: 'optional' }, { type: 'number' }],
-  compatibilityVersion: [
-    { type: 'string' },
-    {
-      type: 'string',
-      pattern: /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/,
-      message: 'Compatibility version must follow semantic versioning (e.g., 1.0.0)',
-    },
-  ],
-  routes: [{ type: 'optional' }, { type: 'array', itemType: 'string' }],
-  configuration: [{ type: 'optional' }, { type: 'object' }],
 };
 
 export interface PluginResponseDto extends PluginMetadata {
@@ -74,11 +59,6 @@ export interface PluginResponseDto extends PluginMetadata {
   license: string;
   dependencies?: string[];
   loadOrder?: number;
-  compatibilityVersion: string;
-  routes?: string[];
-  configuration?: {
-    schema: Record<string, unknown>;
-  };
   uploadedAt: string;
   fileSize: number;
   checksum: string;

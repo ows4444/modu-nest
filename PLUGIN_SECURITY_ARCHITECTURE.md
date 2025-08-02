@@ -165,7 +165,6 @@ export class PluginValidator {
     'description',
     'author',
     'license',
-    'compatibilityVersion',
   ];
 
   private static readonly VERSION_REGEX = /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/;
@@ -190,11 +189,6 @@ export class PluginValidator {
     // Validate version format
     if (manifest.version && !this.VERSION_REGEX.test(manifest.version)) {
       errors.push('Version must follow semantic versioning (e.g., 1.0.0)');
-    }
-
-    // Validate compatibility version
-    if (manifest.compatibilityVersion && !this.VERSION_REGEX.test(manifest.compatibilityVersion)) {
-      errors.push('Compatibility version must follow semantic versioning (e.g., 1.0.0)');
     }
 
     // Validate dependencies

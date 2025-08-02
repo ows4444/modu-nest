@@ -42,3 +42,8 @@ export * from './lib/plugin-environment';
 
 // Plugin registry specific types and DTOs
 export * from './lib/plugin-registry-types';
+
+// Plugin guards system
+export * from './lib/plugin-guards';
+export * from './lib/plugin-guard-registry.service';
+export * from './lib/plugin-guard-interceptor';

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsNumber, IsObject, Matches, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNumber, Matches, MinLength, MaxLength } from 'class-validator';
 import { CREATE_PLUGIN_VALIDATION } from '@modu-nest/plugin-types';
 import type { CreatePluginDto } from '@modu-nest/plugin-types';
 
@@ -40,26 +40,4 @@ export class CreatePluginValidationDto implements CreatePluginDto {
   @IsOptional()
   @IsNumber()
   loadOrder?: number;
-
-  @IsString()
-  @Matches(
-    CREATE_PLUGIN_VALIDATION.compatibilityVersion.find((r) => r.pattern)?.pattern || /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/,
-    {
-      message:
-        CREATE_PLUGIN_VALIDATION.compatibilityVersion.find((r) => r.message)?.message ||
-        'Invalid compatibility version format',
-    }
-  )
-  compatibilityVersion!: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  routes?: string[];
-
-  @IsOptional()
-  @IsObject()
-  configuration?: {
-    schema: Record<string, unknown>;
-  };
 }

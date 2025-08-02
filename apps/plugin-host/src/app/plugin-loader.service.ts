@@ -2,12 +2,20 @@ import { Injectable, Logger, DynamicModule } from '@nestjs/common';
 import 'reflect-metadata';
 import path from 'path';
 import fs from 'fs';
-import { PluginManifest, LoadedPlugin } from '@modu-nest/plugin-types';
+import {
+  PluginManifest,
+  LoadedPlugin,
+  PluginGuardRegistryService,
+  getPluginGuardMetadata,
+  isPluginGuardClass,
+  RegisteredPluginGuard,
+} from '@modu-nest/plugin-types';
 
 @Injectable()
 export class PluginLoaderService {
   private readonly logger = new Logger(PluginLoaderService.name);
   private loadedPlugins = new Map<string, LoadedPlugin>();
+  private guardRegistry?: PluginGuardRegistryService;
 
   // Security: List of unsafe modules that plugins should not use
   private readonly UNSAFE_MODULES = [
@@ -47,6 +55,10 @@ export class PluginLoaderService {
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
+  }
+
+  setGuardRegistry(guardRegistry: PluginGuardRegistryService): void {
+    this.guardRegistry = guardRegistry;
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
@@ -111,6 +123,9 @@ export class PluginLoaderService {
           const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
 
           if (dynamicModule) {
+            // Scan for and register plugin guards
+            this.scanAndRegisterPluginGuards(manifest, pluginModule);
+
             dynamicModules.push(dynamicModule);
             this.loadedPlugins.set(manifest.name, {
               manifest,
@@ -149,6 +164,7 @@ export class PluginLoaderService {
       // Try to find the module, service, and controller
       const PluginModule = pluginModule[name + 'Module'];
       const PluginService = pluginModule[name + 'Service'];
+      const PluginGuardResolverService = pluginModule['PluginGuardResolverService'];
       const PluginController = pluginModule[name + 'Controller'];
 
       if (!PluginModule) {
@@ -160,6 +176,11 @@ export class PluginLoaderService {
       const controllers = PluginController ? [PluginController] : [];
       const providers = PluginService ? [PluginService] : [];
       const exports = PluginService ? [PluginService] : [];
+
+      if (PluginGuardResolverService) {
+        providers.push(PluginGuardResolverService);
+        exports.push(PluginGuardResolverService);
+      }
 
       const dynamicModule: DynamicModule = {
         module: PluginModule as any,
@@ -269,5 +290,42 @@ export class PluginLoaderService {
 
     scanRecursive(dirPath);
     return results;
+  }
+
+  private scanAndRegisterPluginGuards(manifest: PluginManifest, pluginModule: Record<string, unknown>): void {
+    if (!this.guardRegistry) {
+      this.logger.debug(`Guard registry not available, skipping guard registration for ${manifest.name}`);
+      return;
+    }
+
+    let guardCount = 0;
+
+    // Scan all exports for plugin guards
+    for (const [exportName, exportValue] of Object.entries(pluginModule)) {
+      if (isPluginGuardClass(exportValue)) {
+        const guardMetadata = getPluginGuardMetadata(exportValue);
+
+        if (guardMetadata) {
+          // Register the guard
+          const registeredGuard: RegisteredPluginGuard = {
+            metadata: guardMetadata,
+            guardClass: exportValue,
+          };
+
+          this.guardRegistry.registerGuard(registeredGuard);
+          guardCount++;
+
+          this.logger.debug(`Registered guard '${guardMetadata.name}' from plugin '${manifest.name}'`);
+        } else {
+          this.logger.warn(
+            `Found guard class '${exportName}' in plugin '${manifest.name}' but missing metadata. Use @RegisterPluginGuard decorator.`
+          );
+        }
+      }
+    }
+
+    if (guardCount > 0) {
+      this.logger.log(`Registered ${guardCount} guards from plugin '${manifest.name}'`);
+    }
   }
 }

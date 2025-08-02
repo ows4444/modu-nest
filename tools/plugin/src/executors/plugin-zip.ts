@@ -15,10 +15,11 @@ interface PluginManifest {
   license: string;
   dependencies?: string[];
   loadOrder?: number;
-  compatibilityVersion: string;
-  routes?: string[];
-  configuration?: {
-    schema: Record<string, unknown>;
+  module?: {
+    controllers?: string[];
+    providers?: string[];
+    exports?: string[];
+    imports?: string[];
   };
 }
 
