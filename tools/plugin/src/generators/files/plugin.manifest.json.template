@@ -9,15 +9,15 @@
   "module": {
     "controllers": [
       "<%= className %>Controller"
-    ];
+    ],
     "providers": [
       "<%= className %>Service"
-    ];
+    ],
     "exports": [
       "<%= className %>Service"
-    ];
+    ],
     "imports": [
       
-    ];
-  };
+    ]
+  }
 }

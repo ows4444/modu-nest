@@ -11,6 +11,7 @@ export interface PluginManifest {
     providers?: string[];
     exports?: string[];
     imports?: string[];
+    guards?: string[];
   };
 }
 
