@@ -20,8 +20,18 @@ interface PluginManifest {
     providers?: string[];
     exports?: string[];
     imports?: string[];
-    guards?: string[];
   };
+  guards?: {
+    name: string;
+    class: string;
+    description?: string;
+    dependencies?: string[];
+    exported?: boolean; // Whether this guard can be used by other plugins
+  }[];
+  guardDependencies?: {
+    pluginName: string;
+    guards: string[]; // List of guard names this plugin wants to use from the dependency
+  }[];
 }
 
 const runExecutor: PromiseExecutor<PluginZipExecutorSchema> = async (options, context: ExecutorContext) => {

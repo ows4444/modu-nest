@@ -20,8 +20,18 @@ interface PluginManifest {
     providers?: string[];
     exports?: string[];
     imports?: string[];
-    guards?: string[];
   };
+  guards?: {
+    name: string;
+    class: string;
+    description?: string;
+    dependencies?: string[];
+    exported?: boolean; // Whether this guard can be used by other plugins
+  }[];
+  guardDependencies?: {
+    pluginName: string;
+    guards: string[]; // List of guard names this plugin wants to use from the dependency
+  }[];
 }
 
 interface PluginRegistryEntry {
@@ -356,10 +366,6 @@ class PluginPublisher {
 
     if (manifest.dependencies && manifest.dependencies.length > 0) {
       logger.info(`   Dependencies: ${manifest.dependencies.join(', ')}`);
-    }
-
-    if (manifest.routes && manifest.routes.length > 0) {
-      logger.info(`   Routes: ${manifest.routes.join(', ')}`);
     }
   }
 

@@ -23,6 +23,10 @@ export class AppModule implements OnModuleInit {
 
     this.logger.log(`Found ${pluginModules.length} plugins to import`);
 
+    // Set up guard interceptor with allowed guards
+    const guardInterceptor = new PluginGuardInterceptor(new Reflector(), guardRegistryInstance);
+    guardInterceptor.setAllowedGuards(pluginLoaderInstance.getAllowedGuards());
+
     // Add shared configuration module
     const baseImports = [
       SharedConfigModule.forRoot({
@@ -46,8 +50,11 @@ export class AppModule implements OnModuleInit {
           provide: PluginGuardRegistryService,
           useValue: guardRegistryInstance, // Use the same instance that registered the guards
         },
+        {
+          provide: PluginGuardInterceptor,
+          useValue: guardInterceptor, // Use the configured interceptor with allowed guards
+        },
         RegistryClientService,
-        PluginGuardInterceptor,
         Reflector,
       ],
     };

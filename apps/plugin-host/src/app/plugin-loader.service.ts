@@ -16,6 +16,7 @@ export class PluginLoaderService {
   private readonly logger = new Logger(PluginLoaderService.name);
   private loadedPlugins = new Map<string, LoadedPlugin>();
   private guardRegistry?: PluginGuardRegistryService;
+  private allowedGuards = new Map<string, string[]>();
 
   // Security: List of unsafe modules that plugins should not use
   private readonly UNSAFE_MODULES = [
@@ -140,6 +141,10 @@ export class PluginLoaderService {
       }
 
       this.logger.log(`Successfully loaded ${dynamicModules.length} plugins`);
+      
+      // Process guard dependencies after all plugins are loaded
+      this.processGuardDependencies();
+      
       return dynamicModules;
     } catch (error) {
       this.logger.error('Failed to scan plugins folder:', error);
@@ -197,6 +202,9 @@ export class PluginLoaderService {
       const providers = resolveComponents(manifest.module.providers);
       const moduleExports = resolveComponents(manifest.module.exports);
       const imports = resolveComponents(manifest.module.imports);
+
+      // Add plugin name metadata to all controllers for guard isolation
+      this.addPluginMetadataToControllers(controllers, manifest.name);
 
       // Generate module class name from plugin name
       const moduleClassName = `${
@@ -369,6 +377,98 @@ export class PluginLoaderService {
 
     if (guardCount > 0) {
       this.logger.log(`Registered ${guardCount} guards from plugin '${manifest.name}'`);
+    }
+  }
+
+  /**
+   * Process guard dependencies and build allowed guards map
+   */
+  private processGuardDependencies(): void {
+    if (!this.guardRegistry) {
+      this.logger.warn('Guard registry not available, skipping guard dependency processing');
+      return;
+    }
+
+    this.allowedGuards.clear();
+
+    for (const [pluginName, loadedPlugin] of this.loadedPlugins) {
+      const manifest = loadedPlugin.manifest;
+      const allowedGuardsList: string[] = [];
+
+      // Add plugin's own guards
+      const ownGuards = this.guardRegistry.getGuardsByPlugin(pluginName);
+      allowedGuardsList.push(...ownGuards.map(g => g.metadata.name));
+
+      // Process guard dependencies
+      if (manifest.guardDependencies) {
+        for (const guardDep of manifest.guardDependencies) {
+          const dependencyPlugin = this.loadedPlugins.get(guardDep.pluginName);
+          
+          if (!dependencyPlugin) {
+            this.logger.error(
+              `Plugin '${pluginName}' declares guard dependency on '${guardDep.pluginName}' but that plugin is not loaded`
+            );
+            continue;
+          }
+
+          // Check if the dependency plugin exports the requested guards
+          const exportedGuards = this.getExportedGuardsFromManifest(dependencyPlugin.manifest);
+          
+          for (const requestedGuard of guardDep.guards) {
+            const guardInfo = exportedGuards.find(g => g.name === requestedGuard);
+            
+            if (guardInfo && guardInfo.exported) {
+              allowedGuardsList.push(requestedGuard);
+              this.logger.log(
+                `Plugin '${pluginName}' granted access to guard '${requestedGuard}' from '${guardDep.pluginName}'`
+              );
+            } else {
+              this.logger.error(
+                `Plugin '${pluginName}' requested guard '${requestedGuard}' from '${guardDep.pluginName}' but it's not exported`
+              );
+            }
+          }
+        }
+      }
+
+      this.allowedGuards.set(pluginName, allowedGuardsList);
+      this.logger.debug(`Plugin '${pluginName}' can use guards: ${allowedGuardsList.join(', ')}`);
+    }
+
+    this.logger.log('Guard dependencies processed successfully');
+  }
+
+  /**
+   * Get exported guards from plugin manifest
+   */
+  private getExportedGuardsFromManifest(manifest: PluginManifest): Array<{name: string, exported: boolean}> {
+    if (!manifest.guards) {
+      return [];
+    }
+
+    return manifest.guards.map(guard => ({
+      name: guard.name,
+      exported: guard.exported || false,
+    }));
+  }
+
+  /**
+   * Get the allowed guards map for external use
+   */
+  getAllowedGuards(): Map<string, string[]> {
+    return this.allowedGuards;
+  }
+
+  /**
+   * Adds plugin name metadata to controllers for guard isolation
+   */
+  private addPluginMetadataToControllers(controllers: any[], pluginName: string): void {
+    for (const controller of controllers) {
+      if (typeof controller === 'function') {
+        // Add plugin name metadata to the controller class
+        Reflect.defineMetadata('plugin:name', pluginName, controller);
+        this.logger.debug(`Added plugin metadata '${pluginName}' to controller '${controller.name}'`);
+      }
     }
   }
 }

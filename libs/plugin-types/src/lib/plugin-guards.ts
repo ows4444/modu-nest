@@ -12,6 +12,7 @@ export interface PluginGuardMetadata {
   pluginName: string;
   version: string;
   dependencies?: string[];
+  exported?: boolean; // Whether this guard can be used by other plugins
 }
 
 export interface RegisteredPluginGuard {

@@ -72,6 +72,42 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
     return registeredGuard.instance;
   }
 
+  // Check if a plugin can use a specific guard
+  canPluginUseGuard(requestingPluginName: string, guardName: string, allowedGuards?: Map<string, string[]>): boolean {
+    const guard = this.getGuard(guardName);
+    if (!guard) {
+      return false;
+    }
+
+    // Plugin can always use its own guards
+    if (guard.metadata.pluginName === requestingPluginName) {
+      return true;
+    }
+
+    // Check if the guard is in the allowed list for this plugin
+    if (allowedGuards && allowedGuards.has(requestingPluginName)) {
+      const allowedGuardsList = allowedGuards.get(requestingPluginName) || [];
+      return allowedGuardsList.includes(guardName);
+    }
+
+    // By default, plugins cannot use guards from other plugins
+    return false;
+  }
+
+  // Get guards that are exported (available for other plugins to use)
+  getExportedGuards(): RegisteredPluginGuard[] {
+    return Array.from(this.guards.values()).filter(
+      guard => guard.metadata.exported === true
+    );
+  }
+
+  // Get guards available for a specific plugin
+  getAvailableGuardsForPlugin(pluginName: string, allowedGuards?: Map<string, string[]>): RegisteredPluginGuard[] {
+    return Array.from(this.guards.values()).filter(
+      guard => this.canPluginUseGuard(pluginName, guard.metadata.name, allowedGuards)
+    );
+  }
+
   // Get statistics about registered guards
   getRegistryStats() {
     const guards = this.getAllGuards();
@@ -83,6 +119,7 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
         return acc;
       }, {} as Record<string, number>),
       guardNames: guards.map(guard => guard.metadata.name),
+      exportedGuards: guards.filter(g => g.metadata.exported).length,
     };
   }
 }
