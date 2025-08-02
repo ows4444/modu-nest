@@ -1,3 +1,30 @@
+export type GuardScope = 'local' | 'external';
+export interface BaseGuardEntry {
+  name: string;
+  description?: string;
+  scope: GuardScope;
+}
+export interface LocalGuardEntry extends BaseGuardEntry {
+  scope: 'local';
+  class: string;
+  dependencies?: string[];
+  exported?: boolean;
+}
+export interface ExternalGuardEntry extends BaseGuardEntry {
+  scope: 'external';
+  source: string;
+}
+
+export type GuardEntry = LocalGuardEntry | ExternalGuardEntry;
+
+export interface PluginModuleMeta {
+  controllers?: string[];
+  providers?: string[];
+  exports?: string[];
+  imports?: string[];
+  guards?: GuardEntry[];
+}
+
 export interface PluginManifest {
   name: string;
   version: string;
@@ -6,23 +33,7 @@ export interface PluginManifest {
   license: string;
   dependencies?: string[];
   loadOrder?: number;
-  module: {
-    controllers?: string[];
-    providers?: string[];
-    exports?: string[];
-    imports?: string[];
-  };
-  guards?: {
-    name: string;
-    class: string;
-    description?: string;
-    dependencies?: string[];
-    exported?: boolean; // Whether this guard can be used by other plugins
-  }[];
-  guardDependencies?: {
-    pluginName: string;
-    guards: string[]; // List of guard names this plugin wants to use from the dependency
-  }[];
+  module: PluginModuleMeta;
 }
 
 export interface PluginMetadata extends PluginManifest {

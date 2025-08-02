@@ -2,21 +2,12 @@ import { Injectable, Logger, DynamicModule, Module } from '@nestjs/common';
 import 'reflect-metadata';
 import path from 'path';
 import fs from 'fs';
-import {
-  PluginManifest,
-  LoadedPlugin,
-  PluginGuardRegistryService,
-  getPluginGuardMetadata,
-  isPluginGuardClass,
-  RegisteredPluginGuard,
-} from '@modu-nest/plugin-types';
+import { PluginManifest, LoadedPlugin } from '@modu-nest/plugin-types';
 
 @Injectable()
 export class PluginLoaderService {
   private readonly logger = new Logger(PluginLoaderService.name);
   private loadedPlugins = new Map<string, LoadedPlugin>();
-  private guardRegistry?: PluginGuardRegistryService;
-  private allowedGuards = new Map<string, string[]>();
 
   // Security: List of unsafe modules that plugins should not use
   private readonly UNSAFE_MODULES = [
@@ -56,10 +47,6 @@ export class PluginLoaderService {
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
-  }
-
-  setGuardRegistry(guardRegistry: PluginGuardRegistryService): void {
-    this.guardRegistry = guardRegistry;
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
@@ -124,9 +111,6 @@ export class PluginLoaderService {
           const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
 
           if (dynamicModule) {
-            // Scan for and register plugin guards
-            this.scanAndRegisterPluginGuards(manifest, pluginModule);
-
             dynamicModules.push(dynamicModule);
             this.loadedPlugins.set(manifest.name, {
               manifest,
@@ -141,10 +125,6 @@ export class PluginLoaderService {
       }
 
       this.logger.log(`Successfully loaded ${dynamicModules.length} plugins`);
-      
-      // Process guard dependencies after all plugins are loaded
-      this.processGuardDependencies();
-      
       return dynamicModules;
     } catch (error) {
       this.logger.error('Failed to scan plugins folder:', error);
@@ -158,8 +138,6 @@ export class PluginLoaderService {
   ): Promise<DynamicModule | null> {
     try {
       this.logger.debug(`Creating dynamic module for plugin: ${manifest.name}`);
-      this.logger.debug(`Available exports: ${Object.keys(pluginModule).join(', ')}`);
-
       // Validate manifest module structure
       if (!manifest.module || typeof manifest.module !== 'object') {
         this.logger.error(`Invalid manifest module structure for plugin '${manifest.name}'`);
@@ -341,122 +319,6 @@ export class PluginLoaderService {
 
     scanRecursive(dirPath);
     return results;
-  }
-
-  private scanAndRegisterPluginGuards(manifest: PluginManifest, pluginModule: Record<string, unknown>): void {
-    if (!this.guardRegistry) {
-      this.logger.debug(`Guard registry not available, skipping guard registration for ${manifest.name}`);
-      return;
-    }
-
-    let guardCount = 0;
-
-    // Scan all exports for plugin guards
-    for (const [exportName, exportValue] of Object.entries(pluginModule)) {
-      if (isPluginGuardClass(exportValue)) {
-        const guardMetadata = getPluginGuardMetadata(exportValue);
-
-        if (guardMetadata) {
-          // Register the guard
-          const registeredGuard: RegisteredPluginGuard = {
-            metadata: guardMetadata,
-            guardClass: exportValue,
-          };
-
-          this.guardRegistry.registerGuard(registeredGuard);
-          guardCount++;
-
-          this.logger.debug(`Registered guard '${guardMetadata.name}' from plugin '${manifest.name}'`);
-        } else {
-          this.logger.warn(
-            `Found guard class '${exportName}' in plugin '${manifest.name}' but missing metadata. Use @RegisterPluginGuard decorator.`
-          );
-        }
-      }
-    }
-
-    if (guardCount > 0) {
-      this.logger.log(`Registered ${guardCount} guards from plugin '${manifest.name}'`);
-    }
-  }
-
-  /**
-   * Process guard dependencies and build allowed guards map
-   */
-  private processGuardDependencies(): void {
-    if (!this.guardRegistry) {
-      this.logger.warn('Guard registry not available, skipping guard dependency processing');
-      return;
-    }
-
-    this.allowedGuards.clear();
-
-    for (const [pluginName, loadedPlugin] of this.loadedPlugins) {
-      const manifest = loadedPlugin.manifest;
-      const allowedGuardsList: string[] = [];
-
-      // Add plugin's own guards
-      const ownGuards = this.guardRegistry.getGuardsByPlugin(pluginName);
-      allowedGuardsList.push(...ownGuards.map(g => g.metadata.name));
-
-      // Process guard dependencies
-      if (manifest.guardDependencies) {
-        for (const guardDep of manifest.guardDependencies) {
-          const dependencyPlugin = this.loadedPlugins.get(guardDep.pluginName);
-          
-          if (!dependencyPlugin) {
-            this.logger.error(
-              `Plugin '${pluginName}' declares guard dependency on '${guardDep.pluginName}' but that plugin is not loaded`
-            );
-            continue;
-          }
-
-          // Check if the dependency plugin exports the requested guards
-          const exportedGuards = this.getExportedGuardsFromManifest(dependencyPlugin.manifest);
-          
-          for (const requestedGuard of guardDep.guards) {
-            const guardInfo = exportedGuards.find(g => g.name === requestedGuard);
-            
-            if (guardInfo && guardInfo.exported) {
-              allowedGuardsList.push(requestedGuard);
-              this.logger.log(
-                `Plugin '${pluginName}' granted access to guard '${requestedGuard}' from '${guardDep.pluginName}'`
-              );
-            } else {
-              this.logger.error(
-                `Plugin '${pluginName}' requested guard '${requestedGuard}' from '${guardDep.pluginName}' but it's not exported`
-              );
-            }
-          }
-        }
-      }
-
-      this.allowedGuards.set(pluginName, allowedGuardsList);
-      this.logger.debug(`Plugin '${pluginName}' can use guards: ${allowedGuardsList.join(', ')}`);
-    }
-
-    this.logger.log('Guard dependencies processed successfully');
-  }
-
-  /**
-   * Get exported guards from plugin manifest
-   */
-  private getExportedGuardsFromManifest(manifest: PluginManifest): Array<{name: string, exported: boolean}> {
-    if (!manifest.guards) {
-      return [];
-    }
-
-    return manifest.guards.map(guard => ({
-      name: guard.name,
-      exported: guard.exported || false,
-    }));
-  }
-
-  /**
-   * Get the allowed guards map for external use
-   */
-  getAllowedGuards(): Map<string, string[]> {
-    return this.allowedGuards;
   }
 
   /**

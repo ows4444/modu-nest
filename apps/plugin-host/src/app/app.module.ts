@@ -1,10 +1,8 @@
 import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService } from './registry-client.service';
 import { SharedConfigModule } from '@modu-nest/config';
-import { PluginGuardRegistryService, PluginGuardInterceptor } from '@modu-nest/plugin-types';
 
 @Module({})
 export class AppModule implements OnModuleInit {
@@ -14,18 +12,10 @@ export class AppModule implements OnModuleInit {
   static async register(): Promise<DynamicModule> {
     this.logger.debug('Registering AppModule with dynamic plugins...');
     const pluginLoaderInstance = new PluginLoaderService();
-    const guardRegistryInstance = new PluginGuardRegistryService();
-
-    // Set the guard registry before loading plugins
-    pluginLoaderInstance.setGuardRegistry(guardRegistryInstance);
 
     const pluginModules = await pluginLoaderInstance.scanAndLoadAllPlugins();
 
     this.logger.log(`Found ${pluginModules.length} plugins to import`);
-
-    // Set up guard interceptor with allowed guards
-    const guardInterceptor = new PluginGuardInterceptor(new Reflector(), guardRegistryInstance);
-    guardInterceptor.setAllowedGuards(pluginLoaderInstance.getAllowedGuards());
 
     // Add shared configuration module
     const baseImports = [
@@ -44,18 +34,9 @@ export class AppModule implements OnModuleInit {
       providers: [
         {
           provide: PluginLoaderService,
-          useValue: pluginLoaderInstance, // Use the same instance that loaded the plugins
-        },
-        {
-          provide: PluginGuardRegistryService,
-          useValue: guardRegistryInstance, // Use the same instance that registered the guards
-        },
-        {
-          provide: PluginGuardInterceptor,
-          useValue: guardInterceptor, // Use the configured interceptor with allowed guards
+          useValue: pluginLoaderInstance,
         },
         RegistryClientService,
-        Reflector,
       ],
     };
   }
