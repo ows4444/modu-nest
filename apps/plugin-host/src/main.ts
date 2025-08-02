@@ -8,6 +8,7 @@ import { EnvironmentType } from '@modu-nest/const';
 // import { GrpcToHttpInterceptor } from '@modu-nest/shared-infrastructure';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
+import { PluginGuardInterceptor } from '@modu-nest/plugin-types';
 
 async function Bootstrap() {
   const dynamicAppModule = await AppModule.register();
@@ -20,6 +21,7 @@ async function Bootstrap() {
   // app.useLogger(loggerService);
 
   app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalGuards(app.get(PluginGuardInterceptor));
 
   app.flushLogs();
   const configService = app.get(ConfigService);
