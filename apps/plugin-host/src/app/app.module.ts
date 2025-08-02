@@ -1,13 +1,9 @@
 import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService } from './registry-client.service';
 import { SharedConfigModule } from '@modu-nest/config';
-import { 
-  PluginGuardInterceptor, 
-  PluginGuardRegistryService 
-} from '@modu-nest/plugin-types';
+import { PluginGuardInterceptor, PluginGuardRegistryService } from '@modu-nest/plugin-types';
 
 @Module({})
 export class AppModule implements OnModuleInit {
@@ -43,10 +39,7 @@ export class AppModule implements OnModuleInit {
         },
         RegistryClientService,
         PluginGuardRegistryService,
-        {
-          provide: APP_GUARD,
-          useClass: PluginGuardInterceptor,
-        },
+        PluginGuardInterceptor,
       ],
     };
   }
@@ -78,12 +71,12 @@ export class AppModule implements OnModuleInit {
 
   private async setupPluginGuardSystem() {
     this.instanceLogger.log('Setting up plugin guard system...');
-    
+
     // Get guard statistics from the plugin loader
     const guardStats = this.pluginLoader.getGuardStatistics();
     this.instanceLogger.log(
       `Guard system: ${guardStats.totalGuards} total guards ` +
-      `(${guardStats.localGuards} local, ${guardStats.externalGuards} external)`
+        `(${guardStats.localGuards} local, ${guardStats.externalGuards} external)`
     );
 
     // Set up guard registry with plugins and their allowed guards
@@ -99,7 +92,7 @@ export class AppModule implements OnModuleInit {
 
     for (const [pluginName, plugin] of loadedPlugins) {
       const guards: string[] = [];
-      
+
       // Add plugin's own guards (both local and external)
       if (plugin.manifest.module.guards) {
         for (const guard of plugin.manifest.module.guards) {
