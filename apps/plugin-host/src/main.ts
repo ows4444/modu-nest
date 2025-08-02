@@ -6,7 +6,7 @@ import { Environment, ENVIRONMENT_ENV } from '@modu-nest/config';
 import { EnvironmentType } from '@modu-nest/const';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
-import { PluginGuardInterceptor } from '@modu-nest/plugin-types';
+//import { PluginGuardInterceptor } from '@modu-nest/plugin-types';
 
 async function Bootstrap() {
   const dynamicAppModule = await AppModule.register();
@@ -15,7 +15,7 @@ async function Bootstrap() {
   });
   const logger = new Logger(Bootstrap.name);
   app.useGlobalPipes(new ValidationPipe());
-  app.useGlobalGuards(app.get(PluginGuardInterceptor));
+  //app.useGlobalGuards(app.get(PluginGuardInterceptor));
 
   app.flushLogs();
   const configService = app.get(ConfigService);
