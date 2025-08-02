@@ -39,12 +39,13 @@ export function PluginGuardMetadata(metadata: PluginGuardMetadata): ClassDecorat
   return SetMetadata(PLUGIN_GUARD_METADATA_KEY, metadata);
 }
 
-export function PluginUseGuards(...guards: (string | (new (...args: any[]) => PluginGuard))[]): MethodDecorator & ClassDecorator {
+export function PluginUseGuards(
+  ...guards: (string | (new (...args: any[]) => PluginGuard))[]
+): MethodDecorator & ClassDecorator {
   return SetMetadata(PLUGIN_USE_GUARDS_KEY, guards);
 }
 
 // Base plugin guard class
-@Injectable()
 export abstract class BasePluginGuard implements PluginGuard {
   abstract canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean>;
 }
@@ -54,18 +55,20 @@ export function RegisterPluginGuard(metadata: PluginGuardMetadata) {
   return function <T extends new (...args: any[]) => PluginGuard>(constructor: T): T {
     // Store metadata on the constructor
     Reflect.defineMetadata(PLUGIN_GUARD_METADATA_KEY, metadata, constructor);
-    
+
     // Mark as injectable if not already
     if (!Reflect.hasMetadata('__injectable__', constructor)) {
       Injectable()(constructor);
     }
-    
+
     return constructor;
   };
 }
 
 // Utility functions
-export function getPluginGuardMetadata(guardClass: new (...args: any[]) => PluginGuard): PluginGuardMetadata | undefined {
+export function getPluginGuardMetadata(
+  guardClass: new (...args: any[]) => PluginGuard
+): PluginGuardMetadata | undefined {
   return Reflect.getMetadata(PLUGIN_GUARD_METADATA_KEY, guardClass);
 }
 
