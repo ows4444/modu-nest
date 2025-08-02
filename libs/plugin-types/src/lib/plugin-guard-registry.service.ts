@@ -8,14 +8,14 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
   private readonly guards = new Map<string, RegisteredPluginGuard>();
 
   registerGuard(guard: RegisteredPluginGuard): void {
-    const { name, pluginName } = guard.metadata;
-    
+    const { name } = guard.metadata;
+
     if (this.guards.has(name)) {
-      this.logger.warn(`Guard '${name}' is already registered. Overriding with new guard from plugin '${pluginName}'.`);
+      this.logger.warn(`Guard '${name}' is already registered. Overriding with new guard'.`);
     }
 
     this.guards.set(name, guard);
-    this.logger.log(`Registered guard '${name}' from plugin '${pluginName}'`);
+    this.logger.log(`Registered guard '${name}'`);
   }
 
   getGuard(name: string): RegisteredPluginGuard | undefined {
@@ -23,9 +23,7 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
   }
 
   getGuardsByPlugin(pluginName: string): RegisteredPluginGuard[] {
-    return Array.from(this.guards.values()).filter(
-      guard => guard.metadata.pluginName === pluginName
-    );
+    return Array.from(this.guards.values()).filter((guard) => guard.metadata.source === pluginName);
   }
 
   getAllGuards(): RegisteredPluginGuard[] {
@@ -42,7 +40,7 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
 
   unregisterPluginGuards(pluginName: string): void {
     const guardsToRemove = this.getGuardsByPlugin(pluginName);
-    
+
     for (const guard of guardsToRemove) {
       this.guards.delete(guard.metadata.name);
     }
@@ -80,7 +78,7 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
     }
 
     // Plugin can always use its own guards
-    if (guard.metadata.pluginName === requestingPluginName) {
+    if (guard.metadata.source === requestingPluginName) {
       return true;
     }
 
@@ -96,15 +94,13 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
 
   // Get guards that are exported (available for other plugins to use)
   getExportedGuards(): RegisteredPluginGuard[] {
-    return Array.from(this.guards.values()).filter(
-      guard => guard.metadata.exported === true
-    );
+    return Array.from(this.guards.values()).filter((guard) => (guard.metadata.scope === 'external') === true);
   }
 
   // Get guards available for a specific plugin
   getAvailableGuardsForPlugin(pluginName: string, allowedGuards?: Map<string, string[]>): RegisteredPluginGuard[] {
-    return Array.from(this.guards.values()).filter(
-      guard => this.canPluginUseGuard(pluginName, guard.metadata.name, allowedGuards)
+    return Array.from(this.guards.values()).filter((guard) =>
+      this.canPluginUseGuard(pluginName, guard.metadata.name, allowedGuards)
     );
   }
 
@@ -114,12 +110,12 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
     return {
       totalGuards: guards.length,
       guardsByPlugin: guards.reduce((acc, guard) => {
-        const pluginName = guard.metadata.pluginName;
+        const pluginName = guard.metadata.source;
         acc[pluginName] = (acc[pluginName] || 0) + 1;
         return acc;
       }, {} as Record<string, number>),
-      guardNames: guards.map(guard => guard.metadata.name),
-      exportedGuards: guards.filter(g => g.metadata.exported).length,
+      guardNames: guards.map((guard) => guard.metadata.name),
+      exportedGuards: guards.filter((g) => g.metadata.source).length,
     };
   }
 }

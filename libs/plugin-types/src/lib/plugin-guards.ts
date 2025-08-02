@@ -1,19 +1,13 @@
 import { CanActivate, ExecutionContext, Injectable, SetMetadata } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { ExternalGuardEntry, LocalGuardEntry } from './plugin-interfaces';
 
 // Plugin guard interfaces
 export interface PluginGuard extends CanActivate {
   canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean>;
 }
 
-export interface PluginGuardMetadata {
-  name: string;
-  description?: string;
-  pluginName: string;
-  version: string;
-  dependencies?: string[];
-  exported?: boolean; // Whether this guard can be used by other plugins
-}
+export type PluginGuardMetadata = ExternalGuardEntry | Omit<LocalGuardEntry, 'class'>;
 
 export interface RegisteredPluginGuard {
   metadata: PluginGuardMetadata;

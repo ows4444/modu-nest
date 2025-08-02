@@ -42,10 +42,13 @@ export class PluginGuardInterceptor implements CanActivate {
       }
 
       // Check if the plugin can use this guard
-      if (currentPluginName && !this.guardRegistry.canPluginUseGuard(currentPluginName, guardName, this.allowedGuards)) {
+      if (
+        currentPluginName &&
+        !this.guardRegistry.canPluginUseGuard(currentPluginName, guardName, this.allowedGuards)
+      ) {
         console.error(
-          `Security violation: Plugin '${currentPluginName}' attempted to use guard '${guardName}' from plugin '${registeredGuard.metadata.pluginName}'. ` +
-          'Plugin can only use guards that are explicitly allowed in dependencies.'
+          `Security violation: Plugin '${currentPluginName}' attempted to use guard '${guardName}' from plugin '${registeredGuard.metadata.name}'. ` +
+            'Plugin can only use guards that are explicitly allowed in dependencies.'
         );
         return false;
       }
@@ -67,7 +70,7 @@ export class PluginGuardInterceptor implements CanActivate {
           return false; // If any guard fails, deny access
         }
       } catch (error) {
-        // Let the guard's error bubble up (e.g., UnauthorizedException)
+        // Let the guard's error bubble up (e.g., UnauthorizedException, ForbiddenException)
         console.error(`Guard '${guardName}' threw an error:`, error);
         throw error;
       }
@@ -82,20 +85,6 @@ export class PluginGuardInterceptor implements CanActivate {
   private getCurrentPluginName(context: ExecutionContext): string | null {
     const controllerClass = context.getClass();
     const controllerName = controllerClass.name;
-
-    // Try to extract plugin name from controller name
-    // Convention: PluginNameController -> plugin-name
-    if (controllerName.endsWith('Controller')) {
-      const baseName = controllerName.replace('Controller', '');
-      
-      // Convert PascalCase to kebab-case
-      const pluginName = baseName
-        .replace(/([A-Z])/g, '-$1')
-        .toLowerCase()
-        .replace(/^-/, '');
-      
-      return pluginName;
-    }
 
     // Fallback: check if there's plugin metadata on the controller
     const pluginMetadata = Reflect.getMetadata('plugin:name', controllerClass);

@@ -1,8 +1,13 @@
 import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService } from './registry-client.service';
 import { SharedConfigModule } from '@modu-nest/config';
+import { 
+  PluginGuardInterceptor, 
+  PluginGuardRegistryService 
+} from '@modu-nest/plugin-types';
 
 @Module({})
 export class AppModule implements OnModuleInit {
@@ -37,22 +42,90 @@ export class AppModule implements OnModuleInit {
           useValue: pluginLoaderInstance,
         },
         RegistryClientService,
+        PluginGuardRegistryService,
+        {
+          provide: APP_GUARD,
+          useClass: PluginGuardInterceptor,
+        },
       ],
     };
   }
 
-  constructor(private pluginLoader: PluginLoaderService) {}
+  constructor(
+    private pluginLoader: PluginLoaderService,
+    private guardRegistry: PluginGuardRegistryService,
+    private guardInterceptor: PluginGuardInterceptor
+  ) {}
 
   async onModuleInit() {
     this.instanceLogger.log('AppModule initialized - plugins should be loaded');
 
+    // Set up guard registry in plugin loader
+    this.pluginLoader.setGuardRegistry(this.guardRegistry);
+
     const loadedPlugins = this.pluginLoader.getLoadedPlugins();
     this.instanceLogger.log(`Active plugins: ${Array.from(loadedPlugins.keys()).join(', ')}`);
+
+    // Register guards and set up plugin guard system
+    await this.setupPluginGuardSystem();
 
     loadedPlugins.forEach((plugin, name) => {
       this.instanceLogger.log(
         `Plugin ${name}: ${plugin.manifest.description || 'No description'} (v${plugin.manifest.version || '1.0.0'})`
       );
     });
+  }
+
+  private async setupPluginGuardSystem() {
+    this.instanceLogger.log('Setting up plugin guard system...');
+    
+    // Get guard statistics from the plugin loader
+    const guardStats = this.pluginLoader.getGuardStatistics();
+    this.instanceLogger.log(
+      `Guard system: ${guardStats.totalGuards} total guards ` +
+      `(${guardStats.localGuards} local, ${guardStats.externalGuards} external)`
+    );
+
+    // Set up guard registry with plugins and their allowed guards
+    const allowedGuards = this.createAllowedGuardsMap();
+    this.guardInterceptor.setAllowedGuards(allowedGuards);
+
+    this.instanceLogger.log('Plugin guard system setup completed');
+  }
+
+  private createAllowedGuardsMap(): Map<string, string[]> {
+    const allowedGuards = new Map<string, string[]>();
+    const loadedPlugins = this.pluginLoader.getLoadedPlugins();
+
+    for (const [pluginName, plugin] of loadedPlugins) {
+      const guards: string[] = [];
+      
+      // Add plugin's own guards (both local and external)
+      if (plugin.manifest.module.guards) {
+        for (const guard of plugin.manifest.module.guards) {
+          guards.push(guard.name);
+        }
+      }
+
+      // Add exported guards from dependencies
+      if (plugin.manifest.dependencies) {
+        for (const depName of plugin.manifest.dependencies) {
+          const depPlugin = loadedPlugins.get(depName);
+          if (depPlugin && depPlugin.manifest.module.guards) {
+            for (const guard of depPlugin.manifest.module.guards) {
+              // Add all exported guards from dependency plugins
+              if (guard.scope === 'local' && (guard as any).exported === true) {
+                guards.push(guard.name);
+              }
+            }
+          }
+        }
+      }
+
+      allowedGuards.set(pluginName, [...new Set(guards)]); // Remove duplicates
+      this.instanceLogger.debug(`Plugin '${pluginName}' allowed guards: [${guards.join(', ')}]`);
+    }
+
+    return allowedGuards;
   }
 }

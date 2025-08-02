@@ -2,6 +2,7 @@ export type GuardScope = 'local' | 'external';
 export interface BaseGuardEntry {
   name: string;
   description?: string;
+  source: string;
   scope: GuardScope;
 }
 export interface LocalGuardEntry extends BaseGuardEntry {
@@ -12,7 +13,6 @@ export interface LocalGuardEntry extends BaseGuardEntry {
 }
 export interface ExternalGuardEntry extends BaseGuardEntry {
   scope: 'external';
-  source: string;
 }
 
 export type GuardEntry = LocalGuardEntry | ExternalGuardEntry;
