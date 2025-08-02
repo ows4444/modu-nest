@@ -4,8 +4,6 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Environment, ENVIRONMENT_ENV } from '@modu-nest/config';
 import { EnvironmentType } from '@modu-nest/const';
-// import { LOGGER_SERVICE, LoggerService } from '@modu-nest/logger';
-// import { GrpcToHttpInterceptor } from '@modu-nest/shared-infrastructure';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
 import { PluginGuardInterceptor } from '@modu-nest/plugin-types';
@@ -16,10 +14,6 @@ async function Bootstrap() {
     bufferLogs: true,
   });
   const logger = new Logger(Bootstrap.name);
-  // const loggerService: LoggerService = app.get(LOGGER_SERVICE);
-
-  // app.useLogger(loggerService);
-
   app.useGlobalPipes(new ValidationPipe());
   app.useGlobalGuards(app.get(PluginGuardInterceptor));
 
@@ -38,8 +32,6 @@ async function Bootstrap() {
   app.setGlobalPrefix(globalPrefix, {
     exclude: [{ method: RequestMethod.GET, path: '/health/*path' }],
   });
-
-  // app.useGlobalInterceptors(new GrpcToHttpInterceptor());
 
   const isProduction = configService.getOrThrow<string>('NODE_ENV') === EnvironmentType.Production;
 

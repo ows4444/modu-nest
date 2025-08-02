@@ -28,16 +28,6 @@ export function BootstrapSwagger(app: INestApplication): void {
         scheme: 'bearer',
         bearerFormat: 'JWT',
       })
-      .addGlobalParameters({
-        name: 'Accept-Language',
-        in: 'header',
-        required: false,
-        schema: {
-          type: 'string',
-          enum: ['en_US', 'ur_PK'],
-          default: 'en_US',
-        },
-      })
       .build();
 
     const document = SwaggerModule.createDocument(app, config, {
