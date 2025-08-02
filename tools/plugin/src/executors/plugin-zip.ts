@@ -15,7 +15,7 @@ interface PluginManifest {
   license: string;
   dependencies?: string[];
   loadOrder?: number;
-  module?: {
+  module: {
     controllers?: string[];
     providers?: string[];
     exports?: string[];

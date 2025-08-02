@@ -1,4 +1,4 @@
-import { Injectable, Logger, DynamicModule } from '@nestjs/common';
+import { Injectable, Logger, DynamicModule, Module } from '@nestjs/common';
 import 'reflect-metadata';
 import path from 'path';
 import fs from 'fs';
@@ -152,45 +152,88 @@ export class PluginLoaderService {
     pluginModule: Record<string, unknown>
   ): Promise<DynamicModule | null> {
     try {
-      // Convert plugin name to PascalCase (e.g., 'x-test-plugin' -> 'XTestPlugin')
-      const name = manifest.name
-        .split('-')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join('');
-
-      this.logger.debug(`Looking for plugin components with base name: ${name}`);
+      this.logger.debug(`Creating dynamic module for plugin: ${manifest.name}`);
       this.logger.debug(`Available exports: ${Object.keys(pluginModule).join(', ')}`);
 
-      // Try to find the module, service, and controller
-      const PluginModule = pluginModule[name + 'Module'];
-      const PluginService = pluginModule[name + 'Service'];
-      const PluginGuardResolverService = pluginModule['PluginGuardResolverService'];
-      const PluginController = pluginModule[name + 'Controller'];
-
-      if (!PluginModule) {
-        this.logger.error(`No module found for ${manifest.name}. Expected: ${name}Module`);
+      // Validate manifest module structure
+      if (!manifest.module || typeof manifest.module !== 'object') {
+        this.logger.error(`Invalid manifest module structure for plugin '${manifest.name}'`);
         return null;
       }
 
-      // Build the dynamic module components
-      const controllers = PluginController ? [PluginController] : [];
-      const providers = PluginService ? [PluginService] : [];
-      const exports = PluginService ? [PluginService] : [];
+      // Helper function to resolve component references from manifest
+      const resolveComponents = (componentRefs: string[] | string | undefined): any[] => {
+        if (!componentRefs) return [];
 
-      if (PluginGuardResolverService) {
-        providers.push(PluginGuardResolverService);
-        exports.push(PluginGuardResolverService);
-      }
+        const refs = Array.isArray(componentRefs) ? componentRefs : [componentRefs];
+        const components: any[] = [];
 
+        for (const ref of refs) {
+          if (typeof ref !== 'string' || !ref.trim()) {
+            this.logger.warn(`Invalid component reference in manifest for plugin '${manifest.name}': ${ref}`);
+            continue;
+          }
+
+          const component = pluginModule[ref];
+          if (!component) {
+            this.logger.warn(`Component '${ref}' not found in plugin exports for '${manifest.name}'`);
+            continue;
+          }
+
+          if (typeof component !== 'function') {
+            this.logger.warn(`Component '${ref}' is not a valid class/function for plugin '${manifest.name}'`);
+            continue;
+          }
+
+          components.push(component);
+          this.logger.debug(`Resolved component '${ref}' for plugin '${manifest.name}'`);
+        }
+
+        return components;
+      };
+
+      // Resolve plugin components from manifest
+      const controllers = resolveComponents(manifest.module.controllers);
+      const providers = resolveComponents(manifest.module.providers);
+      const moduleExports = resolveComponents(manifest.module.exports);
+      const imports = resolveComponents(manifest.module.imports);
+
+      // Generate module class name from plugin name
+      const moduleClassName = `${
+        manifest.name.charAt(0).toUpperCase() +
+        manifest.name.slice(1).replace(/-([a-z])/g, (_, char) => char.toUpperCase())
+      }Module`;
+
+      // Create a dynamic module class at runtime using decorator
+      const DynamicPluginModule = class {};
+
+      // Set meaningful name for debugging
+      Object.defineProperty(DynamicPluginModule, 'name', {
+        value: moduleClassName,
+        configurable: true,
+      });
+
+      // Apply @Module decorator at runtime
+      const moduleDecorator = Module({
+        controllers,
+        providers,
+        exports: moduleExports,
+        imports,
+      });
+
+      // Apply the decorator to the class
+      moduleDecorator(DynamicPluginModule);
+
+      // Return the dynamic module configuration
       const dynamicModule: DynamicModule = {
-        module: PluginModule as any,
-        controllers: controllers as any[],
-        providers: providers as any[],
-        exports: exports as any[],
+        module: DynamicPluginModule,
+        global: false,
       };
 
       this.logger.log(
-        `✓ Created dynamic module for ${manifest.name} with ${controllers.length} controllers and ${providers.length} providers`
+        `✓ Dynamic module created for '${manifest.name}': ` +
+          `${controllers.length} controllers, ${providers.length} providers, ` +
+          `${moduleExports.length} exports, ${imports.length} imports`
       );
 
       return dynamicModule;
