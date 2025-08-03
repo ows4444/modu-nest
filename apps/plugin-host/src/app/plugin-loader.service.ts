@@ -6,7 +6,6 @@ import { createRequire } from 'module';
 import {
   PluginManifest,
   LoadedPlugin,
-  PluginValidator,
   PluginGuardManager,
   GuardEntry,
   PluginGuardRegistryService,
@@ -24,41 +23,6 @@ export class PluginLoaderService {
   private discoveredPlugins = new Map<string, PluginDiscovery>();
   private crossPluginServiceManager = new CrossPluginServiceManager();
 
-  // Security: List of unsafe modules that plugins should not use
-  private readonly UNSAFE_MODULES = [
-    'fs',
-    'fs/promises',
-    'node:fs',
-    'node:fs/promises',
-    'child_process',
-    'node:child_process',
-    'process',
-    'node:process',
-    'os',
-    'node:os',
-    'path',
-    'node:path',
-    'crypto',
-    'node:crypto',
-    'net',
-    'node:net',
-    'http',
-    'node:http',
-    'https',
-    'node:https',
-    'url',
-    'node:url',
-    'stream',
-    'node:stream',
-    'events',
-    'node:events',
-    'util',
-    'node:util',
-    'cluster',
-    'node:cluster',
-    'worker_threads',
-    'node:worker_threads',
-  ];
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
@@ -222,7 +186,7 @@ export class PluginLoaderService {
 
         const plugin = await this.loadSinglePlugin(pluginName);
         if (plugin) {
-          dynamicModules.push(plugin.module);
+          dynamicModules.push(plugin.module as DynamicModule);
           this.loadedPlugins.set(pluginName, plugin);
           this.loadingState.set(pluginName, PluginLoadingState.LOADED);
 
@@ -370,95 +334,6 @@ export class PluginLoaderService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /**
-   * First pass: Load and validate all plugins, storing their guards centrally
-   * This ensures all guards are available before any dynamic module creation
-   */
-  private async loadAndValidatePluginGuards(
-    pluginsPath: string,
-    pluginDirs: string[]
-  ): Promise<Array<{ manifest: PluginManifest; pluginModule: Record<string, unknown> }>> {
-    const validatedPlugins: Array<{ manifest: PluginManifest; pluginModule: Record<string, unknown> }> = [];
-
-    for (const pluginDir of pluginDirs) {
-      try {
-        const pluginPath = path.join(pluginsPath, pluginDir);
-        const manifestPath = path.join(pluginPath, 'plugin.manifest.json');
-        const indexPath = path.join(pluginPath, 'index.js');
-
-        // Check for required files
-        if (!fs.existsSync(manifestPath)) {
-          this.logger.warn(`Skipping ${pluginDir}: missing manifest file`);
-          continue;
-        }
-
-        if (!fs.existsSync(indexPath)) {
-          this.logger.warn(`Skipping ${pluginDir}: missing index.js file`);
-          continue;
-        }
-
-        // Load and validate manifest
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PluginManifest;
-
-        if (!manifest.name) {
-          this.logger.warn(`Skipping ${pluginDir}: invalid manifest - missing name`);
-          continue;
-        }
-
-        // Deep validation of manifest including guards
-        const validationResult = PluginValidator.validateManifest(manifest);
-        if (!validationResult.isValid) {
-          this.logger.error(`Skipping ${pluginDir}: manifest validation failed:`);
-          validationResult.errors.forEach((error) => this.logger.error(`  - ${error}`));
-          continue;
-        }
-
-        if (validationResult.warnings.length > 0) {
-          this.logger.warn(`Warnings for ${pluginDir}:`);
-          validationResult.warnings.forEach((warning) => this.logger.warn(`  - ${warning}`));
-        }
-
-        this.logger.debug(`Validating plugin: ${manifest.name}`);
-
-        // Security validation: scan for unsafe imports
-        const unsafeImportResults = this.scanDirectoryForUnsafeImports(pluginPath);
-        if (unsafeImportResults.length > 0) {
-          this.logger.error(`Security validation failed for plugin ${manifest.name} - unsafe imports detected:`);
-          for (const result of unsafeImportResults) {
-            this.logger.error(`   ${result.file}: ${result.imports.join(', ')}`);
-          }
-          this.logger.error('   Plugins are not allowed to use Node.js system modules for security reasons.');
-          continue;
-        }
-
-        // Import plugin module
-        const pluginModule = await import(/* webpackIgnore: true */ indexPath);
-
-        // Store guards in centralized manager (no global registration)
-        if (manifest.module.guards && manifest.module.guards.length > 0) {
-          this.logger.debug(`Storing ${manifest.module.guards.length} guards for plugin: ${manifest.name}`);
-          this.guardManager.storePluginGuards(manifest.name, manifest.module.guards, pluginModule);
-          this.registerPluginGuards(manifest.name, manifest.module.guards, pluginModule);
-        }
-
-        // Add to validated plugins for second pass
-        validatedPlugins.push({ manifest, pluginModule });
-        this.logger.debug(`✓ Validated and stored guards for plugin: ${manifest.name}`);
-      } catch (error) {
-        this.logger.error(`Failed to validate plugin ${pluginDir}:`, error);
-      }
-    }
-
-    this.logger.log(`Phase 1 complete: Validated ${validatedPlugins.length} plugins and stored their guards`);
-
-    // Log guard system statistics after all guards are loaded
-    const guardStats = this.guardManager.getStatistics();
-    this.logger.log(
-      `Guard system initialized: ${guardStats.totalGuards} total guards ` + `across ${guardStats.totalPlugins} plugins`
-    );
-
-    return validatedPlugins;
-  }
 
   private async createDynamicModuleFromPlugin(
     manifest: PluginManifest,
@@ -860,59 +735,6 @@ export class PluginLoaderService {
     };
   }
 
-  private scanForUnsafeImports(filePath: string): string[] {
-    if (!fs.existsSync(filePath)) {
-      return [];
-    }
-
-    const content = fs.readFileSync(filePath, 'utf8');
-    const unsafeImports: string[] = [];
-
-    // Check for import statements and require calls
-    const importRegex = /(?:import\s+.*?\s+from\s+['"`]([^'"`]+)['"`]|require\s*\(\s*['"`]([^'"`]+)['"`]\s*\))/g;
-    let match;
-
-    while ((match = importRegex.exec(content)) !== null) {
-      const moduleName = match[1] || match[2];
-      if (this.UNSAFE_MODULES.includes(moduleName)) {
-        unsafeImports.push(moduleName);
-      }
-    }
-
-    return [...new Set(unsafeImports)]; // Remove duplicates
-  }
-
-  private scanDirectoryForUnsafeImports(dirPath: string): { file: string; imports: string[] }[] {
-    const results: { file: string; imports: string[] }[] = [];
-
-    const scanRecursive = (currentPath: string) => {
-      if (!fs.existsSync(currentPath)) {
-        return;
-      }
-
-      const items = fs.readdirSync(currentPath);
-
-      for (const item of items) {
-        const itemPath = path.join(currentPath, item);
-        const stat = fs.statSync(itemPath);
-
-        if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
-          scanRecursive(itemPath);
-        } else if (stat.isFile() && (item.endsWith('.ts') || item.endsWith('.js'))) {
-          const unsafeImports = this.scanForUnsafeImports(itemPath);
-          if (unsafeImports.length > 0) {
-            results.push({
-              file: path.relative(dirPath, itemPath),
-              imports: unsafeImports,
-            });
-          }
-        }
-      }
-    };
-
-    scanRecursive(dirPath);
-    return results;
-  }
 
   /**
    * Adds plugin name metadata to controllers for guard isolation

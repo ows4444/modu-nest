@@ -121,7 +121,7 @@ export class CrossPluginServiceManager {
   removePluginServices(pluginName: string): void {
     const tokensToRemove: string[] = [];
     
-    for (const [token, provider] of this.serviceRegistry) {
+    for (const [token] of this.serviceRegistry) {
       // Check if this token belongs to the plugin being removed
       if (token.startsWith(`${pluginName.toUpperCase()}_`) || 
           token.includes(`_${pluginName.toUpperCase()}_`)) {
