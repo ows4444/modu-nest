@@ -5,580 +5,782 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Project Structure](#project-structure)
-3. [Plugin Architecture](#plugin-architecture)
-4. [Common Commands](#common-commands)
-5. [Development Workflow](#development-workflow)
-6. [API Endpoints](#api-endpoints)
-7. [Build System](#build-system)
-8. [Environment Configuration](#environment-configuration)
-9. [Key Files](#key-files)
-10. [Best Practices](#best-practices)
-11. [Troubleshooting](#troubleshooting)
+2. [Common Commands](#common-commands)
+3. [Plugin Architecture Deep Dive](#plugin-architecture-deep-dive)
+4. [Advanced Development Patterns](#advanced-development-patterns)
+5. [Build System and Tooling](#build-system-and-tooling)
+6. [Testing Infrastructure](#testing-infrastructure)
+7. [Environment Configuration](#environment-configuration)
+8. [Security Architecture](#security-architecture)
+9. [Performance and Optimization](#performance-and-optimization)
+10. [API Endpoints](#api-endpoints)
+11. [Troubleshooting and Debugging](#troubleshooting-and-debugging)
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 18+ and npm/yarn
-- Nx CLI: `npm install -g nx`
-
-### Initial Setup
+This is an **enterprise-grade microservice-based plugin architecture** with two main applications:
+- **Plugin Host** (Port 4001) - Dynamically loads and manages plugins with sophisticated dependency resolution
+- **Plugin Registry** (Port 6001) - Validates, stores, and distributes plugins with comprehensive security scanning
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the workspace
-npx nx run-many --target=build --all
-
 # Start both services
-npx nx serve plugin-host &    # Port 3000
-npx nx serve plugin-registry & # Port 3001
+nx serve plugin-host    # http://localhost:4001
+nx serve plugin-registry # http://localhost:6001
+
+# Create a new plugin with full scaffolding
+nx g @modu-nest/plugin:plugin my-plugin
+
+# Build and validate plugin
+nx run my-plugin:plugin-build
+nx run my-plugin:plugin-validate
 ```
-
-### Create Your First Plugin
-
-```bash
-# Generate a new plugin
-npx nx g @modu-nest/plugin:plugin my-first-plugin
-
-# Build and publish the plugin
-npx nx plugin-build my-first-plugin
-npx nx plugin-publish my-first-plugin
-
-# Your plugin is now available at http://localhost:3000/plugins/my-first-plugin
-```
-
-### Essential Files Created
-
-- `plugins/my-first-plugin/plugin.manifest.json` - Plugin metadata
-- `plugins/my-first-plugin/src/lib/my-first-plugin.module.ts` - Main module
-- `plugins/my-first-plugin/src/lib/my-first-plugin.controller.ts` - HTTP endpoints
-
-## Project Structure
-
-This is a **ModuNest** project - an Nx monorepo for building modular NestJS applications with a dynamic plugin system. The architecture consists of:
-
-### Apps Directory
-
-- **Plugin Host App** (`apps/plugin-host/`): Main NestJS application that dynamically loads and manages plugins
-  - `app.controller.ts`: Plugin management endpoints
-  - `plugin-loader.service.ts`: Dynamic plugin loading
-  - `registry-client.service.ts`: Communication with registry
-  - `app.service.ts`: Core application service
-  - `app.module.ts`: Dynamic module configuration
-- **Plugin Registry App** (`apps/plugin-registry/`): Centralized registry service for plugin distribution
-  - `controllers/`: HTTP controllers for plugin CRUD operations
-  - `services/`: Business logic for registry and storage operations
-  - `dto/`: Data Transfer Objects for API requests/responses
-  - `interceptors/`: Error handling and request/response processing
-
-### Libs Directory
-
-- **Plugin Types Library** (`libs/plugin-types/`): Comprehensive shared ecosystem for plugin development
-  - `plugin-interfaces.ts`: Core plugin interfaces and types (PluginManifest, PluginMetadata, etc.)
-  - `plugin-types.module.ts`: Plugin module decorator for NestJS modules
-  - `plugin-types.controller.ts`: Plugin controller decorator for routing
-  - `plugin-decorators.ts`: HTTP method decorators (PluginGet, PluginPost, etc.)
-  - `plugin-validators.ts`: Plugin manifest and structure validation utilities
-  - `plugin-utilities.ts`: Common utility functions for plugin operations
-  - `plugin-errors.ts`: Specialized error classes and handling utilities
-  - `plugin-configuration.ts`: Runtime configuration management for plugins
-  - `plugin-environment.ts`: Environment variable configuration service
-
-### Tools Directory
-
-- **Plugin Tool** (`tools/plugin/`): Nx plugin for generating, building, validating, and publishing plugins
-
-### Plugins Directory
-
-- **Plugins Directory** (`plugins/`): Contains individual plugin projects with standardized structure
 
 ## Common Commands
 
 ### Building and Testing
-
 ```bash
-# Build all projects
-npx nx run-many --target=build --all
+# Build specific project with dependency resolution
+nx build <project-name>
 
-# Run tests for all projects
-npx nx run-many --target=test --all
+# Run tests with coverage
+nx test <project-name>
+nx test <project-name> --testNamePattern="specific test"
+nx test <project-name> --coverage
 
-# Lint all projects
-npx nx run-many --target=lint --all
+# Lint with architectural boundary enforcement
+nx lint <project-name>
 
-# Type check all projects
-npx nx run-many --target=typecheck --all
+# Type checking with project references
+nx typecheck <project-name>
 
-# Build specific project
-npx nx build <project-name>
-
-# Run tests for specific project
-npx nx test <project-name>
-
-# Lint specific project
-npx nx lint <project-name>
+# Build all affected projects
+nx affected:build
 ```
 
-### Plugin Development
-
+### Plugin Development Lifecycle
 ```bash
-# Generate a new plugin
-npx nx g @modu-nest/plugin:plugin <plugin-name>
+# Generate plugin with complete structure
+nx g @modu-nest/plugin:plugin <plugin-name>
 
-# Build a plugin
-npx nx plugin-build <plugin-name>
+# Build plugin with security validation
+nx run <plugin-name>:plugin-build --production
 
-# Validate a plugin
-npx nx plugin-validate <plugin-name>
+# Validate plugin structure and security
+nx run <plugin-name>:plugin-validate
 
-# Publish a plugin to plugin host (local)
-npx nx plugin-publish <plugin-name>
+# Package plugin for distribution
+nx run <plugin-name>:plugin-zip
 
-# Publish a plugin to registry
-npx nx plugin-registry-publish <plugin-name>
+# Publish to local registry
+nx run <plugin-name>:plugin-publish
+
+# Publish to remote registry
+nx run <plugin-name>:plugin-registry-publish
 ```
 
-### Development Servers
-
+### Advanced Development Commands
 ```bash
-# Start plugin host app in development (port 3000)
-npx nx serve plugin-host
+# Run E2E tests with global setup/teardown
+nx run plugin-host-e2e:e2e
+nx run plugin-registry-e2e:e2e
 
-# Start plugin registry app in development (port 3001)
-npx nx serve plugin-registry
+# Clean build artifacts
+nx reset
+
+# Dependency graph visualization
+nx graph
+
+# Workspace analysis
+nx report
 ```
 
-## API Endpoints
+## Plugin Architecture Deep Dive
 
-### Plugin Host API (http://localhost:3000)
+### Core System Components
 
-**General Endpoints:**
+The architecture implements sophisticated patterns for enterprise plugin management:
 
-- `GET /` - Application information
-- `GET /health` - Health check
+#### 1. Plugin Host (`apps/plugin-host/`)
+**Primary Components:**
+- **PluginLoaderService**: Orchestrates complete plugin lifecycle with dependency resolution
+- **CrossPluginServiceManager**: Manages controlled inter-plugin communication
+- **PluginGuardManager**: Enforces security isolation between plugins
 
-**Plugin Management:**
+**Advanced Features:**
+- **Topological Sorting**: Resolves plugin load order with priority queue implementation
+- **Asynchronous Dependency Resolution**: 30-second timeout with polling-based waiting
+- **Hot Reloading**: Development-friendly plugin reloading with proper cleanup
+- **Memory Management**: Proper cleanup of guards, services, and module references
 
-- `GET /plugins/installed` - List installed plugins with metadata
-- `GET /plugins/stats` - Plugin usage statistics and performance metrics
-- `GET /plugins/updates` - Check for available plugin updates
+#### 2. Plugin Registry (`apps/plugin-registry/`)
+**Security-First Design:**
+- **Multi-layer Validation**: Manifest validation, import scanning, and structural verification
+- **ZIP Content Analysis**: Deep inspection of uploaded plugin packages
+- **Security Blacklist**: Comprehensive blocking of dangerous Node.js modules
+- **Cryptographic Verification**: SHA-256 checksums and optional signature validation
 
-**Registry Integration:**
+#### 3. Plugin Types Library (`libs/plugin-types/`)
+**Comprehensive Type System:**
+- **Plugin Interfaces**: Complete typing for manifests, guards, and services
+- **Validation Framework**: Runtime validation with detailed error reporting
+- **Security Types**: Trust levels, sandboxing, and resource limit definitions
+- **Cross-Plugin Communication Types**: Token-based service sharing interfaces
 
-- `GET /registry/plugins` - List available plugins from registry
-- `POST /registry/plugins/:name/install` - Install plugin from registry
-- `POST /registry/plugins/:name/update` - Update existing plugin
+### Plugin Loading Flow (Advanced)
 
-### Plugin Registry API (http://localhost:3001)
+The system implements a sophisticated 5-phase loading process:
 
-**General Endpoints:**
-
-- `GET /api/v1` - API information and version
-- `GET /health` - Health check and service status
-- `GET /stats` - Registry statistics (total plugins, downloads, etc.)
-
-**Plugin Management:**
-
-- `GET /plugins` - List plugins with pagination and filtering
-- `POST /plugins` - Upload new plugin (multipart/form-data)
-- `GET /plugins/:name` - Get detailed plugin information
-- `GET /plugins/:name/download` - Download plugin as ZIP file
-- `DELETE /plugins/:name` - Remove plugin from registry
-
-## Plugin Registry System
-
-The centralized plugin registry provides a complete plugin lifecycle management system:
-
-**Core Capabilities:**
-
-- **Upload & Publishing**: Developers can publish plugins with version control
-- **Discovery & Search**: Browse available plugins with filtering and search
-- **Installation**: Plugin host can install plugins directly from registry
-- **Updates**: Automatic update checking and seamless plugin updates
-- **Dependency Management**: Handle plugin dependencies and compatibility
-
-## Plugin Architecture
-
-### Plugin Structure
-
-Each plugin follows a standard structure:
-
-- `plugin.manifest.json`: Contains plugin metadata (name, version, etc.)
-- `src/index.ts`: Main entry point that exports the plugin module
-- `src/lib/<name>.module.ts`: NestJS module class
-- `src/lib/<name>.controller.ts`: REST API controller
-- `src/lib/<name>.service.ts`: Business logic service
-
-### Plugin Loading Mechanism
-
-The `PluginLoaderService` in the plugin host app:
-
-1. Scans `assets/plugins` directory for built plugins
-2. Reads `plugin.manifest.json` to get plugin metadata
-3. Dynamically imports the compiled JavaScript from `dist/index.js`
-4. Creates NestJS `DynamicModule` from plugin exports
-5. Registers controllers and services with the main application
-
-### Plugin Development Pattern
-
-- **HTTP Decorators**: Use `@PluginGet`, `@PluginPost`, `@PluginPut`, `@PluginPatch`, `@PluginDelete`, etc. from `@modu-nest/plugin-types`
-- **Module Decorators**: Use `@Plugin()` decorator for plugin modules and `@PluginRoute()` for controllers
-- **Metadata Decorators**: Use `@PluginMetadata()` for plugin metadata and `@PluginPermissions()` for method permissions
-- **Lifecycle Hooks**: Use `@PluginLifecycleHook()` for plugin lifecycle events
-- **Naming Convention**: Plugin classes should follow `<Name>Plugin`, `<Name>Controller`, `<Name>Service` pattern
-
-### Complete Plugin Example
-
+#### Phase 1: Discovery and Manifest Parsing
 ```typescript
-// src/lib/user-management.module.ts
-import { Plugin } from '@modu-nest/plugin-types';
-import { UserManagementController } from './user-management.controller';
-import { UserManagementService } from './user-management.service';
+// Scans PLUGINS_DIR for plugin.manifest.json files
+const discoveries = await this.discoverPlugins();
+// Validates semantic versioning and dependency declarations
+await this.validateManifest(manifest);
+```
 
-@Plugin({
-  name: 'user-management',
-  version: '1.0.0',
-  description: 'User management plugin with CRUD operations',
-  controllers: [UserManagementController],
-  providers: [UserManagementService],
-  exports: [UserManagementService],
-})
-export class UserManagementModule {}
+#### Phase 2: Dependency Graph Construction
+```typescript
+// Builds dependency graph with cycle detection
+const loadOrder = this.calculateLoadOrder(discoveries);
+// Implements priority queue with loadOrder values
+const queue = new PriorityQueue<PluginDiscovery>((a, b) => a.loadOrder - b.loadOrder);
+```
 
-// src/lib/user-management.controller.ts
-import {
-  PluginRoute,
-  PluginGet,
-  PluginPost,
-  PluginPut,
-  PluginDelete,
-  PluginPermissions,
-  PluginMetadata,
-} from '@modu-nest/plugin-types';
-import { Body, Param } from '@nestjs/common';
+#### Phase 3: Security Validation
+```typescript
+// Import scanning for dangerous modules
+const unsafeImports = this.scanForUnsafeImports(content);
+// Guard isolation verification
+const isolationResult = await this.verifyGuardIsolation();
+```
 
-@PluginRoute('/api/users')
-@PluginMetadata({ author: 'John Doe', category: 'user-management' })
-export class UserManagementController {
-  constructor(private userService: UserManagementService) {}
+#### Phase 4: Dynamic Module Creation
+```typescript
+// Runtime NestJS module generation
+const DynamicPluginModule = class {};
+const moduleDecorator = Module({ controllers, providers, exports, imports });
+moduleDecorator(DynamicPluginModule);
+```
 
-  @PluginGet()
-  @PluginPermissions(['user:read'])
-  async getAllUsers() {
-    return this.userService.findAll();
-  }
+#### Phase 5: Cross-Plugin Service Registration
+```typescript
+// Global service token creation
+const globalProviders = this.crossPluginServiceManager.createGlobalServiceProviders();
+// Dependency injection setup
+providers.push(...guardProviders, ...crossPluginProviders, ...globalProviders);
+```
 
-  @PluginGet('/:id')
-  @PluginPermissions(['user:read'])
-  async getUser(@Param('id') id: string) {
-    return this.userService.findById(id);
-  }
+### Plugin Manifest Structure (Extended)
 
-  @PluginPost()
-  @PluginPermissions(['user:create'])
-  async createUser(@Body() userData: CreateUserDto) {
-    return this.userService.create(userData);
-  }
-
-  @PluginPut('/:id')
-  @PluginPermissions(['user:update'])
-  async updateUser(@Param('id') id: string, @Body() userData: UpdateUserDto) {
-    return this.userService.update(id, userData);
-  }
-
-  @PluginDelete('/:id')
-  @PluginPermissions(['user:delete'])
-  async deleteUser(@Param('id') id: string) {
-    return this.userService.delete(id);
+```json
+{
+  "name": "advanced-plugin",
+  "version": "1.2.3",
+  "description": "Advanced plugin with security features",
+  "author": "Developer",
+  "license": "MIT",
+  "dependencies": ["user-plugin", "core-services"],
+  "loadOrder": 200,
+  "critical": false,
+  
+  "security": {
+    "trustLevel": "verified",
+    "checksum": {
+      "algorithm": "sha256", 
+      "hash": "abc123..."
+    },
+    "sandbox": {
+      "enabled": true,
+      "isolationLevel": "vm",
+      "resourceLimits": {
+        "maxMemory": 134217728,
+        "maxCPU": 50
+      }
+    }
+  },
+  
+  "metrics": {
+    "performance": {
+      "maxStartupTime": 5000,
+      "maxResponseTime": 1000
+    },
+    "monitoring": {
+      "enablePerformanceTracking": true,
+      "logLevel": "info"
+    }
+  },
+  
+  "module": {
+    "controllers": ["AdvancedController"],
+    "providers": ["AdvancedService", "InternalHelper"],
+    "exports": ["AdvancedService"],
+    "imports": ["DatabaseModule"],
+    
+    "guards": [
+      {
+        "name": "advanced-access",
+        "class": "AdvancedAccessGuard",
+        "scope": "local",
+        "exported": true,
+        "dependencies": ["user-auth", "resource-check"]
+      },
+      {
+        "name": "user-auth",
+        "source": "user-plugin",
+        "scope": "external"
+      }
+    ],
+    
+    "crossPluginServices": [
+      {
+        "serviceName": "AdvancedService",
+        "token": "ADVANCED_SERVICE",
+        "global": true,
+        "description": "Advanced processing service"
+      }
+    ]
   }
 }
 ```
 
-### Decorator Reference
+## Advanced Development Patterns
+
+### 1. Plugin Development with Custom Decorators
+
+The system provides plugin-specific decorators for enhanced development:
 
 ```typescript
-// HTTP Method Decorators
-@PluginGet('/users')          // GET endpoint
-@PluginPost('/users')         // POST endpoint
-@PluginPut('/users/:id')      // PUT endpoint
-@PluginPatch('/users/:id')    // PATCH endpoint
-@PluginDelete('/users/:id')   // DELETE endpoint
-@PluginOptions('/users')      // OPTIONS endpoint
-@PluginHead('/users')         // HEAD endpoint
-@PluginAll('/users')          // All HTTP methods
+import { 
+  PluginGet, PluginPost, PluginMetadataDecorator, 
+  PluginPermissions, PluginRoutePrefix 
+} from '@modu-nest/plugin-types';
 
-// Class Decorators
-@Plugin({ name: 'my-plugin', version: '1.0.0' })
-@PluginRoute('/api/my-plugin')
-
-// Method Decorators
-@PluginPermissions(['admin', 'user'])
-@PluginLifecycleHook('beforeLoad')
-
-// Metadata Decorators (functions)
-@PluginMetadata({ author: 'John Doe', category: 'utility' })
-@PluginRoutePrefix('/api/v1')
+@PluginRoutePrefix('api/advanced')
+@PluginMetadataDecorator({ version: '1.0.0', features: ['caching'] })
+export class AdvancedController {
+  
+  @PluginGet('data')
+  @PluginPermissions(['read:data'])
+  async getData() {
+    return { data: 'Advanced plugin data' };
+  }
+  
+  @PluginPost('process')
+  @PluginPermissions(['write:data'])
+  async processData(@Body() data: any) {
+    return await this.advancedService.process(data);
+  }
+}
 ```
 
-### Important Notes on Decorator Naming
+### 2. Cross-Plugin Service Injection
 
-- **Interface vs Function Conflicts Resolved**: The library now properly separates:
-  - `PluginMetadata` (interface) - Type definition for plugin metadata
-  - `PluginMetadata()` (function) - Decorator function (alias for `PluginMetadataDecorator`)
-  - `PluginLifecycleHook` (type) - Type definition for lifecycle hooks
-  - `PluginLifecycleHook()` (function) - Decorator function (alias for `PluginLifecycleHookDecorator`)
-- **Backward Compatibility**: All existing decorator names continue to work through aliases
+```typescript
+// In dependent plugin
+import { Inject, Injectable } from '@nestjs/common';
 
-## Build System
+@Injectable()
+export class DependentService {
+  constructor(
+    @Inject('USER_PLUGIN_SERVICE') private userService: any,
+    @Inject('ADVANCED_SERVICE') private advancedService: any
+  ) {}
+  
+  async processWithDependencies(data: any) {
+    const user = await this.userService.getCurrentUser();
+    return await this.advancedService.process(data, user);
+  }
+}
+```
 
-### Nx Configuration
+### 3. Advanced Guard Implementation
 
-- Uses Nx 21.3.7 with TypeScript, Jest, ESLint, and Webpack plugins
-- TypeScript project references are automatically managed via `npx nx sync`
-- Workspaces include: `apps/*`, `libs/*`, `tools/*`, `plugins/*`
+```typescript
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 
-### Plugin Build Process
+@Injectable()
+export class AdvancedAccessGuard implements CanActivate {
+  constructor(
+    private reflector: Reflector,
+    @Inject('USER_AUTH_GUARD') private userAuthGuard: any
+  ) {}
+  
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Check user authentication first
+    const isAuthenticated = await this.userAuthGuard.canActivate(context);
+    if (!isAuthenticated) return false;
+    
+    // Check plugin-specific permissions
+    const permissions = this.reflector.get('plugin:permissions', context.getHandler());
+    return this.validatePermissions(permissions, context);
+  }
+}
+```
 
-The custom `plugin-build` executor:
+### 4. Plugin Configuration Management
 
-1. Validates `plugin.manifest.json` structure
-2. Compiles TypeScript using the plugin's `tsconfig.lib.json`
-3. Copies assets (manifest, package.json) to output directory
-4. Outputs to `dist/` directory ready for dynamic loading
+```typescript
+// Environment-aware configuration
+import { PluginEnvironment } from '@modu-nest/plugin-types';
 
-### Dependencies
+@Injectable()
+export class PluginConfigService {
+  private config = PluginEnvironment.getPluginConfig('my-plugin');
+  
+  getFeatureFlag(flag: string): boolean {
+    return this.config.features?.[flag] ?? false;
+  }
+  
+  getResourceLimit(resource: string): number {
+    return this.config.resourceLimits?.[resource] ?? Infinity;
+  }
+}
+```
 
-- **NestJS**: Core framework for building scalable applications
-- **Nx**: Monorepo tooling and build system
-- **TypeScript**: Primary development language
-- **Jest**: Testing framework
-- **ESLint**: Linting and code quality
-- **Webpack**: Module bundling for plugin host app
+## Build System and Tooling
 
-## Development Workflow
+### Nx Workspace Configuration
 
-1. **Creating a Plugin**: Use the plugin generator to scaffold new plugins with proper structure
-2. **Building Plugins**: Use `plugin-build` target to compile and prepare plugins for loading
-3. **Testing Plugins**: Each plugin has its own Jest configuration for unit tests
-4. **Publishing Plugins**: Use `plugin-publish` to copy built plugins to the host app's assets directory
-5. **Loading Plugins**: The plugin host automatically discovers and loads plugins from the assets directory on startup
+The build system uses **Nx 21.3.7** with sophisticated optimization strategies:
 
-## Key Files
+#### Key Features:
+- **Incremental Compilation**: TypeScript composite projects with build info caching
+- **Dependency Tracking**: Project references prevent unnecessary rebuilds  
+- **Named Inputs**: Aggressive caching based on relevant file changes only
+- **Parallel Execution**: Independent projects build simultaneously
 
-### Workspace Configuration
+#### Build Targets and Optimizations:
+```typescript
+// Production build optimization
+const buildOptions = {
+  target: 'es2022',
+  module: 'nodenext', 
+  composite: true,
+  incremental: true,
+  strict: true,
+  removeComments: options.production,
+  skipLibCheck: options.production
+};
+```
 
-- `nx.json`: Nx workspace configuration with plugin settings and target defaults
-- `tsconfig.base.json`: Base TypeScript configuration shared across all projects
-- `package.json`: Root package.json with workspace dependencies and scripts
+### Custom Plugin Build Pipeline
 
-### Plugin Host Application
+The plugin build system implements multi-stage processing:
 
-- `apps/plugin-host/src/app/plugin-loader.service.ts`: Core plugin loading and lifecycle management
-- `apps/plugin-host/src/app/registry-client.service.ts`: Communication with plugin registry
-- `apps/plugin-host/src/app/app.controller.ts`: Plugin management HTTP endpoints
-- `apps/plugin-host/src/app/app.module.ts`: Dynamic module configuration
+#### Stage 1: Validation and Security Scanning
+```bash
+nx run my-plugin:plugin-validate
+# - Manifest semantic versioning validation
+# - TypeScript compilation verification  
+# - Unsafe import detection
+# - Guard dependency validation
+```
 
-### Plugin Registry Application
+#### Stage 2: Compilation and Optimization
+```bash  
+nx run my-plugin:plugin-build --production
+# - TypeScript compilation with optimizations
+# - JavaScript minification (production)
+# - Asset copying and manifest inclusion
+# - Package.json generation (runtime deps only)
+```
 
-- `apps/plugin-registry/src/app/services/plugin-registry.service.ts`: Registry business logic
-- `apps/plugin-registry/src/app/services/plugin-storage.service.ts`: File storage management
-- `apps/plugin-registry/src/app/controllers/`: HTTP controllers for plugin CRUD operations
-- `apps/plugin-registry/src/app/dto/`: Data Transfer Objects for API requests/responses
+#### Stage 3: Packaging and Distribution
+```bash
+nx run my-plugin:plugin-zip
+# - ZIP creation with selective file inclusion
+# - Size optimization (source map exclusion)
+# - Content verification and listing
+```
 
-### Plugin Types Library
+### TypeScript Configuration Hierarchy
 
-- `libs/plugin-types/src/index.ts`: Main export file with all plugin types and decorators
-- `libs/plugin-types/src/lib/plugin-interfaces.ts`: Core plugin interfaces and types
-- `libs/plugin-types/src/lib/plugin-types.module.ts`: Plugin module decorator
-- `libs/plugin-types/src/lib/plugin-types.controller.ts`: Plugin controller decorator
-- `libs/plugin-types/src/lib/plugin-decorators.ts`: HTTP method and metadata decorators
-- `libs/plugin-types/src/lib/plugin-validators.ts`: Plugin validation utilities
-- `libs/plugin-types/src/lib/plugin-utilities.ts`: Common utility functions
-- `libs/plugin-types/src/lib/plugin-errors.ts`: Specialized error classes and handlers
-- `libs/plugin-types/src/lib/plugin-configuration.ts`: Runtime configuration management
-- `libs/plugin-types/src/lib/plugin-environment.ts`: Environment variable service
+```typescript
+// Base configuration (tsconfig.base.json)
+{
+  "compilerOptions": {
+    "composite": true,           // Enable project references
+    "declarationMap": true,      // Source maps for declarations  
+    "module": "nodenext",        // Modern Node.js resolution
+    "target": "es2022",          // Modern JavaScript target
+    "experimentalDecorators": true, // NestJS support
+    "strict": true               // Maximum type safety
+  }
+}
 
-### Plugin Development Tools
+// Plugin-specific enhancements (plugins/*/tsconfig.json)
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "strictBindCallApply": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
 
-- `tools/plugin/src/generators/plugin.ts`: Plugin project generator
-- `tools/plugin/src/executors/plugin-build.ts`: Plugin build executor
-- `tools/plugin/src/executors/plugin-validate.ts`: Plugin validation executor
-- `tools/plugin/src/executors/plugin-publish.ts`: Plugin publishing executor
+## Testing Infrastructure
+
+### Hierarchical Jest Configuration
+
+The testing system supports multiple testing strategies:
+
+#### Unit Testing Configuration:
+```typescript
+// For applications (SWC for speed)
+{
+  transform: { '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig] },
+  testEnvironment: 'node',
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts']
+}
+
+// For plugins (ts-jest for compatibility)  
+{
+  transform: { '^.+\\.[tj]s$': ['ts-jest', { tsconfig: 'tsconfig.spec.json' }] },
+  testEnvironment: 'node'
+}
+```
+
+#### E2E Testing Infrastructure:
+```typescript
+// Global setup with port management
+export default async function globalSetup() {
+  await waitForPortToBeOpen({ port: parseInt(port, 10), host: 'localhost' });
+}
+
+// Axios configuration for HTTP testing
+axios.defaults.baseURL = `http://localhost:${port}`;
+```
+
+### Testing Patterns for Plugin Development
+
+#### Plugin Service Testing:
+```typescript
+describe('PluginService', () => {
+  let service: PluginService;
+  let module: TestingModule;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        PluginService,
+        { provide: 'USER_PLUGIN_SERVICE', useValue: mockUserService },
+        { provide: 'PLUGIN_REGISTRY', useValue: mockRegistry }
+      ],
+    }).compile();
+
+    service = module.get<PluginService>(PluginService);
+  });
+
+  it('should load plugin with dependencies', async () => {
+    const result = await service.loadPlugin('test-plugin');
+    expect(result.status).toBe('loaded');
+  });
+});
+```
+
+#### Guard Testing:
+```typescript
+describe('PluginGuard', () => {
+  let guard: PluginGuard;
+  let mockContext: ExecutionContext;
+
+  beforeEach(() => {
+    guard = new PluginGuard(mockReflector, mockUserService);
+    mockContext = createMockExecutionContext();
+  });
+
+  it('should allow access when permissions match', async () => {
+    const result = await guard.canActivate(mockContext);
+    expect(result).toBe(true);
+  });
+});
+```
 
 ## Environment Configuration
 
-### Development Environment (.env.development)
+### Comprehensive Environment Schema
 
-```bash
-# Plugin Registry Configuration
-REGISTRY_STORAGE_PATH=./registry-storage
-MAX_PLUGIN_SIZE=52428800  # 50MB
-PLUGIN_REGISTRY_URL=http://localhost:3001
+The system uses class-validator for environment validation:
 
-# Plugin Host Configuration
-PLUGINS_DIR=assets/plugins
-AUTO_LOAD_PLUGINS=true
-ENABLE_HOT_RELOAD=true
-REGISTRY_TIMEOUT=30000
+```typescript
+export class EnvironmentSchema {
+  @IsEnum(EnvironmentType)
+  NODE_ENV!: EnvironmentType;
 
-# Development Security (Relaxed)
-ALLOW_UNSIGNED_PLUGINS=true
-ENABLE_PLUGIN_SANDBOX=false
-MAX_PLUGIN_MEMORY=134217728  # 128MB
+  @IsPort()
+  @Transform(({ value }) => parseInt(value, 10))
+  PORT!: number;
 
-# Debug Logging
-LOG_LEVEL=debug
-ENABLE_FILE_LOGGING=true
-LOG_DIR=logs
-MAX_LOG_SIZE=10485760  # 10MB
+  @IsString()
+  @MinLength(1)
+  APP_NAME!: string;
+
+  @IsUrl({ require_tld: false })
+  @IsOptional()
+  PLUGIN_REGISTRY_URL?: string;
+
+  @Transform(({ value }) => parseBoolean(value))
+  @IsOptional()
+  ENABLE_SWAGGER?: boolean;
+
+  @IsString()
+  @IsOptional()
+  AWS_REGION?: string;
+}
 ```
 
-### Production Environment (.env.production)
+### Plugin-Specific Environment Variables
 
 ```bash
-# Plugin Registry Configuration
-REGISTRY_STORAGE_PATH=/var/lib/plugin-registry
-MAX_PLUGIN_SIZE=20971520  # 20MB (smaller for production)
-PLUGIN_REGISTRY_URL=https://registry.yourcompany.com
+# Core Configuration
+PLUGIN_HOST_PORT=4001
+PLUGIN_REGISTRY_PORT=6001
+PLUGINS_DIR=/path/to/plugins
+PLUGIN_REGISTRY_URL=http://localhost:6001
 
-# Plugin Host Configuration
-PLUGINS_DIR=/var/lib/plugins
-AUTO_LOAD_PLUGINS=true
-ENABLE_HOT_RELOAD=false
-REGISTRY_TIMEOUT=10000
-
-# Production Security (Strict)
+# Security Settings  
 ALLOW_UNSIGNED_PLUGINS=false
 ENABLE_PLUGIN_SANDBOX=true
-MAX_PLUGIN_MEMORY=67108864  # 64MB
-TRUSTED_AUTHORS=john.doe@company.com,jane.smith@company.com
+MAX_PLUGIN_MEMORY=134217728
+TRUSTED_AUTHORS=company,verified-dev
 
-# Production Logging
-LOG_LEVEL=warn
+# Performance Tuning
+AUTO_LOAD_PLUGINS=true
+PLUGIN_LOAD_TIMEOUT=30000
+MAX_PLUGIN_SIZE=52428800
+REGISTRY_TIMEOUT=10000
+
+# Development Features
+ENABLE_HOT_RELOAD=true
+LOG_LEVEL=debug
 ENABLE_FILE_LOGGING=true
-LOG_DIR=/var/log/plugin-system
-MAX_LOG_SIZE=52428800  # 50MB
+LOG_DIR=./logs
 ```
 
-### Configuration Variables Reference
+## Security Architecture
 
-**Plugin Registry**:
+### Multi-Layer Security Implementation
 
-- `REGISTRY_STORAGE_PATH`: Storage location for plugins (default: ./registry-storage)
-- `MAX_PLUGIN_SIZE`: Maximum plugin file size in bytes (default: 52428800 = 50MB)
+#### 1. Build-Time Security Scanning
 
-**Plugin Host**:
+The system scans for dangerous imports during build:
 
-- `PLUGIN_REGISTRY_URL`: Registry service URL (default: http://localhost:3001)
-- `REGISTRY_TIMEOUT`: Request timeout in ms (default: 30000)
-- `PLUGINS_DIR`: Local plugins directory (default: assets/plugins)
-- `AUTO_LOAD_PLUGINS`: Automatically load plugins on startup (default: true)
-- `ENABLE_HOT_RELOAD`: Enable plugin hot reloading (default: false)
+```typescript
+private readonly UNSAFE_MODULES = [
+  'fs', 'fs/promises', 'child_process', 'process', 'os', 
+  'path', 'crypto', 'net', 'http', 'https', 'cluster',
+  'worker_threads', 'vm', 'node:*' // Node.js prefixed modules
+];
 
-**Security**:
+private scanForUnsafeImports(content: string): string[] {
+  const importRegex = /(?:import.*?from\s+['"`]([^'"`]+)['"`]|require\s*\(\s*['"`]([^'"`]+)['"`]\s*\))/g;
+  // Returns array of unsafe imports found
+}
+```
 
-- `ALLOW_UNSIGNED_PLUGINS`: Allow installation of unsigned plugins (default: false)
-- `ENABLE_PLUGIN_SANDBOX`: Enable plugin sandbox isolation (default: false)
-- `MAX_PLUGIN_MEMORY`: Maximum memory per plugin in bytes (default: 134217728 = 128MB)
-- `TRUSTED_AUTHORS`: Comma-separated list of trusted plugin authors
+#### 2. Runtime Guard Isolation
 
-**Logging**:
+```typescript  
+async verifyGuardIsolation(): Promise<{
+  isSecure: boolean;
+  violations: string[];
+  summary: SecuritySummary;
+}> {
+  // Verifies plugins can only access authorized guards
+  // Checks export permissions and dependency chains
+  // Validates cross-plugin guard references
+}
+```
 
-- `LOG_LEVEL`: Logging level (debug|info|warn|error, default: info)
-- `ENABLE_FILE_LOGGING`: Enable file logging (default: false)
-- `LOG_DIR`: Log directory (default: logs)
-- `MAX_LOG_SIZE`: Maximum log file size in bytes (default: 10485760 = 10MB)
+#### 3. Resource Sandboxing
 
-## Best Practices
+```typescript
+interface PluginSandbox {
+  enabled: boolean;
+  isolationLevel: 'process' | 'vm' | 'container';
+  resourceLimits: {
+    maxMemory: number;     // 128MB default
+    maxCPU: number;        // 50% default
+    maxFileSize: number;   // 10MB default
+    maxNetworkBandwidth: number;
+  };
+}
+```
 
-### Plugin Development
+## Performance and Optimization
 
-- **Follow Naming Conventions**: Use PascalCase for class names and camelCase for methods
-- **Use TypeScript**: Leverage strong typing for better development experience
-- **Implement Error Handling**: Use plugin-specific error classes from `@modu-nest/plugin-types`
-- **Validate Input**: Always validate plugin manifest and configuration data
-- **Document APIs**: Provide clear documentation for plugin endpoints and functionality
-- **Version Management**: Follow semantic versioning for plugin releases
+### Build Performance Optimizations
 
-### Security Guidelines
+- **Incremental Compilation**: ~80% faster rebuilds after initial build
+- **Named Input Caching**: High cache hit rate through proper input tracking
+- **Parallel Processing**: Independent project builds run simultaneously
+- **Tree Shaking**: Unused exports eliminated from final bundles
 
-- **Input Validation**: Sanitize all user inputs in plugin controllers
-- **Authorization**: Implement proper permission checks using `@PluginPermissions`
-- **Dependency Management**: Keep plugin dependencies up to date
-- **Configuration Security**: Use environment variables for sensitive data
-- **Sandbox Mode**: Enable plugin sandbox isolation in production environments
+### Runtime Performance Features
 
-### Performance Optimization
+- **Lazy Loading**: Guards and services loaded on-demand
+- **Memory Pooling**: Plugin instance reuse where possible
+- **Connection Pooling**: Database and external service connections
+- **Caching Strategy**: Plugin resolution results cached between runs
 
-- **Lazy Loading**: Load plugins only when needed
-- **Memory Management**: Monitor plugin memory usage and implement cleanup
-- **Caching**: Use appropriate caching strategies for plugin data
-- **Database Connections**: Reuse connections and implement connection pooling
-- **Async Operations**: Use async/await for non-blocking operations
+### Plugin Package Optimization
 
-## Troubleshooting
+- **Minification**: Custom JavaScript minifier preserving functionality
+- **Asset Optimization**: Selective inclusion based on deployment needs
+- **Dependency Pruning**: Only runtime dependencies in final packages
+- **Size Monitoring**: Typical plugin packages <100KB
 
-### Common Issues
+## API Endpoints
 
-**Plugin Build Failures:**
+### Plugin Registry (Port 6001)
+```bash
+# Plugin Management
+POST   /plugins                    # Upload plugin package with validation
+GET    /plugins                    # List all plugins (paginated)
+GET    /plugins/:name              # Get specific plugin metadata
+GET    /plugins/:name/download     # Download plugin package
+DELETE /plugins/:name              # Delete plugin
+GET    /plugins/:name/versions     # List plugin versions
+
+# Health and Monitoring
+GET    /health                     # Health check with registry stats
+GET    /metrics                    # Registry performance metrics
+```
+
+### Plugin Host (Port 4001)
+```bash
+# Application Status
+GET    /                          # Application health and status
+GET    /health                    # Detailed health check
+
+# Plugin Management
+GET    /plugins                   # List loaded plugins with status
+GET    /plugins/stats             # Plugin statistics and guard info
+GET    /plugins/:name             # Get specific plugin details
+POST   /plugins/:name/reload      # Hot reload specific plugin
+DELETE /plugins/:name             # Unload specific plugin
+
+# Security and Monitoring
+GET    /plugins/security          # Guard isolation status
+GET    /plugins/performance       # Performance metrics
+GET    /plugins/dependencies      # Dependency graph
+
+# Plugin-specific endpoints based on loaded controllers
+GET    /api/:plugin-name/*        # Plugin-defined routes
+```
+
+## Troubleshooting and Debugging
+
+### Plugin Loading Issues
+
+```typescript
+// Comprehensive plugin state checking
+const pluginLoader = app.get(PluginLoaderService);
+
+// Check individual plugin state
+const state = pluginLoader.getPluginState('plugin-name');
+console.log(`Plugin state: ${state}`); // DISCOVERED, LOADING, LOADED, FAILED, UNLOADED
+
+// Get complete plugin statistics
+const stats = pluginLoader.getPluginStats();
+console.log(`Loaded: ${stats.totalLoaded}, Guards: ${stats.guards.total}`);
+
+// Check dependency issues
+const loadOrder = pluginLoader.calculateLoadOrder(discoveries);
+console.log(`Load order: ${loadOrder.join(' -> ')}`);
+```
+
+### Guard Isolation Debugging
+
+```typescript
+// Security verification
+const isolation = await pluginLoader.verifyGuardIsolation();
+if (!isolation.isSecure) {
+  console.log('Security violations found:');
+  isolation.violations.forEach(violation => console.log(`  - ${violation}`));
+  
+  console.log('Summary:', {
+    totalPlugins: isolation.summary.totalPlugins,
+    totalGuards: isolation.summary.totalGuards,
+    externalReferences: isolation.summary.externalReferences
+  });
+}
+
+// Guard dependency resolution
+const guardStats = pluginLoader.getGuardStatistics();
+console.log('Guard resolution:', {
+  totalGuards: guardStats.totalGuards,
+  localGuards: guardStats.localGuards,
+  externalReferences: guardStats.externalReferences,
+  resolutionErrors: guardStats.resolutionErrors
+});
+```
+
+### Build and Deployment Issues
 
 ```bash
-# Check plugin manifest syntax
-npx nx plugin-validate <plugin-name>
+# Validate plugin before build
+nx run my-plugin:plugin-validate
 
-# Rebuild with verbose output
-npx nx plugin-build <plugin-name> --verbose
+# Build with verbose output
+nx run my-plugin:plugin-build --verbose
+
+# Check build artifacts
+ls -la plugins/my-plugin/dist/
+cat plugins/my-plugin/dist/package.json
+
+# Verify plugin package
+nx run my-plugin:plugin-zip --list-contents
 ```
 
-**Plugin Loading Errors:**
+### Common Error Patterns and Solutions
 
-- Ensure the exported class name matches the manifest entry point
-- Check that all dependencies are properly installed
-
-**Registry Connection Issues:**
-
-- Verify `PLUGIN_REGISTRY_URL` environment variable
-- Check network connectivity to registry service
-- Ensure registry service is running on correct port
-
-**TypeScript Compilation Errors:**
-
+#### Circular Dependencies
 ```bash
-# Update TypeScript project references
-npx nx sync
-
-# Check specific project compilation
-npx tsc --noEmit --project libs/plugin-types/tsconfig.lib.json
+Error: Circular dependencies detected: plugin-a, plugin-b
+Solution: Review plugin manifest dependencies, adjust loadOrder values
 ```
 
-**Decorator Conflicts:**
+#### Missing Guards
+```bash  
+Error: Plugin 'my-plugin' has unresolvable guard dependencies: ['missing-guard']
+Solution: Verify guard exports in dependency plugin manifests
+```
 
-- Use explicit imports to avoid naming conflicts
-- Refer to the [Decorator Reference](#decorator-reference) for proper usage
-- Check for interface vs function naming conflicts
-
-### Debug Commands
-
+#### Security Violations
 ```bash
-# Enable debug logging
-LOG_LEVEL=debug npx nx serve plugin-host
-
-# Check plugin validation
-npx nx plugin-validate <plugin-name> --verbose
-
-# Analyze build output
-npx nx plugin-build <plugin-name> --dry-run
-
-# Test plugin locally
-npx nx plugin-publish <plugin-name> && npx nx serve plugin-host
+Error: Security validation failed - unsafe imports detected: fs, child_process
+Solution: Remove dangerous Node.js imports, use NestJS/framework alternatives
 ```
 
-### Getting Help
+#### Memory Issues
+```bash
+Error: Plugin exceeded memory limit: 150MB > 128MB
+Solution: Optimize plugin code, increase MAX_PLUGIN_MEMORY if needed
+```
 
-- Check the plugin generator templates in `tools/plugin/src/generators/`
-- Review existing plugins in the `plugins/` directory for examples
-- Examine the plugin-types library source code for API reference
-- Use TypeScript IntelliSense for decorator and interface documentation
+### Performance Monitoring
+
+```typescript
+// Plugin performance metrics
+const crossPluginManager = pluginLoader.getCrossPluginServiceManager();
+const serviceStats = crossPluginManager.getStatistics();
+
+console.log('Service performance:', {
+  totalServices: serviceStats.totalServices,
+  globalServices: serviceStats.globalServices,
+  averageResolutionTime: serviceStats.averageResolutionTime
+});
+
+// Memory usage monitoring
+const memoryUsage = process.memoryUsage();
+console.log('Memory usage:', {
+  heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+  heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+  external: Math.round(memoryUsage.external / 1024 / 1024) + 'MB'
+});
+```
+
+This comprehensive documentation provides future Claude instances with deep understanding of the sophisticated plugin architecture, enabling productive development with proper security, performance, and maintainability considerations.
