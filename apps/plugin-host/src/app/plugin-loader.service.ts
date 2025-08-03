@@ -2,6 +2,7 @@ import { Injectable, Logger, DynamicModule, Module } from '@nestjs/common';
 import 'reflect-metadata';
 import path from 'path';
 import fs from 'fs';
+import { createRequire } from 'module';
 import {
   PluginManifest,
   LoadedPlugin,
@@ -81,7 +82,7 @@ export class PluginLoaderService {
       this.logger.log(`Successfully loaded ${modules.length} plugins`);
 
       // Verify guard isolation and security
-      const isolationCheck = this.verifyGuardIsolation();
+      const isolationCheck = await this.verifyGuardIsolation();
       if (!isolationCheck.isSecure) {
         this.logger.error('Plugin loading completed with guard security violations - review plugin configurations');
       }
@@ -148,7 +149,8 @@ export class PluginLoaderService {
     for (const plugin of discoveries) {
       for (const dep of plugin.dependencies) {
         if (inDegree.has(dep)) {
-          inDegree.set(dep, (inDegree.get(dep) || 0) + 1);
+          // Plugin depends on dep, so plugin has an incoming edge (increment plugin's in-degree)
+          inDegree.set(plugin.name, (inDegree.get(plugin.name) || 0) + 1);
         } else {
           this.logger.warn(`Plugin '${plugin.name}' depends on unknown plugin '${dep}'`);
         }
@@ -312,6 +314,9 @@ export class PluginLoaderService {
     // Store guards in manager
     await this.guardManager.storePluginGuards(pluginName, manifest.module.guards, pluginModule);
 
+    // Note: Guard registration with the registry will happen later after
+    // the module is initialized and the guard registry is available
+
     // Validate all guards can be resolved
     const guardNames = manifest.module.guards.map((g) => g.name);
     const resolutionResult = await this.guardManager.resolveGuardsForPlugin(pluginName, guardNames);
@@ -339,10 +344,17 @@ export class PluginLoaderService {
     }
 
     try {
-      // Clear require cache to ensure fresh import
-      delete require.cache[require.resolve(mainPath)];
+      // Create a require function that webpack won't transform
+      const dynamicRequire = createRequire(__filename);
 
-      const pluginModule = await import(mainPath);
+      // Clear require cache to ensure fresh import
+      try {
+        delete dynamicRequire.cache[dynamicRequire.resolve(mainPath)];
+      } catch {
+        // Cache clearing failed, continue anyway
+      }
+
+      const pluginModule = dynamicRequire(mainPath);
       return pluginModule;
     } catch (error) {
       throw new Error(`Failed to import plugin module: ${error}`);
@@ -618,7 +630,6 @@ export class PluginLoaderService {
     return guardProviders;
   }
 
-
   /**
    * Determine if a plugin module should be global based on its exports
    * Global modules make their exports available to all other modules without explicit imports
@@ -646,14 +657,14 @@ export class PluginLoaderService {
    */
   async reloadPlugins(): Promise<DynamicModule[]> {
     this.logger.log('Reloading all plugins...');
-    
+
     // Clear guards and services for all plugins when reloading
     const pluginNames = Array.from(this.loadedPlugins.keys());
     for (const pluginName of pluginNames) {
       await this.guardManager.removePluginGuards(pluginName);
       this.crossPluginServiceManager.removePluginServices(pluginName);
     }
-    
+
     this.loadedPlugins.clear();
     this.loadingState.clear();
     this.discoveredPlugins.clear();
@@ -704,7 +715,7 @@ export class PluginLoaderService {
   /**
    * Gets guards for a specific plugin (for debugging)
    */
-  getPluginGuards(pluginName: string) {
+  getPluginGuards(pluginName: string): any[] {
     return this.guardManager.getPluginGuards(pluginName);
   }
 
@@ -761,7 +772,7 @@ export class PluginLoaderService {
    * Verifies guard isolation and access control
    * This method ensures guards are properly isolated and cross-plugin access is controlled
    */
-  verifyGuardIsolation(): {
+  async verifyGuardIsolation(): Promise<{
     isSecure: boolean;
     violations: string[];
     summary: {
@@ -770,7 +781,7 @@ export class PluginLoaderService {
       exportedGuards: number;
       externalReferences: number;
     };
-  } {
+  }> {
     const violations: string[] = [];
     const pluginNames = Array.from(this.loadedPlugins.keys());
     let totalGuards = 0;
@@ -793,7 +804,7 @@ export class PluginLoaderService {
           // Check that local guards don't access unauthorized external guards
           if (localEntry.dependencies) {
             for (const dep of localEntry.dependencies) {
-              const availableGuard = this.guardManager.resolveGuardsForPlugin(pluginName, [dep]);
+              const availableGuard = await this.guardManager.resolveGuardsForPlugin(pluginName, [dep]);
               if (availableGuard.missingDependencies.includes(dep)) {
                 violations.push(
                   `Plugin '${pluginName}' guard '${guardEntry.name}' has unresolvable dependency '${dep}'`
@@ -921,6 +932,24 @@ export class PluginLoaderService {
    */
   setGuardRegistry(guardRegistry: PluginGuardRegistryService): void {
     this.guardRegistry = guardRegistry;
+    // Now register all loaded plugin guards
+    this.registerAllPluginGuards();
+  }
+
+  /**
+   * Register all loaded plugin guards with the registry
+   */
+  private registerAllPluginGuards(): void {
+    for (const [pluginName, plugin] of this.loadedPlugins.entries()) {
+      if (plugin.manifest.module.guards && plugin.manifest.module.guards.length > 0) {
+        this.logger.debug(`Registering ${plugin.manifest.module.guards.length} guards for plugin: ${pluginName}`);
+        this.registerPluginGuards(
+          pluginName,
+          plugin.manifest.module.guards,
+          plugin.instance as Record<string, unknown>
+        );
+      }
+    }
   }
 
   /**

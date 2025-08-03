@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Param } from '@nestjs/common';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService, RegistryPluginMetadata } from './registry-client.service';
-import { LoadedPlugin, PluginUpdateInfo } from '@modu-nest/plugin-types';
+import { PluginUpdateInfo } from '@modu-nest/plugin-types';
 
 @Controller()
 export class AppController {
@@ -87,5 +87,4 @@ export class AppController {
       pluginsDirectory: this.registryClient.getPluginsDirectory(),
     };
   }
-
 }
