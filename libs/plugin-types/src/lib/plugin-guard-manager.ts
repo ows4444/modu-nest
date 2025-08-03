@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Mutex } from 'async-mutex';
 import { GuardEntry, LocalGuardEntry } from './plugin-interfaces';
 
 export interface LoadedGuard {
@@ -6,6 +7,7 @@ export interface LoadedGuard {
   pluginName: string;
   guardClass?: any;
   instance?: any;
+  storedAt?: Date;
 }
 
 export interface GuardResolutionResult {
@@ -17,174 +19,174 @@ export interface GuardResolutionResult {
 @Injectable()
 export class PluginGuardManager {
   private readonly logger = new Logger(PluginGuardManager.name);
-  
+
   // Centralized storage without global registration
   private readonly guardsMap = new Map<string, LoadedGuard>();
   private readonly pluginGuardsMap = new Map<string, Set<string>>();
 
+  // Thread-safe operation locks
+  private readonly resolutionMutex = new Mutex();
+  private readonly storageMutex = new Mutex();
+
   /**
-   * Store guards from a plugin without global registration
+   * Store guards from a plugin with thread-safe operations
    * Guards are stored in a centralized map but not globally available
    */
-  storePluginGuards(
-    pluginName: string, 
-    guardEntries: GuardEntry[], 
+  async storePluginGuards(
+    pluginName: string,
+    guardEntries: GuardEntry[],
     pluginModule: Record<string, unknown>
-  ): void {
-    this.logger.debug(`Storing guards for plugin: ${pluginName}`);
-    
-    if (!this.pluginGuardsMap.has(pluginName)) {
-      this.pluginGuardsMap.set(pluginName, new Set());
-    }
-    
-    const pluginGuardNames = this.pluginGuardsMap.get(pluginName)!;
+  ): Promise<void> {
+    await this.storageMutex.runExclusive(async () => {
+      this.logger.debug(`Storing guards for plugin: ${pluginName}`);
 
-    for (const entry of guardEntries) {
-      const guardKey = this.createGuardKey(pluginName, entry.name);
-      
-      if (entry.scope === 'local') {
-        const localEntry = entry as LocalGuardEntry;
-        const guardClass = pluginModule[localEntry.class];
-        
-        if (!guardClass) {
-          this.logger.warn(`Guard class '${localEntry.class}' not found in plugin '${pluginName}' exports`);
-          continue;
-        }
-        
-        if (typeof guardClass !== 'function') {
-          this.logger.warn(`Guard class '${localEntry.class}' is not a valid class in plugin '${pluginName}'`);
-          continue;
-        }
-
-        this.guardsMap.set(guardKey, {
-          entry,
-          pluginName,
-          guardClass,
-        });
-        
-        pluginGuardNames.add(entry.name);
-        this.logger.debug(`Stored local guard '${entry.name}' from plugin '${pluginName}'`);
-        
-      } else if (entry.scope === 'external') {
-        // External guards are just references - store metadata only
-        this.guardsMap.set(guardKey, {
-          entry,
-          pluginName,
-        });
-        
-        pluginGuardNames.add(entry.name);
-        this.logger.debug(`Stored external guard reference '${entry.name}' from plugin '${pluginName}'`);
+      if (!this.pluginGuardsMap.has(pluginName)) {
+        this.pluginGuardsMap.set(pluginName, new Set());
       }
-    }
+
+      const pluginGuardNames = this.pluginGuardsMap.get(pluginName)!;
+
+      for (const entry of guardEntries) {
+        const guardKey = this.createGuardKey(pluginName, entry.name);
+
+        if (entry.scope === 'local') {
+          const localEntry = entry as LocalGuardEntry;
+          const guardClass = pluginModule[localEntry.class];
+
+          if (!guardClass || typeof guardClass !== 'function') {
+            throw new Error(`Guard class '${localEntry.class}' not found in plugin '${pluginName}' exports`);
+          }
+
+          this.guardsMap.set(guardKey, {
+            entry,
+            pluginName,
+            guardClass,
+            storedAt: new Date(),
+          });
+
+          pluginGuardNames.add(entry.name);
+          this.logger.debug(`Stored local guard '${entry.name}' from plugin '${pluginName}'`);
+        } else if (entry.scope === 'external') {
+          // External guards are just references - store metadata only
+          this.guardsMap.set(guardKey, {
+            entry,
+            pluginName,
+            storedAt: new Date(),
+          });
+
+          pluginGuardNames.add(entry.name);
+          this.logger.debug(`Stored external guard reference '${entry.name}' from plugin '${pluginName}'`);
+        }
+      }
+    });
   }
 
   /**
-   * Resolve guards specified in a plugin manifest, ensuring dependencies are met
-   * and no circular dependencies exist. Returns only the guards that should be
-   * injected for this specific plugin.
+   * Resolve guards specified in a plugin manifest with thread-safe operations
+   * Ensures dependencies are met and no circular dependencies exist.
    */
-  resolveGuardsForPlugin(
-    pluginName: string, 
-    requestedGuards: string[]
-  ): GuardResolutionResult {
-    this.logger.debug(`Resolving guards for plugin '${pluginName}': [${requestedGuards.join(', ')}]`);
-    
-    const resolvedGuards: LoadedGuard[] = [];
-    const missingDependencies: string[] = [];
-    const circularDependencies: string[] = [];
-    const visitedGuards = new Set<string>();
-    const resolutionStack = new Set<string>();
+  async resolveGuardsForPlugin(pluginName: string, requestedGuards: string[]): Promise<GuardResolutionResult> {
+    return await this.resolutionMutex.runExclusive(async () => {
+      this.logger.debug(`Resolving guards for plugin '${pluginName}': [${requestedGuards.join(', ')}]`);
 
-    for (const guardName of requestedGuards) {
-      const result = this.resolveGuardRecursive(
-        pluginName, 
-        guardName, 
-        visitedGuards, 
-        resolutionStack
+      const resolvedGuards: LoadedGuard[] = [];
+      const missingDependencies: string[] = [];
+      const circularDependencies: string[] = [];
+      const resolutionContext = new GuardResolutionContext();
+
+      for (const guardName of requestedGuards) {
+        const result = await this.resolveGuardWithDependencies(pluginName, guardName, resolutionContext);
+
+        if (result.guard) {
+          resolvedGuards.push(result.guard);
+        }
+
+        missingDependencies.push(...result.missingDependencies);
+        circularDependencies.push(...result.circularDependencies);
+      }
+
+      // Remove duplicates
+      const uniqueGuards = this.deduplicateGuards(resolvedGuards);
+
+      this.logger.debug(
+        `Resolved ${uniqueGuards.length} guards for plugin '${pluginName}' ` +
+          `(${missingDependencies.length} missing, ${circularDependencies.length} circular)`
       );
-      
-      if (result.guard) {
-        resolvedGuards.push(result.guard);
-      }
-      
-      missingDependencies.push(...result.missingDependencies);
-      circularDependencies.push(...result.circularDependencies);
-    }
 
-    // Remove duplicates
-    const uniqueGuards = this.deduplicateGuards(resolvedGuards);
-    
-    this.logger.debug(
-      `Resolved ${uniqueGuards.length} guards for plugin '${pluginName}' ` +
-      `(${missingDependencies.length} missing, ${circularDependencies.length} circular)`
-    );
-
-    return {
-      guards: uniqueGuards,
-      missingDependencies: [...new Set(missingDependencies)],
-      circularDependencies: [...new Set(circularDependencies)],
-    };
+      return {
+        guards: uniqueGuards,
+        missingDependencies: [...new Set(missingDependencies)],
+        circularDependencies: [...new Set(circularDependencies)],
+      };
+    });
   }
 
   /**
-   * Recursively resolve a guard and its dependencies
+   * Recursively resolve a guard and its dependencies with enhanced context tracking
    */
-  private resolveGuardRecursive(
+  private async resolveGuardWithDependencies(
     requestingPlugin: string,
     guardName: string,
-    visitedGuards: Set<string>,
-    resolutionStack: Set<string>
-  ): {
+    context: GuardResolutionContext
+  ): Promise<{
     guard?: LoadedGuard;
     missingDependencies: string[];
     circularDependencies: string[];
-  } {
-    const missingDependencies: string[] = [];
-    const circularDependencies: string[] = [];
-
+  }> {
     // Check for circular dependency
-    if (resolutionStack.has(guardName)) {
-      circularDependencies.push(guardName);
-      return { missingDependencies, circularDependencies };
+    if (context.isInResolutionStack(guardName)) {
+      return {
+        missingDependencies: [],
+        circularDependencies: [guardName],
+      };
     }
 
-    // Skip if already resolved
-    if (visitedGuards.has(guardName)) {
+    // Check if already resolved
+    if (context.isResolved(guardName)) {
       const guard = this.findAvailableGuard(requestingPlugin, guardName);
-      return { guard, missingDependencies, circularDependencies };
+      return {
+        guard,
+        missingDependencies: [],
+        circularDependencies: [],
+      };
     }
 
-    resolutionStack.add(guardName);
-    visitedGuards.add(guardName);
+    context.pushToStack(guardName);
+    context.markAsVisited(guardName);
 
     // Find the guard
     const guard = this.findAvailableGuard(requestingPlugin, guardName);
     if (!guard) {
-      missingDependencies.push(guardName);
-      resolutionStack.delete(guardName);
-      return { missingDependencies, circularDependencies };
+      context.popFromStack(guardName);
+      return {
+        missingDependencies: [guardName],
+        circularDependencies: [],
+      };
     }
 
-    // Resolve dependencies for local guards
+    // Resolve dependencies recursively
+    const missingDependencies: string[] = [];
+    const circularDependencies: string[] = [];
+
     if (guard.entry.scope === 'local') {
       const localEntry = guard.entry as LocalGuardEntry;
       if (localEntry.dependencies) {
         for (const depName of localEntry.dependencies) {
-          const depResult = this.resolveGuardRecursive(
-            requestingPlugin,
-            depName,
-            visitedGuards,
-            resolutionStack
-          );
-          
+          const depResult = await this.resolveGuardWithDependencies(requestingPlugin, depName, context);
+
           missingDependencies.push(...depResult.missingDependencies);
           circularDependencies.push(...depResult.circularDependencies);
         }
       }
     }
 
-    resolutionStack.delete(guardName);
-    return { guard, missingDependencies, circularDependencies };
+    context.popFromStack(guardName);
+
+    return {
+      guard,
+      missingDependencies,
+      circularDependencies,
+    };
   }
 
   /**
@@ -205,7 +207,7 @@ export class PluginGuardManager {
         if (guard.entry.scope === 'external') {
           return guard;
         }
-        
+
         // For local guards, only allow if explicitly exported
         if (guard.entry.scope === 'local') {
           const localEntry = guard.entry as LocalGuardEntry;
@@ -224,7 +226,7 @@ export class PluginGuardManager {
    */
   private deduplicateGuards(guards: LoadedGuard[]): LoadedGuard[] {
     const seen = new Set<string>();
-    return guards.filter(guard => {
+    return guards.filter((guard) => {
       const key = `${guard.pluginName}:${guard.entry.name}`;
       if (seen.has(key)) {
         return false;
@@ -235,23 +237,25 @@ export class PluginGuardManager {
   }
 
   /**
-   * Clean up guards for a specific plugin
+   * Clean up guards for a specific plugin with thread-safe operations
    */
-  removePluginGuards(pluginName: string): void {
-    this.logger.debug(`Removing guards for plugin: ${pluginName}`);
-    
-    const pluginGuardNames = this.pluginGuardsMap.get(pluginName);
-    if (!pluginGuardNames) {
-      return;
-    }
+  async removePluginGuards(pluginName: string): Promise<void> {
+    await this.storageMutex.runExclusive(async () => {
+      this.logger.debug(`Removing guards for plugin: ${pluginName}`);
 
-    for (const guardName of pluginGuardNames) {
-      const guardKey = this.createGuardKey(pluginName, guardName);
-      this.guardsMap.delete(guardKey);
-    }
+      const pluginGuardNames = this.pluginGuardsMap.get(pluginName);
+      if (!pluginGuardNames) {
+        return;
+      }
 
-    this.pluginGuardsMap.delete(pluginName);
-    this.logger.debug(`Removed ${pluginGuardNames.size} guards for plugin '${pluginName}'`);
+      for (const guardName of pluginGuardNames) {
+        const guardKey = this.createGuardKey(pluginName, guardName);
+        this.guardsMap.delete(guardKey);
+      }
+
+      this.pluginGuardsMap.delete(pluginName);
+      this.logger.debug(`Removed ${pluginGuardNames.size} guards for plugin '${pluginName}'`);
+    });
   }
 
   /**
@@ -276,7 +280,83 @@ export class PluginGuardManager {
   }
 
   /**
-   * Get statistics about the guard system
+   * Create a unique key for storing guards
+   */
+  private createGuardKey(pluginName: string, guardName: string): string {
+    return `${pluginName}:${guardName}`;
+  }
+
+  /**
+   * Create guard instance if not already created (from PluginGuardRegistryService)
+   */
+  createGuardInstance(pluginName: string, guardName: string, ...args: any[]): any | undefined {
+    const guardKey = this.createGuardKey(pluginName, guardName);
+    const guard = this.guardsMap.get(guardKey);
+
+    if (!guard || !guard.guardClass) {
+      return undefined;
+    }
+
+    if (!guard.instance) {
+      try {
+        guard.instance = new guard.guardClass(...args);
+        this.logger.debug(`Created instance for guard '${guardName}' from plugin '${pluginName}'`);
+      } catch (error) {
+        this.logger.error(`Failed to create instance for guard '${guardName}':`, error);
+        return undefined;
+      }
+    }
+
+    return guard.instance;
+  }
+
+  /**
+   * Check if a plugin can use a specific guard (from PluginGuardRegistryService)
+   */
+  canPluginUseGuard(requestingPluginName: string, guardName: string): boolean {
+    const guard = this.findAvailableGuard(requestingPluginName, guardName);
+    return !!guard;
+  }
+
+  /**
+   * Get guards that are exported (available for other plugins to use)
+   */
+  getExportedGuards(): LoadedGuard[] {
+    const exportedGuards: LoadedGuard[] = [];
+
+    for (const guard of this.guardsMap.values()) {
+      if (guard.entry.scope === 'external') {
+        exportedGuards.push(guard);
+      } else if (guard.entry.scope === 'local') {
+        const localEntry = guard.entry as LocalGuardEntry;
+        if (localEntry.exported === true) {
+          exportedGuards.push(guard);
+        }
+      }
+    }
+
+    return exportedGuards;
+  }
+
+  /**
+   * Get guards available for a specific plugin
+   */
+  getAvailableGuardsForPlugin(pluginName: string): LoadedGuard[] {
+    const availableGuards: LoadedGuard[] = [];
+
+    // Add local guards
+    const localGuards = this.getPluginGuards(pluginName);
+    availableGuards.push(...localGuards);
+
+    // Add exported guards from other plugins
+    const exportedGuards = this.getExportedGuards().filter((guard) => guard.pluginName !== pluginName);
+    availableGuards.push(...exportedGuards);
+
+    return availableGuards;
+  }
+
+  /**
+   * Get statistics about the guard system (enhanced version)
    */
   getGuardStatistics(): {
     totalGuards: number;
@@ -316,18 +396,62 @@ export class PluginGuardManager {
   }
 
   /**
-   * Create a unique key for storing guards
+   * Enhanced statistics for V2 compatibility (with totalPlugins and guardsByPlugin)
    */
-  private createGuardKey(pluginName: string, guardName: string): string {
-    return `${pluginName}:${guardName}`;
+  getStatistics(): {
+    totalGuards: number;
+    totalPlugins: number;
+    guardsByPlugin: Array<{
+      plugin: string;
+      count: number;
+    }>;
+  } {
+    const guardsByPlugin = Array.from(this.pluginGuardsMap.entries()).map(([plugin, guards]) => ({
+      plugin,
+      count: guards.size,
+    }));
+
+    return {
+      totalGuards: this.guardsMap.size,
+      totalPlugins: this.pluginGuardsMap.size,
+      guardsByPlugin,
+    };
   }
 
   /**
    * Clear all guards (useful for testing or system reset)
    */
-  clearAllGuards(): void {
-    this.logger.warn('Clearing all guards from the system');
-    this.guardsMap.clear();
-    this.pluginGuardsMap.clear();
+  async clearAllGuards(): Promise<void> {
+    await this.storageMutex.runExclusive(async () => {
+      this.logger.warn('Clearing all guards from the system');
+      this.guardsMap.clear();
+      this.pluginGuardsMap.clear();
+    });
+  }
+}
+
+// Resolution context to track state during recursive resolution
+class GuardResolutionContext {
+  private resolutionStack = new Set<string>();
+  private visitedGuards = new Set<string>();
+
+  isInResolutionStack(guardName: string): boolean {
+    return this.resolutionStack.has(guardName);
+  }
+
+  isResolved(guardName: string): boolean {
+    return this.visitedGuards.has(guardName) && !this.resolutionStack.has(guardName);
+  }
+
+  pushToStack(guardName: string): void {
+    this.resolutionStack.add(guardName);
+  }
+
+  popFromStack(guardName: string): void {
+    this.resolutionStack.delete(guardName);
+  }
+
+  markAsVisited(guardName: string): void {
+    this.visitedGuards.add(guardName);
   }
 }

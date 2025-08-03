@@ -53,4 +53,4 @@ export * from './lib/plugin-registry-types';
 export * from './lib/plugin-guards';
 export * from './lib/plugin-guard-registry.service';
 export * from './lib/plugin-guard-interceptor';
-export * from './lib/plugin-guard-manager';
+export { PluginGuardManager } from './lib/plugin-guard-manager';

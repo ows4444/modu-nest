@@ -18,6 +18,8 @@ export class PluginLoaderService {
   private loadedPlugins = new Map<string, LoadedPlugin>();
   private guardManager = new PluginGuardManager();
   private guardRegistry?: PluginGuardRegistryService;
+  private loadingState = new Map<string, PluginLoadingState>();
+  private discoveredPlugins = new Map<string, PluginDiscovery>();
 
   // Security: List of unsafe modules that plugins should not use
   private readonly UNSAFE_MODULES = [
@@ -60,54 +62,21 @@ export class PluginLoaderService {
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
-    this.logger.log('Scanning plugins folder for available plugins...');
-    const pluginsPath = process.env.PLUGINS_DIR || path.resolve(__dirname, 'assets', 'plugins');
-    const dynamicModules: DynamicModule[] = [];
-
     try {
-      if (!fs.existsSync(pluginsPath)) {
-        this.logger.warn(`Plugins directory not found: ${pluginsPath}`);
-        this.logger.debug(`Expected path: ${pluginsPath}`);
-        return dynamicModules;
-      }
+      this.logger.log('Starting plugin discovery and loading...');
 
-      const pluginDirs = fs
-        .readdirSync(pluginsPath, { withFileTypes: true })
-        .filter((dirent) => dirent.isDirectory())
-        .map((dirent) => dirent.name);
+      // Step 1: Discover all plugins and their manifests
+      const discoveredPlugins = await this.discoverPlugins();
+      this.logger.log(`Discovered ${discoveredPlugins.length} plugins`);
 
-      this.logger.log(`Found plugin directories: ${pluginDirs.join(', ')}`);
+      // Step 2: Create dependency graph and sort topologically
+      const loadOrder = this.calculateLoadOrder(discoveredPlugins);
+      this.logger.log(`Plugin load order: [${loadOrder.join(', ')}]`);
 
-      // Two-pass loading: First pass - validate and load all guards
-      this.logger.log('Phase 1: Loading and validating plugin guards...');
-      const validatedPlugins = await this.loadAndValidatePluginGuards(pluginsPath, pluginDirs);
+      // Step 3: Load plugins in dependency order with proper synchronization
+      const modules = await this.loadPluginsInOrder(loadOrder);
 
-      // Second pass - create dynamic modules with guard injection
-      this.logger.log('Phase 2: Creating dynamic modules with resolved guards...');
-      for (const validatedPlugin of validatedPlugins) {
-        try {
-          const dynamicModule = await this.createDynamicModuleFromPlugin(
-            validatedPlugin.manifest,
-            validatedPlugin.pluginModule
-          );
-
-          if (dynamicModule) {
-            dynamicModules.push(dynamicModule);
-            this.loadedPlugins.set(validatedPlugin.manifest.name, {
-              manifest: validatedPlugin.manifest,
-              module: dynamicModule,
-              instance: validatedPlugin.pluginModule,
-            });
-            this.logger.log(
-              `✓ Successfully loaded plugin: ${validatedPlugin.manifest.name} v${validatedPlugin.manifest.version}`
-            );
-          }
-        } catch (error) {
-          this.logger.error(`Failed to create dynamic module for plugin ${validatedPlugin.manifest.name}:`, error);
-        }
-      }
-
-      this.logger.log(`Successfully loaded ${dynamicModules.length} plugins with centralized guard management`);
+      this.logger.log(`Successfully loaded ${modules.length} plugins`);
 
       // Verify guard isolation and security
       const isolationCheck = this.verifyGuardIsolation();
@@ -115,16 +84,276 @@ export class PluginLoaderService {
         this.logger.error('Plugin loading completed with guard security violations - review plugin configurations');
       }
 
-      // Note: Cross-plugin service registration will be handled by the NestJS module system
-      // after all modules are instantiated. The current CrossPluginService implementations
-      // need to be updated to use proper dependency injection instead of manual registration.
-      this.logger.warn('Cross-plugin services require proper dependency injection setup - see documentation');
-
-      return dynamicModules;
+      return modules;
     } catch (error) {
-      this.logger.error('Failed to scan plugins folder:', error);
-      return dynamicModules;
+      this.logger.error('Failed to load plugins:', error);
+      return [];
     }
+  }
+
+  private async discoverPlugins(): Promise<PluginDiscovery[]> {
+    const pluginsPath = process.env.PLUGINS_DIR || path.resolve(__dirname, 'assets', 'plugins');
+    const discoveries: PluginDiscovery[] = [];
+
+    if (!fs.existsSync(pluginsPath)) {
+      this.logger.warn(`Plugins directory not found: ${pluginsPath}`);
+      return discoveries;
+    }
+
+    const pluginDirs = fs
+      .readdirSync(pluginsPath, { withFileTypes: true })
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
+
+    for (const pluginDir of pluginDirs) {
+      try {
+        const pluginPath = path.join(pluginsPath, pluginDir);
+        const manifest = await this.loadManifest(pluginPath);
+
+        const discovery: PluginDiscovery = {
+          name: manifest.name,
+          path: pluginPath,
+          manifest,
+          dependencies: manifest.dependencies || [],
+          loadOrder: manifest.loadOrder || 0,
+        };
+
+        discoveries.push(discovery);
+        this.discoveredPlugins.set(manifest.name, discovery);
+        this.loadingState.set(manifest.name, PluginLoadingState.DISCOVERED);
+
+        this.logger.debug(`Discovered plugin: ${manifest.name} (dependencies: [${discovery.dependencies.join(', ')}])`);
+      } catch (error) {
+        this.logger.error(`Failed to discover plugin ${pluginDir}:`, error);
+      }
+    }
+
+    return discoveries;
+  }
+
+  private calculateLoadOrder(discoveries: PluginDiscovery[]): string[] {
+    // Topological sort with load order priority
+    const dependencyGraph = new Map<string, string[]>();
+    const inDegree = new Map<string, number>();
+
+    // Build dependency graph
+    for (const plugin of discoveries) {
+      dependencyGraph.set(plugin.name, plugin.dependencies);
+      inDegree.set(plugin.name, 0);
+    }
+
+    // Calculate in-degrees
+    for (const plugin of discoveries) {
+      for (const dep of plugin.dependencies) {
+        if (inDegree.has(dep)) {
+          inDegree.set(dep, (inDegree.get(dep) || 0) + 1);
+        } else {
+          this.logger.warn(`Plugin '${plugin.name}' depends on unknown plugin '${dep}'`);
+        }
+      }
+    }
+
+    // Topological sort with priority queue (load order)
+    const queue = new PriorityQueue<PluginDiscovery>((a, b) => a.loadOrder - b.loadOrder);
+    const result: string[] = [];
+
+    // Add nodes with no dependencies
+    for (const plugin of discoveries) {
+      if ((inDegree.get(plugin.name) || 0) === 0) {
+        queue.enqueue(plugin);
+      }
+    }
+
+    while (!queue.isEmpty()) {
+      const current = queue.dequeue()!;
+      result.push(current.name);
+
+      // Update in-degrees of dependent plugins
+      for (const plugin of discoveries) {
+        if (plugin.dependencies.includes(current.name)) {
+          const newInDegree = (inDegree.get(plugin.name) || 0) - 1;
+          inDegree.set(plugin.name, newInDegree);
+
+          if (newInDegree === 0) {
+            queue.enqueue(plugin);
+          }
+        }
+      }
+    }
+
+    // Check for circular dependencies
+    if (result.length !== discoveries.length) {
+      const remaining = discoveries.filter((p) => !result.includes(p.name));
+      throw new Error(`Circular dependencies detected: ${remaining.map((p) => p.name).join(', ')}`);
+    }
+
+    return result;
+  }
+
+  private async loadManifest(pluginPath: string): Promise<PluginManifest> {
+    const manifestPath = path.join(pluginPath, 'plugin.manifest.json');
+
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(`Plugin manifest not found: ${manifestPath}`);
+    }
+
+    const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+    const manifest = JSON.parse(manifestContent) as PluginManifest;
+
+    // Basic validation
+    if (!manifest.name || !manifest.version || !manifest.module) {
+      throw new Error(`Invalid plugin manifest: ${manifestPath}`);
+    }
+
+    return manifest;
+  }
+
+  private async loadPluginsInOrder(loadOrder: string[]): Promise<DynamicModule[]> {
+    const dynamicModules: DynamicModule[] = [];
+
+    for (const pluginName of loadOrder) {
+      try {
+        this.logger.log(`Loading plugin: ${pluginName}`);
+        this.loadingState.set(pluginName, PluginLoadingState.LOADING);
+
+        const plugin = await this.loadSinglePlugin(pluginName);
+        if (plugin) {
+          dynamicModules.push(plugin.module);
+          this.loadedPlugins.set(pluginName, plugin);
+          this.loadingState.set(pluginName, PluginLoadingState.LOADED);
+
+          this.logger.log(`✓ Successfully loaded plugin: ${pluginName}`);
+        }
+      } catch (error) {
+        this.loadingState.set(pluginName, PluginLoadingState.FAILED);
+        this.logger.error(`Failed to load plugin ${pluginName}:`, error);
+
+        // Decide whether to continue or fail fast
+        if (this.isCriticalPlugin(pluginName)) {
+          throw error;
+        }
+      }
+    }
+
+    return dynamicModules;
+  }
+
+  private async loadSinglePlugin(pluginName: string): Promise<LoadedPlugin | null> {
+    const discovery = this.discoveredPlugins.get(pluginName);
+    if (!discovery) {
+      this.logger.error(`Plugin discovery not found: ${pluginName}`);
+      return null;
+    }
+
+    // Wait for all dependencies to be loaded
+    await this.waitForDependencies(discovery.dependencies);
+
+    // Load and validate the plugin
+    const pluginModule = await this.importPluginModule(discovery.path);
+    const manifest = discovery.manifest;
+
+    // Process guards synchronously
+    await this.processPluginGuards(pluginName, manifest, pluginModule);
+
+    // Create dynamic module using existing logic but with enhanced error handling
+    const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
+
+    if (!dynamicModule) {
+      throw new Error(`Failed to create dynamic module for plugin: ${pluginName}`);
+    }
+
+    return {
+      manifest,
+      module: dynamicModule,
+      instance: pluginModule,
+    };
+  }
+
+  private async waitForDependencies(dependencies: string[]): Promise<void> {
+    const maxWaitTime = 30000; // 30 seconds
+    const pollInterval = 100; // 100ms
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+      const allLoaded = dependencies.every((dep) => this.loadingState.get(dep) === PluginLoadingState.LOADED);
+
+      if (allLoaded) {
+        return;
+      }
+
+      // Check for failed dependencies
+      const failedDeps = dependencies.filter((dep) => this.loadingState.get(dep) === PluginLoadingState.FAILED);
+
+      if (failedDeps.length > 0) {
+        throw new Error(`Dependencies failed to load: ${failedDeps.join(', ')}`);
+      }
+
+      await this.sleep(pollInterval);
+    }
+
+    const pendingDeps = dependencies.filter((dep) => this.loadingState.get(dep) !== PluginLoadingState.LOADED);
+
+    throw new Error(`Timeout waiting for dependencies: ${pendingDeps.join(', ')}`);
+  }
+
+  private async processPluginGuards(
+    pluginName: string,
+    manifest: PluginManifest,
+    pluginModule: Record<string, unknown>
+  ): Promise<void> {
+    if (!manifest.module.guards || manifest.module.guards.length === 0) {
+      return;
+    }
+
+    this.logger.debug(`Processing ${manifest.module.guards.length} guards for plugin: ${pluginName}`);
+
+    // Store guards in manager
+    await this.guardManager.storePluginGuards(pluginName, manifest.module.guards, pluginModule);
+
+    // Validate all guards can be resolved
+    const guardNames = manifest.module.guards.map((g) => g.name);
+    const resolutionResult = await this.guardManager.resolveGuardsForPlugin(pluginName, guardNames);
+
+    if (resolutionResult.missingDependencies.length > 0) {
+      throw new Error(
+        `Plugin '${pluginName}' has unresolvable guard dependencies: ${resolutionResult.missingDependencies.join(', ')}`
+      );
+    }
+
+    if (resolutionResult.circularDependencies.length > 0) {
+      throw new Error(
+        `Plugin '${pluginName}' has circular guard dependencies: ${resolutionResult.circularDependencies.join(', ')}`
+      );
+    }
+
+    this.logger.debug(`✓ All guards validated for plugin: ${pluginName}`);
+  }
+
+  private async importPluginModule(pluginPath: string): Promise<Record<string, unknown>> {
+    const mainPath = path.join(pluginPath, 'dist', 'index.js');
+
+    if (!fs.existsSync(mainPath)) {
+      throw new Error(`Plugin main file not found: ${mainPath}`);
+    }
+
+    try {
+      // Clear require cache to ensure fresh import
+      delete require.cache[require.resolve(mainPath)];
+
+      const pluginModule = await import(mainPath);
+      return pluginModule;
+    } catch (error) {
+      throw new Error(`Failed to import plugin module: ${error}`);
+    }
+  }
+
+  private isCriticalPlugin(pluginName: string): boolean {
+    const discovery = this.discoveredPlugins.get(pluginName);
+    return discovery?.manifest.critical === true;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -209,11 +438,9 @@ export class PluginLoaderService {
     this.logger.log(`Phase 1 complete: Validated ${validatedPlugins.length} plugins and stored their guards`);
 
     // Log guard system statistics after all guards are loaded
-    const guardStats = this.guardManager.getGuardStatistics();
+    const guardStats = this.guardManager.getStatistics();
     this.logger.log(
-      `Guard system initialized: ${guardStats.totalGuards} total guards ` +
-        `(${guardStats.localGuards} local, ${guardStats.externalGuards} external, ` +
-        `${guardStats.exportedGuards} exported) across ${guardStats.pluginCount} plugins`
+      `Guard system initialized: ${guardStats.totalGuards} total guards ` + `across ${guardStats.totalPlugins} plugins`
     );
 
     return validatedPlugins;
@@ -269,7 +496,7 @@ export class PluginLoaderService {
       const imports = resolveComponents(manifest.module.imports);
 
       // Resolve and inject only the guards specified in the manifest
-      const guardProviders = this.resolveAndCreateGuardProviders(manifest.name, manifest.module.guards || []);
+      const guardProviders = await this.resolveAndCreateGuardProviders(manifest.name, manifest.module.guards || []);
 
       // Add guard providers to the providers array
       providers.push(...guardProviders);
@@ -339,7 +566,7 @@ export class PluginLoaderService {
    * Resolve and create guard providers for a plugin's dynamic module
    * Only injects guards that are explicitly listed in the plugin manifest
    */
-  private resolveAndCreateGuardProviders(pluginName: string, guardEntries: GuardEntry[]): any[] {
+  private async resolveAndCreateGuardProviders(pluginName: string, guardEntries: GuardEntry[]): Promise<any[]> {
     if (!guardEntries || guardEntries.length === 0) {
       return [];
     }
@@ -350,7 +577,7 @@ export class PluginLoaderService {
     const requestedGuards = guardEntries.map((entry) => entry.name);
 
     // Resolve guards through the centralized manager
-    const resolutionResult = this.guardManager.resolveGuardsForPlugin(pluginName, requestedGuards);
+    const resolutionResult = await this.guardManager.resolveGuardsForPlugin(pluginName, requestedGuards);
 
     // Log any issues
     if (resolutionResult.missingDependencies.length > 0) {
@@ -469,7 +696,15 @@ export class PluginLoaderService {
   async reloadPlugins(): Promise<DynamicModule[]> {
     this.logger.log('Reloading all plugins...');
     this.loadedPlugins.clear();
-    this.guardManager.clearAllGuards(); // Clear guards when reloading
+    this.loadingState.clear();
+    this.discoveredPlugins.clear();
+
+    // Clear guards for all plugins when reloading
+    const pluginNames = Array.from(this.loadedPlugins.keys());
+    for (const pluginName of pluginNames) {
+      await this.guardManager.removePluginGuards(pluginName);
+    }
+
     return this.scanAndLoadAllPlugins();
   }
 
@@ -485,7 +720,7 @@ export class PluginLoaderService {
    */
   getPluginStats() {
     const plugins = Array.from(this.loadedPlugins.values());
-    const guardStats = this.guardManager.getGuardStatistics();
+    const guardStats = this.guardManager.getStatistics();
 
     return {
       totalLoaded: plugins.length,
@@ -508,7 +743,7 @@ export class PluginLoaderService {
    * Gets detailed guard information for debugging and monitoring
    */
   getGuardStatistics() {
-    return this.guardManager.getGuardStatistics();
+    return this.guardManager.getStatistics();
   }
 
   /**
@@ -516,6 +751,33 @@ export class PluginLoaderService {
    */
   getPluginGuards(pluginName: string) {
     return this.guardManager.getPluginGuards(pluginName);
+  }
+
+  /**
+   * Get plugin loading state (for monitoring)
+   */
+  getPluginState(pluginName: string): PluginLoadingState | undefined {
+    return this.loadingState.get(pluginName);
+  }
+
+  /**
+   * Get all loaded plugin names
+   */
+  getLoadedPluginNames(): string[] {
+    return Array.from(this.loadedPlugins.keys());
+  }
+
+  /**
+   * Unload a specific plugin
+   */
+  async unloadPlugin(pluginName: string): Promise<void> {
+    if (this.loadedPlugins.has(pluginName)) {
+      await this.guardManager.removePluginGuards(pluginName);
+      this.loadedPlugins.delete(pluginName);
+      this.loadingState.set(pluginName, PluginLoadingState.UNLOADED);
+      this.discoveredPlugins.delete(pluginName);
+      this.logger.log(`Plugin unloaded: ${pluginName}`);
+    }
   }
 
   /**
@@ -715,7 +977,7 @@ export class PluginLoaderService {
               source: pluginName,
               scope: 'external',
             },
-            guardClass,
+            guardClass: guardClass as new (...args: any[]) => any,
           });
 
           this.logger.debug(`Registered guard '${entry.name}' from plugin '${pluginName}' with guard registry`);
@@ -724,5 +986,42 @@ export class PluginLoaderService {
         }
       }
     }
+  }
+}
+
+// Supporting types and enums for enhanced plugin loading
+enum PluginLoadingState {
+  DISCOVERED = 'discovered',
+  LOADING = 'loading',
+  LOADED = 'loaded',
+  FAILED = 'failed',
+  UNLOADED = 'unloaded',
+}
+
+interface PluginDiscovery {
+  name: string;
+  path: string;
+  manifest: PluginManifest;
+  dependencies: string[];
+  loadOrder: number;
+}
+
+// Priority Queue implementation for dependency-ordered loading
+class PriorityQueue<T> {
+  private items: T[] = [];
+
+  constructor(private compare: (a: T, b: T) => number) {}
+
+  enqueue(item: T): void {
+    this.items.push(item);
+    this.items.sort(this.compare);
+  }
+
+  dequeue(): T | undefined {
+    return this.items.shift();
+  }
+
+  isEmpty(): boolean {
+    return this.items.length === 0;
   }
 }

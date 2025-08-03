@@ -33,6 +33,7 @@ export interface PluginManifest {
   license: string;
   dependencies?: string[];
   loadOrder?: number;
+  critical?: boolean;
   module: PluginModuleMeta;
 }
 
@@ -80,3 +81,15 @@ export enum PluginStatus {
 }
 
 export type PluginLifecycleHook = 'beforeLoad' | 'afterLoad' | 'beforeUnload' | 'afterUnload' | 'onError';
+
+export interface LoadedGuard {
+  entry: GuardEntry;
+  pluginName: string;
+  guardClass?: Function;
+}
+
+export interface GuardResolutionResult {
+  guards: LoadedGuard[];
+  missingDependencies: string[];
+  circularDependencies: string[];
+}
