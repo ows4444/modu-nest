@@ -94,7 +94,14 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
 
   // Get guards that are exported (available for other plugins to use)
   getExportedGuards(): RegisteredPluginGuard[] {
-    return Array.from(this.guards.values()).filter((guard) => (guard.metadata.scope === 'external') === true);
+    return Array.from(this.guards.values()).filter((guard) => {
+      // External guards are automatically available
+      if (guard.metadata.scope === 'external') return true;
+      
+      // Local guards must be explicitly exported
+      return guard.metadata.scope === 'local' && 
+             (guard.metadata as any).exported === true;
+    });
   }
 
   // Get guards available for a specific plugin

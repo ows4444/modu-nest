@@ -311,17 +311,30 @@ export class PluginLoaderService {
       // Create a require function that webpack won't transform
       const dynamicRequire = createRequire(__filename);
 
-      // Clear require cache to ensure fresh import
-      try {
-        delete dynamicRequire.cache[dynamicRequire.resolve(mainPath)];
-      } catch {
-        // Cache clearing failed, continue anyway
-      }
+      // Clear require cache to ensure fresh import with safe approach
+      await this.clearModuleCache(mainPath, dynamicRequire);
 
       const pluginModule = dynamicRequire(mainPath);
       return pluginModule;
     } catch (error) {
       throw new Error(`Failed to import plugin module: ${error}`);
+    }
+  }
+
+  /**
+   * Safely clear module cache for plugin reloading
+   * Implements proper error handling and path validation
+   */
+  private async clearModuleCache(mainPath: string, dynamicRequire: NodeRequire): Promise<void> {
+    try {
+      const resolvedPath = dynamicRequire.resolve(mainPath);
+      if (dynamicRequire.cache[resolvedPath]) {
+        delete dynamicRequire.cache[resolvedPath];
+        this.logger.debug(`Cleared module cache for: ${resolvedPath}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to clear module cache for ${mainPath}:`, error);
+      // Continue execution - not critical failure
     }
   }
 

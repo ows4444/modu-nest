@@ -25,11 +25,8 @@ export {
   PluginLifecycleHookDecorator,
 } from './lib/plugin-decorators';
 
-// Plugin guard decorators and utilities  
-export {
-  PluginUseGuards,
-  PLUGIN_USE_GUARDS_KEY,
-} from './lib/plugin-guards';
+// Plugin guard decorators and utilities
+export { PluginUseGuards, PLUGIN_USE_GUARDS_KEY } from './lib/plugin-guards';
 
 // Plugin validation utilities
 export * from './lib/plugin-validators';
@@ -42,9 +39,6 @@ export * from './lib/plugin-errors';
 
 // Plugin configuration management
 export * from './lib/plugin-configuration';
-
-// Plugin environment configuration
-export * from './lib/plugin-environment';
 
 // Plugin registry specific types and DTOs
 export * from './lib/plugin-registry-types';

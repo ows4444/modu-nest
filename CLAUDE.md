@@ -322,18 +322,25 @@ export class AdvancedAccessGuard implements CanActivate {
 
 ```typescript
 // Environment-aware configuration
-import { PluginEnvironment } from '@modu-nest/plugin-types';
+import { PluginEnvironmentService } from '@modu-nest/plugin-types';
 
 @Injectable()
 export class PluginConfigService {
-  private config = PluginEnvironment.getPluginConfig('my-plugin');
+  constructor(private envService: PluginEnvironmentService) {}
   
   getFeatureFlag(flag: string): boolean {
-    return this.config.features?.[flag] ?? false;
+    // Access plugin-specific feature flags from environment
+    return process.env[`PLUGIN_${flag.toUpperCase()}`] === 'true';
   }
   
   getResourceLimit(resource: string): number {
-    return this.config.resourceLimits?.[resource] ?? Infinity;
+    const securityConfig = this.envService.getSecurityConfig();
+    switch (resource) {
+      case 'memory':
+        return securityConfig.maxMemoryUsage;
+      default:
+        return Infinity;
+    }
   }
 }
 ```
