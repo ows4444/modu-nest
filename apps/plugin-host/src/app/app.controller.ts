@@ -40,15 +40,15 @@ export class AppController {
 
   @Get('plugins/stats')
   getPluginStats() {
-    const loadedPlugins = this.pluginLoader.getLoadedPlugins();
-    const plugins = Array.from(loadedPlugins.values());
+    return this.pluginLoader.getPluginStats();
+  }
 
+  @Get('plugins/cross-plugin-services')
+  getCrossPluginServices() {
     return {
-      totalInstalled: plugins.length,
-      pluginsByAuthor: this.groupPluginsByAuthor(plugins),
-      averageLoadOrder: this.calculateAverageLoadOrder(plugins),
-      memoryUsage: process.memoryUsage(),
-      uptime: process.uptime(),
+      availableServices: this.pluginLoader.getAvailableCrossPluginServices(),
+      globalServices: this.pluginLoader.getGlobalCrossPluginServices(),
+      statistics: this.pluginLoader.getCrossPluginServiceManager().getStatistics(),
     };
   }
 
@@ -88,19 +88,4 @@ export class AppController {
     };
   }
 
-  private groupPluginsByAuthor(plugins: LoadedPlugin[]) {
-    return plugins.reduce((acc: Record<string, number>, plugin) => {
-      const author = plugin.manifest?.author || 'Unknown';
-      acc[author] = (acc[author] || 0) + 1;
-      return acc;
-    }, {});
-  }
-
-  private calculateAverageLoadOrder(plugins: LoadedPlugin[]) {
-    const pluginsWithLoadOrder = plugins.filter((p) => p.manifest?.loadOrder !== undefined);
-    if (pluginsWithLoadOrder.length === 0) return 0;
-
-    const total = pluginsWithLoadOrder.reduce((sum, p) => sum + (p.manifest.loadOrder || 0), 0);
-    return total / pluginsWithLoadOrder.length;
-  }
 }

@@ -11,6 +11,7 @@ import {
   PluginGuardRegistryService,
   LocalGuardEntry,
 } from '@modu-nest/plugin-types';
+import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 
 @Injectable()
 export class PluginLoaderService {
@@ -20,6 +21,7 @@ export class PluginLoaderService {
   private guardRegistry?: PluginGuardRegistryService;
   private loadingState = new Map<string, PluginLoadingState>();
   private discoveredPlugins = new Map<string, PluginDiscovery>();
+  private crossPluginServiceManager = new CrossPluginServiceManager();
 
   // Security: List of unsafe modules that plugins should not use
   private readonly UNSAFE_MODULES = [
@@ -502,12 +504,20 @@ export class PluginLoaderService {
       providers.push(...guardProviders);
 
       // Add cross-plugin service providers for dependency injection
-      const crossPluginProviders = this.createCrossPluginProviders(manifest.name, pluginModule);
+      const crossPluginProviders = this.crossPluginServiceManager.createCrossPluginProviders(
+        manifest.name,
+        manifest,
+        pluginModule
+      );
       providers.push(...crossPluginProviders);
 
       // Make exported services globally available
       if (manifest.module.exports) {
-        const globalProviders = this.createGlobalServiceProviders(manifest.name, manifest.module.exports, pluginModule);
+        const globalProviders = this.crossPluginServiceManager.createGlobalServiceProviders(
+          manifest.name,
+          manifest.module.exports,
+          pluginModule
+        );
         providers.push(...globalProviders);
       }
 
@@ -608,65 +618,6 @@ export class PluginLoaderService {
     return guardProviders;
   }
 
-  /**
-   * Create cross-plugin service providers for dependency injection
-   */
-  private createCrossPluginProviders(pluginName: string, pluginModule: Record<string, unknown>): any[] {
-    const crossPluginProviders: any[] = [];
-
-    // Special handling for user-plugin to make UserPluginService available across plugins
-    if (pluginName === 'user-plugin') {
-      const userPluginService = pluginModule['UserPluginService'];
-      if (userPluginService) {
-        crossPluginProviders.push({
-          provide: 'USER_PLUGIN_SERVICE',
-          useClass: userPluginService,
-        });
-        this.logger.debug('Created USER_PLUGIN_SERVICE provider for cross-plugin access');
-      }
-    }
-
-    // Add more cross-plugin providers as needed for other services
-    // This is where you would add providers for other frequently shared services
-
-    return crossPluginProviders;
-  }
-
-  /**
-   * Create global service providers for exported services to enable cross-plugin access
-   */
-  private createGlobalServiceProviders(
-    pluginName: string,
-    exportedServices: string[],
-    pluginModule: Record<string, unknown>
-  ): any[] {
-    const globalProviders: any[] = [];
-
-    for (const serviceName of exportedServices) {
-      const serviceClass = pluginModule[serviceName];
-      if (serviceClass && typeof serviceClass === 'function') {
-        // Create a global token for this service
-        const globalToken = `${pluginName.toUpperCase()}_${serviceName.toUpperCase()}`;
-
-        globalProviders.push({
-          provide: globalToken,
-          useClass: serviceClass,
-        });
-
-        // Special case for commonly used services
-        if (pluginName === 'user-plugin' && serviceName === 'UserPluginService') {
-          globalProviders.push({
-            provide: 'USER_PLUGIN_SERVICE',
-            useExisting: globalToken,
-          });
-        }
-
-        this.logger.debug(`Created global provider '${globalToken}' for ${pluginName}:${serviceName}`);
-      }
-    }
-
-    return globalProviders;
-  }
 
   /**
    * Determine if a plugin module should be global based on its exports
@@ -695,15 +646,17 @@ export class PluginLoaderService {
    */
   async reloadPlugins(): Promise<DynamicModule[]> {
     this.logger.log('Reloading all plugins...');
-    this.loadedPlugins.clear();
-    this.loadingState.clear();
-    this.discoveredPlugins.clear();
-
-    // Clear guards for all plugins when reloading
+    
+    // Clear guards and services for all plugins when reloading
     const pluginNames = Array.from(this.loadedPlugins.keys());
     for (const pluginName of pluginNames) {
       await this.guardManager.removePluginGuards(pluginName);
+      this.crossPluginServiceManager.removePluginServices(pluginName);
     }
+    
+    this.loadedPlugins.clear();
+    this.loadingState.clear();
+    this.discoveredPlugins.clear();
 
     return this.scanAndLoadAllPlugins();
   }
@@ -721,6 +674,7 @@ export class PluginLoaderService {
   getPluginStats() {
     const plugins = Array.from(this.loadedPlugins.values());
     const guardStats = this.guardManager.getStatistics();
+    const serviceStats = this.crossPluginServiceManager.getStatistics();
 
     return {
       totalLoaded: plugins.length,
@@ -736,6 +690,7 @@ export class PluginLoaderService {
         return acc;
       }, {} as Record<string, number>),
       guards: guardStats,
+      crossPluginServices: serviceStats,
     };
   }
 
@@ -768,11 +723,33 @@ export class PluginLoaderService {
   }
 
   /**
+   * Get cross-plugin service manager (for debugging and monitoring)
+   */
+  getCrossPluginServiceManager(): CrossPluginServiceManager {
+    return this.crossPluginServiceManager;
+  }
+
+  /**
+   * Get available cross-plugin services
+   */
+  getAvailableCrossPluginServices(): string[] {
+    return this.crossPluginServiceManager.getAvailableServices();
+  }
+
+  /**
+   * Get global cross-plugin services
+   */
+  getGlobalCrossPluginServices(): string[] {
+    return this.crossPluginServiceManager.getGlobalServices();
+  }
+
+  /**
    * Unload a specific plugin
    */
   async unloadPlugin(pluginName: string): Promise<void> {
     if (this.loadedPlugins.has(pluginName)) {
       await this.guardManager.removePluginGuards(pluginName);
+      this.crossPluginServiceManager.removePluginServices(pluginName);
       this.loadedPlugins.delete(pluginName);
       this.loadingState.set(pluginName, PluginLoadingState.UNLOADED);
       this.discoveredPlugins.delete(pluginName);

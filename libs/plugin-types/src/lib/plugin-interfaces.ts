@@ -17,12 +17,20 @@ export interface ExternalGuardEntry extends BaseGuardEntry {
 
 export type GuardEntry = LocalGuardEntry | ExternalGuardEntry;
 
+export interface CrossPluginServiceConfig {
+  serviceName: string;
+  token: string;
+  global?: boolean;
+  description?: string;
+}
+
 export interface PluginModuleMeta {
   controllers?: string[];
   providers?: string[];
   exports?: string[];
   imports?: string[];
   guards?: GuardEntry[];
+  crossPluginServices?: CrossPluginServiceConfig[];
 }
 
 export interface PluginManifest {

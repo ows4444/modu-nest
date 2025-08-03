@@ -2,6 +2,7 @@ import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService } from './registry-client.service';
+import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
 import { PluginGuardInterceptor, PluginGuardRegistryService } from '@modu-nest/plugin-types';
 
@@ -38,6 +39,7 @@ export class AppModule implements OnModuleInit {
           useValue: pluginLoaderInstance,
         },
         RegistryClientService,
+        CrossPluginServiceManager,
         PluginGuardRegistryService,
         PluginGuardInterceptor,
       ],
@@ -76,7 +78,7 @@ export class AppModule implements OnModuleInit {
     const guardStats = this.pluginLoader.getGuardStatistics();
     this.instanceLogger.log(
       `Guard system: ${guardStats.totalGuards} total guards ` +
-        `(${guardStats.localGuards} local, ${guardStats.externalGuards} external)`
+        `across ${guardStats.totalPlugins} plugins`
     );
 
     // Set up guard registry with plugins and their allowed guards
