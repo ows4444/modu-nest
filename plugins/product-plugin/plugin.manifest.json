@@ -1,0 +1,39 @@
+{
+  "name": "product-plugin",
+  "version": "1.0.0",
+  "description": "ProductPlugin plugin for modu-nest with product management and access controls",
+  "author": "Plugin Developer",
+  "license": "MIT",
+  "dependencies": ["user-plugin"],
+  "loadOrder": 200,
+  "critical": false,
+  "module": {
+    "controllers": ["ProductPluginController"],
+    "providers": ["ProductPluginService"],
+    "exports": ["ProductPluginService"],
+    "guards": [
+      {
+        "name": "product-access",
+        "class": "ProductAccessGuard",
+        "description": "Guard for product access control",
+        "source": "product-plugin",
+        "exported": true,
+        "scope": "local"
+      },
+      {
+        "name": "product-ownership",
+        "class": "ProductOwnershipGuard",
+        "description": "Ensures users can only modify products they own",
+        "source": "product-plugin",
+        "dependencies": ["user-auth", "product-access"],
+        "scope": "local"
+      },
+      {
+        "name": "user-auth",
+        "source": "user-plugin",
+        "description": "Checks if user is authenticated",
+        "scope": "external"
+      }
+    ]
+  }
+}

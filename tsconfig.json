@@ -29,6 +29,12 @@
     },
     {
       "path": "./libs/shared/const"
+    },
+    {
+      "path": "./plugins/product-plugin"
+    },
+    {
+      "path": "./plugins/user-plugin"
     }
   ]
 }

@@ -1,0 +1,50 @@
+{
+  "name": "user-plugin",
+  "version": "1.0.0",
+  "description": "UserPlugin plugin for modu-nest with authentication and user management",
+  "author": "Plugin Developer",
+  "license": "MIT",
+  "dependencies": [],
+  "loadOrder": 100,
+  "critical": true,
+  "module": {
+    "controllers": ["UserPluginController"],
+    "providers": ["UserPluginService"],
+    "exports": ["UserPluginService"],
+    "crossPluginServices": [
+      {
+        "serviceName": "UserPluginService",
+        "token": "USER_PLUGIN_SERVICE",
+        "global": true,
+        "description": "User management service available across all plugins"
+      }
+    ],
+    "guards": [
+      {
+        "name": "user-auth",
+        "class": "UserAuthGuard",
+        "description": "Authentication guard for user operations",
+        "source": "user-plugin",
+        "exported": true,
+        "scope": "local"
+      },
+      {
+        "name": "admin-role",
+        "class": "AdminRoleGuard",
+        "description": "Admin role guard for privileged operations",
+        "source": "user-plugin",
+        "dependencies": ["user-auth"],
+        "exported": true,
+        "scope": "local"
+      },
+      {
+        "name": "user-ownership",
+        "class": "UserOwnershipGuard",
+        "description": "Guard to ensure users can only access their own resources",
+        "source": "user-plugin",
+        "dependencies": ["user-auth"],
+        "scope": "local"
+      }
+    ]
+  }
+}
