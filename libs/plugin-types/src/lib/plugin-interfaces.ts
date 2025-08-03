@@ -32,6 +32,48 @@ export interface PluginModuleMeta {
   guards?: GuardEntry[];
   crossPluginServices?: CrossPluginServiceConfig[];
 }
+export interface PluginSecurity {
+  trustLevel: 'internal' | 'verified' | 'community';
+  signature?: {
+    algorithm: string;
+    publicKey: string;
+    signature: string;
+  };
+  checksum?: {
+    algorithm: string;
+    hash: string;
+  };
+  sandbox?: {
+    enabled: boolean;
+    isolationLevel?: 'process' | 'vm' | 'container';
+    resourceLimits?: {
+      maxMemory?: number;
+      maxCPU?: number;
+      maxFileSize?: number;
+      maxNetworkBandwidth?: number;
+    };
+  };
+}
+
+export interface PluginMetrics {
+  performance?: {
+    maxStartupTime?: number;
+    maxResponseTime?: number;
+    healthCheckInterval?: number;
+  };
+  monitoring?: {
+    enablePerformanceTracking?: boolean;
+    enableErrorTracking?: boolean;
+    enableSecurityMonitoring?: boolean;
+    logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  };
+}
+
+export interface PluginCompatibility {
+  minimumHostVersion?: string;
+  maximumHostVersion?: string;
+  nodeVersion: string;
+}
 
 export interface PluginManifest {
   name: string;
@@ -42,6 +84,9 @@ export interface PluginManifest {
   dependencies?: string[];
   loadOrder?: number;
   critical?: boolean;
+  security?: PluginSecurity;
+  metrics?: PluginMetrics;
+  compatibility?: PluginCompatibility;
   module: PluginModuleMeta;
 }
 
@@ -100,4 +145,11 @@ export interface GuardResolutionResult {
   guards: LoadedGuard[];
   missingDependencies: string[];
   circularDependencies: string[];
+}
+export interface PluginVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease?: string;
+  build?: string;
 }
