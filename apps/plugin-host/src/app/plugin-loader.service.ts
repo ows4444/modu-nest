@@ -10,6 +10,7 @@ import {
   GuardEntry,
   PluginGuardRegistryService,
   LocalGuardEntry,
+  PluginLifecycleHook,
 } from '@modu-nest/plugin-types';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 
@@ -383,21 +384,39 @@ export class PluginLoaderService {
     const pluginModule = await this.importPluginModule(discovery.path);
     const manifest = discovery.manifest;
 
-    // Process guards synchronously
-    await this.processPluginGuards(pluginName, manifest, pluginModule);
-
-    // Create dynamic module using existing logic but with enhanced error handling
-    const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
-
-    if (!dynamicModule) {
-      throw new Error(`Failed to create dynamic module for plugin: ${pluginName}`);
-    }
-
-    return {
+    // Create loaded plugin object for lifecycle hooks
+    const loadedPlugin: LoadedPlugin = {
       manifest,
-      module: dynamicModule,
+      module: null as any, // Will be set after creating dynamic module
       instance: pluginModule,
     };
+
+    try {
+      // Execute beforeLoad lifecycle hook
+      await this.executeLifecycleHook(loadedPlugin, 'beforeLoad');
+
+      // Process guards synchronously
+      await this.processPluginGuards(pluginName, manifest, pluginModule);
+
+      // Create dynamic module using existing logic but with enhanced error handling
+      const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
+
+      if (!dynamicModule) {
+        throw new Error(`Failed to create dynamic module for plugin: ${pluginName}`);
+      }
+
+      // Set the module in the loaded plugin object
+      loadedPlugin.module = dynamicModule;
+
+      // Execute afterLoad lifecycle hook
+      await this.executeLifecycleHook(loadedPlugin, 'afterLoad');
+
+      return loadedPlugin;
+    } catch (error) {
+      // Execute onError lifecycle hook
+      await this.executeLifecycleHook(loadedPlugin, 'onError', error);
+      throw error;
+    }
   }
 
   private async waitForDependencies(dependencies: string[]): Promise<void> {
@@ -926,16 +945,199 @@ export class PluginLoaderService {
   }
 
   /**
+   * Execute a lifecycle hook for a plugin with timeout protection
+   * @param plugin - The loaded plugin object
+   * @param hook - The lifecycle hook to execute
+   * @param args - Additional arguments to pass to the hook handlers
+   */
+  private async executeLifecycleHook(
+    plugin: LoadedPlugin,
+    hook: PluginLifecycleHook,
+    ...args: unknown[]
+  ): Promise<void> {
+    const hooks = this.getPluginLifecycleHooks(plugin);
+    const handlers = hooks.get(hook) || [];
+
+    if (handlers.length === 0) {
+      this.logger.debug(`No '${hook}' lifecycle hooks found for plugin: ${plugin.manifest.name}`);
+      return;
+    }
+
+    this.logger.debug(`Executing ${handlers.length} '${hook}' lifecycle hook(s) for plugin: ${plugin.manifest.name}`);
+
+    for (let i = 0; i < handlers.length; i++) {
+      const handler = handlers[i];
+      const hookTimeout = 5000; // 5 second timeout for lifecycle hooks
+
+      try {
+        await Promise.race([
+          handler(...args),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Lifecycle hook '${hook}' timeout after ${hookTimeout}ms`)), hookTimeout)
+          ),
+        ]);
+
+        this.logger.debug(`✓ Lifecycle hook '${hook}' [${i + 1}/${handlers.length}] executed successfully for plugin: ${plugin.manifest.name}`);
+      } catch (error) {
+        this.logger.error(`Lifecycle hook '${hook}' [${i + 1}/${handlers.length}] failed for plugin '${plugin.manifest.name}':`, error);
+
+        // Critical hooks should fail fast
+        if (hook === 'beforeLoad') {
+          throw error;
+        }
+        
+        // For other hooks, log but continue with remaining hooks
+        // This prevents one failing hook from breaking all hooks
+      }
+    }
+  }
+
+  /**
+   * Extract lifecycle hooks from plugin metadata using reflection
+   * @param plugin - The loaded plugin object
+   * @returns Map of lifecycle hook types to their handler functions
+   */
+  private getPluginLifecycleHooks(plugin: LoadedPlugin): Map<PluginLifecycleHook, Function[]> {
+    const hooks = new Map<PluginLifecycleHook, Function[]>();
+    const lifecycleHooks: PluginLifecycleHook[] = ['beforeLoad', 'afterLoad', 'beforeUnload', 'afterUnload', 'onError'];
+
+    // Iterate through all exported classes and objects in the plugin
+    for (const [exportName, exportValue] of Object.entries(plugin.instance as Record<string, unknown>)) {
+      if (!exportValue || (typeof exportValue !== 'object' && typeof exportValue !== 'function')) {
+        continue;
+      }
+
+      // Check if this export has lifecycle hook methods
+      const prototype = typeof exportValue === 'function' ? exportValue.prototype : exportValue;
+      if (!prototype) continue;
+
+      // Scan for methods with lifecycle hook metadata
+      const methodNames = Object.getOwnPropertyNames(prototype);
+      for (const methodName of methodNames) {
+        if (methodName === 'constructor') continue;
+
+        const method = prototype[methodName];
+        if (typeof method !== 'function') continue;
+
+        // Check each lifecycle hook type
+        for (const hookType of lifecycleHooks) {
+          const metadataKey = `plugin:hook:${hookType}`;
+          const hasHook = Reflect.getMetadata(metadataKey, method);
+          
+          if (hasHook) {
+            if (!hooks.has(hookType)) {
+              hooks.set(hookType, []);
+            }
+            
+            // Bind the method to the instance if it's a class
+            let boundMethod: Function;
+            if (typeof exportValue === 'function') {
+              // This is a class constructor, we need an instance
+              try {
+                const ClassConstructor = exportValue as new () => unknown;
+                const instance = new ClassConstructor();
+                boundMethod = method.bind(instance);
+              } catch (error) {
+                this.logger.warn(`Failed to instantiate class '${exportName}' for lifecycle hook '${hookType}':`, error);
+                continue;
+              }
+            } else {
+              // This is already an instance/object
+              boundMethod = method.bind(exportValue);
+            }
+            
+            const hookHandlers = hooks.get(hookType);
+            if (hookHandlers) {
+              hookHandlers.push(boundMethod);
+            }
+            this.logger.debug(`Found lifecycle hook '${hookType}' in method '${exportName}.${methodName}' for plugin: ${plugin.manifest.name}`);
+          }
+        }
+      }
+    }
+
+    const totalHooks = Array.from(hooks.values()).reduce((sum, handlers) => sum + handlers.length, 0);
+    if (totalHooks > 0) {
+      this.logger.debug(`Discovered ${totalHooks} lifecycle hooks for plugin: ${plugin.manifest.name}`);
+    }
+
+    return hooks;
+  }
+
+  /**
+   * Clear plugin module cache for proper cleanup
+   * @param pluginName - Name of the plugin to clear cache for
+   */
+  private async clearPluginModuleCache(pluginName: string): Promise<void> {
+    const discovery = this.discoveredPlugins.get(pluginName);
+    if (!discovery) {
+      this.logger.warn(`Cannot clear module cache - plugin discovery not found: ${pluginName}`);
+      return;
+    }
+
+    const mainPath = path.join(discovery.path, 'dist', 'index.js');
+    try {
+      const dynamicRequire = createRequire(__filename);
+      const resolvedPath = dynamicRequire.resolve(mainPath);
+      
+      if (dynamicRequire.cache[resolvedPath]) {
+        delete dynamicRequire.cache[resolvedPath];
+        this.logger.debug(`Cleared module cache for plugin: ${pluginName}`);
+      }
+
+      // Also clear any related modules from the same plugin directory
+      const moduleDir = path.dirname(resolvedPath);
+      let clearedCount = 0;
+      Object.keys(dynamicRequire.cache)
+        .filter(cachePath => cachePath.startsWith(moduleDir))
+        .forEach(cachePath => {
+          delete dynamicRequire.cache[cachePath];
+          clearedCount++;
+        });
+
+      if (clearedCount > 1) {
+        this.logger.debug(`Cleared ${clearedCount} module cache entries for plugin: ${pluginName}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to clear module cache for plugin ${pluginName}:`, error);
+      // Continue execution - cache clearing is not critical for functionality
+    }
+  }
+
+  /**
    * Unload a specific plugin
    */
   async unloadPlugin(pluginName: string): Promise<void> {
-    if (this.loadedPlugins.has(pluginName)) {
+    const loadedPlugin = this.loadedPlugins.get(pluginName);
+    if (!loadedPlugin) {
+      this.logger.warn(`Plugin not loaded: ${pluginName}`);
+      return;
+    }
+
+    try {
+      // Execute beforeUnload lifecycle hook
+      await this.executeLifecycleHook(loadedPlugin, 'beforeUnload');
+
+      // Clean up guards and services
       await this.guardManager.removePluginGuards(pluginName);
       this.crossPluginServiceManager.removePluginServices(pluginName);
+
+      // Clear module cache
+      await this.clearPluginModuleCache(pluginName);
+
+      // Remove from loaded plugins
       this.loadedPlugins.delete(pluginName);
       this.loadingState.set(pluginName, PluginLoadingState.UNLOADED);
-      this.discoveredPlugins.delete(pluginName);
-      this.logger.log(`Plugin unloaded: ${pluginName}`);
+
+      // Execute afterUnload lifecycle hook
+      await this.executeLifecycleHook(loadedPlugin, 'afterUnload');
+
+      this.logger.log(`Plugin unloaded successfully: ${pluginName}`);
+    } catch (error) {
+      this.logger.error(`Failed to unload plugin ${pluginName}:`, error);
+      // Execute onError lifecycle hook
+      await this.executeLifecycleHook(loadedPlugin, 'onError', error);
+      throw error;
     }
   }
 
