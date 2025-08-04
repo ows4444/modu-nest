@@ -28,31 +28,50 @@ export class PluginLoaderService {
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
+    const startTime = Date.now();
+
     try {
       this.logger.log('Starting plugin discovery and loading...');
 
       // Step 1: Discover all plugins and their manifests
+      const discoveryStartTime = Date.now();
       const discoveredPlugins = await this.discoverPlugins();
-      this.logger.log(`Discovered ${discoveredPlugins.length} plugins`);
+      const discoveryTime = Date.now() - discoveryStartTime;
+      this.logger.log(`Discovered ${discoveredPlugins.length} plugins in ${discoveryTime}ms`);
 
       // Step 2: Create dependency graph and sort topologically
+      const dependencyAnalysisStartTime = Date.now();
       const loadOrder = this.calculateLoadOrder(discoveredPlugins);
-      this.logger.log(`Plugin load order: [${loadOrder.join(', ')}]`);
+      const dependencyAnalysisTime = Date.now() - dependencyAnalysisStartTime;
+      this.logger.log(`Plugin load order calculated in ${dependencyAnalysisTime}ms: [${loadOrder.join(', ')}]`);
 
-      // Step 3: Load plugins in dependency order with proper synchronization
+      // Step 3: Load plugins in dependency order with parallel batching
+      const loadingStartTime = Date.now();
       const modules = await this.loadPluginsInOrder(loadOrder);
+      const loadingTime = Date.now() - loadingStartTime;
 
-      this.logger.log(`Successfully loaded ${modules.length} plugins`);
+      const totalTime = Date.now() - startTime;
+      const successCount = modules.length;
+      const failureCount = loadOrder.length - successCount;
+
+      this.logger.log(
+        `Plugin loading completed in ${totalTime}ms: ` +
+          `${successCount} loaded, ${failureCount} failed ` +
+          `(discovery: ${discoveryTime}ms, analysis: ${dependencyAnalysisTime}ms, loading: ${loadingTime}ms)`
+      );
 
       // Verify guard isolation and security
-      const isolationCheck = await this.verifyGuardIsolation();
-      if (!isolationCheck.isSecure) {
-        this.logger.error('Plugin loading completed with guard security violations - review plugin configurations');
+      if (successCount > 0) {
+        const isolationCheck = await this.verifyGuardIsolation();
+        if (!isolationCheck.isSecure) {
+          this.logger.error('Plugin loading completed with guard security violations - review plugin configurations');
+        }
       }
 
       return modules;
     } catch (error) {
-      this.logger.error('Failed to load plugins:', error);
+      const totalTime = Date.now() - startTime;
+      this.logger.error(`Failed to load plugins after ${totalTime}ms:`, error);
       return [];
     }
   }
@@ -200,33 +219,154 @@ export class PluginLoaderService {
   }
 
   private async loadPluginsInOrder(loadOrder: string[]): Promise<DynamicModule[]> {
+    const dependencyGraph = this.buildDependencyGraph(loadOrder);
+    const batches = this.calculateLoadBatches(dependencyGraph);
     const dynamicModules: DynamicModule[] = [];
 
-    for (const pluginName of loadOrder) {
-      try {
-        this.logger.log(`Loading plugin: ${pluginName}`);
-        this.loadingState.set(pluginName, PluginLoadingState.LOADING);
+    this.logger.log(`Loading plugins in ${batches.length} parallel batches`);
 
-        const plugin = await this.loadSinglePlugin(pluginName);
-        if (plugin) {
-          dynamicModules.push(plugin.module as DynamicModule);
-          this.loadedPlugins.set(pluginName, plugin);
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      this.logger.log(`Loading batch ${batchIndex + 1}/${batches.length}: [${batch.join(', ')}]`);
+
+      // Load plugins in current batch in parallel
+      const batchPromises = batch.map((pluginName) => this.loadPluginWithErrorHandling(pluginName));
+      const batchResults = await Promise.allSettled(batchPromises);
+
+      // Process results and handle failures
+      for (let i = 0; i < batchResults.length; i++) {
+        const result = batchResults[i];
+        const pluginName = batch[i];
+
+        if (result.status === 'fulfilled' && result.value) {
+          dynamicModules.push(result.value.module as DynamicModule);
+          this.loadedPlugins.set(pluginName, result.value);
           this.loadingState.set(pluginName, PluginLoadingState.LOADED);
-
           this.logger.log(`✓ Successfully loaded plugin: ${pluginName}`);
-        }
-      } catch (error) {
-        this.loadingState.set(pluginName, PluginLoadingState.FAILED);
-        this.logger.error(`Failed to load plugin ${pluginName}:`, error);
+        } else {
+          this.loadingState.set(pluginName, PluginLoadingState.FAILED);
+          const error = result.status === 'rejected' ? result.reason : 'Unknown error';
+          this.logger.error(`Failed to load plugin ${pluginName}:`, error);
 
-        // Decide whether to continue or fail fast
-        if (this.isCriticalPlugin(pluginName)) {
-          throw error;
+          // Check if any plugins in subsequent batches depend on this failed plugin
+          const affectedPlugins = this.getPluginsDependingOn(pluginName, loadOrder);
+          if (affectedPlugins.length > 0) {
+            this.logger.warn(`Plugin ${pluginName} failure affects: [${affectedPlugins.join(', ')}]`);
+            // Mark affected plugins as failed
+            affectedPlugins.forEach((affected) => {
+              this.loadingState.set(affected, PluginLoadingState.FAILED);
+            });
+          }
+
+          // Decide whether to continue or fail fast
+          if (this.isCriticalPlugin(pluginName)) {
+            throw error;
+          }
         }
       }
+
+      this.logger.log(
+        `Batch ${batchIndex + 1} completed: ${
+          batch.filter((name) => this.loadingState.get(name) === PluginLoadingState.LOADED).length
+        }/${batch.length} plugins loaded successfully`
+      );
     }
 
     return dynamicModules;
+  }
+
+  /**
+   * Build dependency graph from plugin load order
+   */
+  private buildDependencyGraph(loadOrder: string[]): Map<string, string[]> {
+    const dependencyGraph = new Map<string, string[]>();
+
+    for (const pluginName of loadOrder) {
+      const discovery = this.discoveredPlugins.get(pluginName);
+      if (discovery) {
+        // Only include dependencies that are in the load order (discovered plugins)
+        const validDependencies = discovery.dependencies.filter((dep) => loadOrder.includes(dep));
+        dependencyGraph.set(pluginName, validDependencies);
+      } else {
+        dependencyGraph.set(pluginName, []);
+      }
+    }
+
+    return dependencyGraph;
+  }
+
+  /**
+   * Calculate load batches for parallel loading
+   * Plugins in the same batch can be loaded in parallel as they don't depend on each other
+   */
+  private calculateLoadBatches(dependencyGraph: Map<string, string[]>): string[][] {
+    const batches: string[][] = [];
+    const remaining = new Set(dependencyGraph.keys());
+    const completed = new Set<string>();
+
+    while (remaining.size > 0) {
+      const currentBatch: string[] = [];
+
+      // Find plugins with no unresolved dependencies
+      for (const pluginName of remaining) {
+        const dependencies = dependencyGraph.get(pluginName) || [];
+        const unresolvedDeps = dependencies.filter((dep) => !completed.has(dep));
+
+        if (unresolvedDeps.length === 0) {
+          currentBatch.push(pluginName);
+        }
+      }
+
+      // If no plugins can be loaded, we have a circular dependency
+      if (currentBatch.length === 0) {
+        const remainingPlugins = Array.from(remaining);
+        throw new Error(`Circular dependencies detected among plugins: [${remainingPlugins.join(', ')}]`);
+      }
+
+      // Remove current batch from remaining and add to completed
+      currentBatch.forEach((pluginName) => {
+        remaining.delete(pluginName);
+        completed.add(pluginName);
+      });
+
+      batches.push(currentBatch);
+    }
+
+    return batches;
+  }
+
+  /**
+   * Load a single plugin with comprehensive error handling
+   */
+  private async loadPluginWithErrorHandling(pluginName: string): Promise<LoadedPlugin | null> {
+    try {
+      this.logger.debug(`Loading plugin: ${pluginName}`);
+      this.loadingState.set(pluginName, PluginLoadingState.LOADING);
+
+      const plugin = await this.loadSinglePlugin(pluginName);
+      return plugin;
+    } catch (error) {
+      this.logger.error(`Plugin loading failed for ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all plugins that depend on a given plugin
+   */
+  private getPluginsDependingOn(failedPlugin: string, loadOrder: string[]): string[] {
+    const dependents: string[] = [];
+
+    for (const pluginName of loadOrder) {
+      const discovery = this.discoveredPlugins.get(pluginName);
+      if (discovery && discovery.dependencies.includes(failedPlugin)) {
+        dependents.push(pluginName);
+        // Recursively find plugins that depend on this dependent
+        dependents.push(...this.getPluginsDependingOn(pluginName, loadOrder));
+      }
+    }
+
+    return [...new Set(dependents)]; // Remove duplicates
   }
 
   private async loadSinglePlugin(pluginName: string): Promise<LoadedPlugin | null> {
@@ -261,30 +401,50 @@ export class PluginLoaderService {
   }
 
   private async waitForDependencies(dependencies: string[]): Promise<void> {
+    if (dependencies.length === 0) {
+      return;
+    }
+
     const maxWaitTime = 30000; // 30 seconds
-    const pollInterval = 100; // 100ms
+    const pollInterval = 50; // 50ms (reduced for better responsiveness in parallel loading)
     const startTime = Date.now();
 
-    while (Date.now() - startTime < maxWaitTime) {
-      const allLoaded = dependencies.every((dep) => this.loadingState.get(dep) === PluginLoadingState.LOADED);
+    this.logger.debug(`Waiting for dependencies: [${dependencies.join(', ')}]`);
 
+    while (Date.now() - startTime < maxWaitTime) {
+      const dependencyStates = dependencies.map((dep) => ({
+        name: dep,
+        state: this.loadingState.get(dep),
+      }));
+
+      const allLoaded = dependencyStates.every((dep) => dep.state === PluginLoadingState.LOADED);
       if (allLoaded) {
+        this.logger.debug(`All dependencies loaded: [${dependencies.join(', ')}]`);
         return;
       }
 
       // Check for failed dependencies
-      const failedDeps = dependencies.filter((dep) => this.loadingState.get(dep) === PluginLoadingState.FAILED);
-
+      const failedDeps = dependencyStates.filter((dep) => dep.state === PluginLoadingState.FAILED);
       if (failedDeps.length > 0) {
-        throw new Error(`Dependencies failed to load: ${failedDeps.join(', ')}`);
+        const failedNames = failedDeps.map((dep) => dep.name);
+        throw new Error(`Dependencies failed to load: [${failedNames.join(', ')}]`);
+      }
+
+      // Log current dependency states for debugging
+      const pendingDeps = dependencyStates.filter(
+        (dep) => dep.state !== PluginLoadingState.LOADED && dep.state !== PluginLoadingState.FAILED
+      );
+
+      if (pendingDeps.length > 0) {
+        const stateInfo = pendingDeps.map((dep) => `${dep.name}:${dep.state || 'unknown'}`);
+        this.logger.debug(`Still waiting for dependencies: [${stateInfo.join(', ')}]`);
       }
 
       await this.sleep(pollInterval);
     }
 
     const pendingDeps = dependencies.filter((dep) => this.loadingState.get(dep) !== PluginLoadingState.LOADED);
-
-    throw new Error(`Timeout waiting for dependencies: ${pendingDeps.join(', ')}`);
+    throw new Error(`Timeout waiting for dependencies: [${pendingDeps.join(', ')}]`);
   }
 
   private async processPluginGuards(
@@ -597,9 +757,14 @@ export class PluginLoaderService {
     const guardStats = this.guardManager.getStatistics();
     const serviceStats = this.crossPluginServiceManager.getStatistics();
 
+    // Calculate loading state distribution
+    const stateDistribution = this.getLoadingStateDistribution();
+
     return {
       totalLoaded: plugins.length,
+      totalDiscovered: this.discoveredPlugins.size,
       pluginNames: Array.from(this.loadedPlugins.keys()),
+      loadingStates: stateDistribution,
       byVersion: plugins.reduce((acc, plugin) => {
         const version = plugin.manifest.version || 'unknown';
         acc[version] = (acc[version] || 0) + 1;
@@ -613,6 +778,102 @@ export class PluginLoaderService {
       guards: guardStats,
       crossPluginServices: serviceStats,
     };
+  }
+
+  /**
+   * Get loading state distribution for monitoring
+   */
+  private getLoadingStateDistribution(): Record<string, number> {
+    const distribution: Record<string, number> = {};
+
+    for (const state of this.loadingState.values()) {
+      distribution[state] = (distribution[state] || 0) + 1;
+    }
+
+    return distribution;
+  }
+
+  /**
+   * Get parallel loading performance metrics
+   */
+  getParallelLoadingStats(): {
+    canLoadInParallel: number;
+    dependencyChains: Array<{ chain: string[]; length: number }>;
+    potentialBatches: string[][];
+  } {
+    const discoveries = Array.from(this.discoveredPlugins.values());
+    const loadOrder = this.calculateLoadOrder(discoveries);
+    const dependencyGraph = this.buildDependencyGraph(loadOrder);
+
+    try {
+      const batches = this.calculateLoadBatches(dependencyGraph);
+
+      // Calculate plugins that can load in parallel (batch size > 1)
+      const parallelPluginCount = batches
+        .filter((batch) => batch.length > 1)
+        .reduce((sum, batch) => sum + batch.length, 0);
+
+      // Find longest dependency chains
+      const dependencyChains = this.calculateDependencyChains(dependencyGraph);
+
+      return {
+        canLoadInParallel: parallelPluginCount,
+        dependencyChains: dependencyChains.sort((a, b) => b.length - a.length).slice(0, 5), // Top 5 longest chains
+        potentialBatches: batches,
+      };
+    } catch (error) {
+      return {
+        canLoadInParallel: 0,
+        dependencyChains: [],
+        potentialBatches: [],
+      };
+    }
+  }
+
+  /**
+   * Calculate dependency chains for performance analysis
+   */
+  private calculateDependencyChains(
+    dependencyGraph: Map<string, string[]>
+  ): Array<{ chain: string[]; length: number }> {
+    const chains: Array<{ chain: string[]; length: number }> = [];
+    const visited = new Set<string>();
+
+    const findChain = (plugin: string, currentChain: string[]): string[] => {
+      if (visited.has(plugin)) {
+        return currentChain;
+      }
+
+      visited.add(plugin);
+      const dependencies = dependencyGraph.get(plugin) || [];
+
+      if (dependencies.length === 0) {
+        return [...currentChain, plugin];
+      }
+
+      let longestChain = [...currentChain, plugin];
+
+      for (const dep of dependencies) {
+        const depChain = findChain(dep, [...currentChain, plugin]);
+        if (depChain.length > longestChain.length) {
+          longestChain = depChain;
+        }
+      }
+
+      return longestChain;
+    };
+
+    for (const plugin of dependencyGraph.keys()) {
+      if (!visited.has(plugin)) {
+        const chain = findChain(plugin, []);
+        chains.push({
+          chain,
+          length: chain.length,
+        });
+      }
+    }
+
+    return chains;
   }
 
   /**
