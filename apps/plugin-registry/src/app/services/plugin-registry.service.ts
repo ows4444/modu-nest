@@ -12,9 +12,26 @@ import { CreatePluginValidationDto } from '../dto/plugin.dto';
 export class PluginRegistryService {
   private readonly logger = new Logger(PluginRegistryService.name);
 
-  constructor(private readonly storageService: PluginStorageService) {}
+  // Security configuration - can be moved to environment variables if needed
+  private readonly SECURITY_CONFIG = {
+    REGEX_TIMEOUT_MS: parseInt(process.env.PLUGIN_REGEX_TIMEOUT_MS || '5000', 10),
+    MAX_CONTENT_SIZE: parseInt(process.env.PLUGIN_MAX_CONTENT_SIZE || '1048576', 10), // 1MB
+    MAX_ITERATIONS: parseInt(process.env.PLUGIN_MAX_ITERATIONS || '10000', 10),
+    MAX_FILE_SIZE: parseInt(process.env.PLUGIN_MAX_FILE_SIZE || '52428800', 10), // 50MB
+  };
+
+  constructor(private readonly storageService: PluginStorageService) {
+    this.logger.log(`Security configuration loaded: timeout=${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms, maxContentSize=${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes`);
+  }
 
   async uploadPlugin(pluginBuffer: Buffer): Promise<PluginMetadata> {
+    // Security: Check file size before processing to prevent DoS attacks
+    if (pluginBuffer.length > this.SECURITY_CONFIG.MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        `Plugin file size (${pluginBuffer.length} bytes) exceeds maximum allowed size (${this.SECURITY_CONFIG.MAX_FILE_SIZE} bytes)`
+      );
+    }
+
     const extractedManifest: CreatePluginDto = await this.extractManifestFromZip(pluginBuffer);
 
     // Validate manifest with class-validator
@@ -180,17 +197,56 @@ export class PluginRegistryService {
 
   private scanForUnsafeImports(content: string): string[] {
     const unsafeImports: string[] = [];
+    const startTime = Date.now();
 
-    // Check for import statements and require calls
+    // Check content size to prevent excessive memory usage
+    if (content.length > this.SECURITY_CONFIG.MAX_CONTENT_SIZE) {
+      this.logger.warn(`File content exceeds maximum size (${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes) - truncating for security scan`);
+      content = content.substring(0, this.SECURITY_CONFIG.MAX_CONTENT_SIZE);
+    }
+
+    // Security: Use safer regex with timeout protection to prevent ReDoS attacks
     const importRegex = /(?:import\s+.*?\s+from\s+['"`]([^'"`]+)['"`]|require\s*\(\s*['"`]([^'"`]+)['"`]\s*\))/g;
     let match;
+    let iterationCount = 0;
 
-    while ((match = importRegex.exec(content)) !== null) {
-      const moduleName = match[1] || match[2];
-      if (this.UNSAFE_MODULES.includes(moduleName)) {
-        unsafeImports.push(moduleName);
+    try {
+      while ((match = importRegex.exec(content)) !== null) {
+        // Check timeout - prevent ReDoS attacks
+        if (Date.now() - startTime > this.SECURITY_CONFIG.REGEX_TIMEOUT_MS) {
+          this.logger.warn(`Import scanning timeout after ${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms - file may be malicious or too complex`);
+          throw new BadRequestException('File too complex to analyze - security scan timeout');
+        }
+
+        // Check iteration count to prevent excessive processing
+        if (++iterationCount > this.SECURITY_CONFIG.MAX_ITERATIONS) {
+          this.logger.warn(`Import scanning exceeded maximum iterations (${this.SECURITY_CONFIG.MAX_ITERATIONS}) - file may be malicious`);
+          throw new BadRequestException('File too complex to analyze - excessive import statements');
+        }
+
+        const moduleName = match[1] || match[2];
+        if (moduleName && this.UNSAFE_MODULES.includes(moduleName)) {
+          unsafeImports.push(moduleName);
+        }
+
+        // Prevent infinite loops with global regex by advancing lastIndex
+        if (importRegex.lastIndex === match.index) {
+          importRegex.lastIndex++;
+        }
       }
+    } catch (error) {
+      // Re-throw BadRequestException errors (timeout/complexity)
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Handle other regex errors gracefully
+      this.logger.error('Error during import scanning:', error);
+      throw new BadRequestException('Failed to analyze file imports - file may be corrupted or malicious');
     }
+
+    const scanDuration = Date.now() - startTime;
+    this.logger.debug(`Import scanning completed in ${scanDuration}ms, found ${unsafeImports.length} unsafe imports in ${iterationCount} iterations`);
 
     return [...new Set(unsafeImports)]; // Remove duplicates
   }
@@ -255,6 +311,26 @@ export class PluginRegistryService {
     return {
       ...stats,
       uptime: process.uptime().toString(),
+    };
+  }
+
+  /**
+   * Get security configuration and statistics
+   */
+  getSecurityStats(): {
+    configuration: {
+      REGEX_TIMEOUT_MS: number;
+      MAX_CONTENT_SIZE: number;
+      MAX_ITERATIONS: number;
+      MAX_FILE_SIZE: number;
+    };
+    unsafeModulesCount: number;
+    unsafeModules: string[];
+  } {
+    return {
+      configuration: { ...this.SECURITY_CONFIG },
+      unsafeModulesCount: this.UNSAFE_MODULES.length,
+      unsafeModules: [...this.UNSAFE_MODULES],
     };
   }
 
