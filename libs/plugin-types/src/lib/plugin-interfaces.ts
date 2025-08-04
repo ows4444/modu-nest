@@ -55,7 +55,6 @@ export interface PluginSecurity {
   };
 }
 
-
 export interface PluginCompatibility {
   minimumHostVersion?: string;
   maximumHostVersion?: string;

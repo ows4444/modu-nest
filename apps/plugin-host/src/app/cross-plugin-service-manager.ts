@@ -13,12 +13,12 @@ export interface CrossPluginServiceProvider {
 
 /**
  * Thread-safe Cross-Plugin Service Manager
- * 
+ *
  * This service manages cross-plugin service registration and access with comprehensive
  * thread safety using async-mutex. All operations that modify or read the service
  * registry are protected by a mutex to prevent race conditions during concurrent
  * plugin loading/unloading operations.
- * 
+ *
  * Thread Safety Strategy:
  * - All public methods that modify registry state are async and mutex-protected
  * - Read operations are also mutex-protected to ensure consistency
@@ -30,7 +30,7 @@ export class CrossPluginServiceManager {
   private readonly logger = new Logger(CrossPluginServiceManager.name);
   private readonly serviceRegistry = new Map<string, CrossPluginServiceProvider>();
   private readonly globalTokens = new Set<string>();
-  
+
   // Thread safety mutex for all registry operations
   private readonly registryMutex = new Mutex();
 
@@ -71,7 +71,7 @@ export class CrossPluginServiceManager {
           // Update provider with final token in case of collision
           provider.provide = finalToken;
           providers.push(provider);
-          
+
           if (serviceConfig.global) {
             this.globalTokens.add(finalToken);
           }
@@ -121,7 +121,7 @@ export class CrossPluginServiceManager {
       if (serviceClass && typeof serviceClass === 'function') {
         // Create a global token for this service
         const globalToken = this.createGlobalToken(pluginName, serviceName);
-        
+
         const provider: CrossPluginServiceProvider = {
           provide: globalToken,
           useClass: serviceClass,
@@ -195,11 +195,10 @@ export class CrossPluginServiceManager {
    */
   private removePluginServicesInternal(pluginName: string): void {
     const tokensToRemove: string[] = [];
-    
+
     for (const [token] of this.serviceRegistry) {
       // Check if this token belongs to the plugin being removed
-      if (token.startsWith(`${pluginName.toUpperCase()}_`) || 
-          token.includes(`_${pluginName.toUpperCase()}_`)) {
+      if (token.startsWith(`${pluginName.toUpperCase()}_`) || token.includes(`_${pluginName.toUpperCase()}_`)) {
         tokensToRemove.push(token);
       }
     }
@@ -383,11 +382,9 @@ export class CrossPluginServiceManager {
     pluginModule: Record<string, unknown>
   ): CrossPluginServiceProvider | null {
     const serviceClass = pluginModule[config.serviceName];
-    
+
     if (!serviceClass || typeof serviceClass !== 'function') {
-      this.logger.warn(
-        `Service '${config.serviceName}' not found in plugin '${pluginName}' exports`
-      );
+      this.logger.warn(`Service '${config.serviceName}' not found in plugin '${pluginName}' exports`);
       return null;
     }
 
@@ -442,10 +439,10 @@ export class CrossPluginServiceManager {
 
     const pluginName = parts[0];
     const serviceName = parts[1];
-    
+
     let attempts = 0;
     const maxAttempts = 10;
-    
+
     while (attempts < maxAttempts) {
       const newToken = this.createGlobalToken(pluginName, serviceName);
       if (!this.serviceRegistry.has(newToken)) {
@@ -493,7 +490,7 @@ export class CrossPluginServiceManager {
    * @returns Array of matching tokens
    */
   findServicesByPattern(pattern: RegExp): string[] {
-    return Array.from(this.serviceRegistry.keys()).filter(token => pattern.test(token));
+    return Array.from(this.serviceRegistry.keys()).filter((token) => pattern.test(token));
   }
 
   /**
@@ -503,9 +500,8 @@ export class CrossPluginServiceManager {
    */
   getServicesByPlugin(pluginName: string): string[] {
     const upperPluginName = pluginName.toUpperCase().replace(/-/g, '_');
-    return Array.from(this.serviceRegistry.keys()).filter(token => 
-      token.startsWith(`${upperPluginName}_`) || 
-      token.includes(`_${upperPluginName}_`)
+    return Array.from(this.serviceRegistry.keys()).filter(
+      (token) => token.startsWith(`${upperPluginName}_`) || token.includes(`_${upperPluginName}_`)
     );
   }
 
@@ -515,7 +511,10 @@ export class CrossPluginServiceManager {
    * @param serviceName - Name of the service
    * @returns Preview token (not registered)
    */
-  previewToken(pluginName: string, serviceName: string): {
+  previewToken(
+    pluginName: string,
+    serviceName: string
+  ): {
     token: string;
     wouldCollide: boolean;
     validation: {

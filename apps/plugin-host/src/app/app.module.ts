@@ -6,12 +6,12 @@ import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
-import { 
-  PluginGuardInterceptor, 
+import {
+  PluginGuardInterceptor,
   PluginGuardRegistryService,
   PluginPermissionInterceptor,
   DefaultPluginPermissionService,
-  PLUGIN_PERMISSION_SERVICE
+  PLUGIN_PERMISSION_SERVICE,
 } from '@modu-nest/plugin-types';
 
 @Module({})
@@ -98,8 +98,7 @@ export class AppModule implements OnModuleInit {
     // Get guard statistics from the plugin loader
     const guardStats = this.pluginLoader.getGuardStatistics();
     this.instanceLogger.log(
-      `Guard system: ${guardStats.totalGuards} total guards ` +
-        `across ${guardStats.totalPlugins} plugins`
+      `Guard system: ${guardStats.totalGuards} total guards ` + `across ${guardStats.totalPlugins} plugins`
     );
 
     // Set up guard registry with plugins and their allowed guards

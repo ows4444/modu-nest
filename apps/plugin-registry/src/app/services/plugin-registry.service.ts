@@ -25,7 +25,9 @@ export class PluginRegistryService {
     private readonly storageService: PluginStorageService,
     private readonly validationCacheService: PluginValidationCacheService
   ) {
-    this.logger.log(`Security configuration loaded: timeout=${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms, maxContentSize=${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes`);
+    this.logger.log(
+      `Security configuration loaded: timeout=${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms, maxContentSize=${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes`
+    );
   }
 
   async uploadPlugin(pluginBuffer: Buffer): Promise<PluginMetadata> {
@@ -87,7 +89,9 @@ export class PluginRegistryService {
     // Store plugin
     await this.storageService.storePlugin(metadata, pluginBuffer);
 
-    this.logger.log(`Plugin ${metadata.name} v${metadata.version} uploaded successfully (checksum: ${checksum.substring(0, 8)}...)`);
+    this.logger.log(
+      `Plugin ${metadata.name} v${metadata.version} uploaded successfully (checksum: ${checksum.substring(0, 8)}...)`
+    );
     return metadata;
   }
 
@@ -208,7 +212,9 @@ export class PluginRegistryService {
 
     // Check content size to prevent excessive memory usage
     if (content.length > this.SECURITY_CONFIG.MAX_CONTENT_SIZE) {
-      this.logger.warn(`File content exceeds maximum size (${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes) - truncating for security scan`);
+      this.logger.warn(
+        `File content exceeds maximum size (${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes) - truncating for security scan`
+      );
       content = content.substring(0, this.SECURITY_CONFIG.MAX_CONTENT_SIZE);
     }
 
@@ -221,13 +227,17 @@ export class PluginRegistryService {
       while ((match = importRegex.exec(content)) !== null) {
         // Check timeout - prevent ReDoS attacks
         if (Date.now() - startTime > this.SECURITY_CONFIG.REGEX_TIMEOUT_MS) {
-          this.logger.warn(`Import scanning timeout after ${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms - file may be malicious or too complex`);
+          this.logger.warn(
+            `Import scanning timeout after ${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms - file may be malicious or too complex`
+          );
           throw new BadRequestException('File too complex to analyze - security scan timeout');
         }
 
         // Check iteration count to prevent excessive processing
         if (++iterationCount > this.SECURITY_CONFIG.MAX_ITERATIONS) {
-          this.logger.warn(`Import scanning exceeded maximum iterations (${this.SECURITY_CONFIG.MAX_ITERATIONS}) - file may be malicious`);
+          this.logger.warn(
+            `Import scanning exceeded maximum iterations (${this.SECURITY_CONFIG.MAX_ITERATIONS}) - file may be malicious`
+          );
           throw new BadRequestException('File too complex to analyze - excessive import statements');
         }
 
@@ -246,14 +256,16 @@ export class PluginRegistryService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       // Handle other regex errors gracefully
       this.logger.error('Error during import scanning:', error);
       throw new BadRequestException('Failed to analyze file imports - file may be corrupted or malicious');
     }
 
     const scanDuration = Date.now() - startTime;
-    this.logger.debug(`Import scanning completed in ${scanDuration}ms, found ${unsafeImports.length} unsafe imports in ${iterationCount} iterations`);
+    this.logger.debug(
+      `Import scanning completed in ${scanDuration}ms, found ${unsafeImports.length} unsafe imports in ${iterationCount} iterations`
+    );
 
     return [...new Set(unsafeImports)]; // Remove duplicates
   }
@@ -287,7 +299,11 @@ export class PluginRegistryService {
     return this.mapToResponseDto(plugin.metadata);
   }
 
-  async downloadPlugin(name: string, userAgent?: string, ipAddress?: string): Promise<{
+  async downloadPlugin(
+    name: string,
+    userAgent?: string,
+    ipAddress?: string
+  ): Promise<{
     buffer: Buffer;
     metadata: PluginMetadata;
   }> {
@@ -342,7 +358,7 @@ export class PluginRegistryService {
    */
   async searchPlugins(query: string): Promise<PluginResponseDto[]> {
     const plugins = await this.storageService.searchPlugins(query);
-    return plugins.map(p => this.mapToResponseDto(p.metadata));
+    return plugins.map((p) => this.mapToResponseDto(p.metadata));
   }
 
   /**
@@ -400,10 +416,10 @@ export class PluginRegistryService {
 
     // Perform validation
     const validationResult = PluginValidator.validateManifest(manifest);
-    
+
     // Cache the result
     this.validationCacheService.setCachedValidation(checksum, validationResult, 'manifest');
-    
+
     return validationResult;
   }
 
@@ -427,18 +443,17 @@ export class PluginRegistryService {
     // Perform validation (delegate to existing method)
     try {
       await this.validatePluginStructure(pluginBuffer);
-      
+
       // Cache successful result
       const successResult = { isValid: true, errors: [], warnings: [] };
       this.validationCacheService.setCachedValidation(checksum, successResult, 'structure');
-      
     } catch (error) {
       // Cache failed result
       if (error instanceof BadRequestException) {
-        const failedResult = { 
-          isValid: false, 
-          errors: [error.message.replace('Invalid plugin structure: ', '')], 
-          warnings: [] 
+        const failedResult = {
+          isValid: false,
+          errors: [error.message.replace('Invalid plugin structure: ', '')],
+          warnings: [],
         };
         this.validationCacheService.setCachedValidation(checksum, failedResult, 'structure');
       }
@@ -467,18 +482,17 @@ export class PluginRegistryService {
     // Perform validation (delegate to existing method)
     try {
       await this.validatePluginSecurity(pluginBuffer);
-      
+
       // Cache successful result
       const successResult = { isValid: true, errors: [], warnings: [] };
       this.validationCacheService.setCachedValidation(checksum, successResult, 'security');
-      
     } catch (error) {
       // Cache failed result
       if (error instanceof BadRequestException) {
-        const failedResult = { 
-          isValid: false, 
-          errors: [error.message], 
-          warnings: [] 
+        const failedResult = {
+          isValid: false,
+          errors: [error.message],
+          warnings: [],
         };
         this.validationCacheService.setCachedValidation(checksum, failedResult, 'security');
       }

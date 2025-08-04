@@ -1,10 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { 
-  PluginMetricsCollector, 
-  PluginMetrics, 
-  SystemMetrics, 
-  PluginMetricsSnapshot 
-} from '@modu-nest/plugin-types';
+import { PluginMetricsCollector, PluginMetrics, SystemMetrics, PluginMetricsSnapshot } from '@modu-nest/plugin-types';
 
 export interface MetricsServiceConfiguration {
   enabled: boolean;
@@ -38,7 +33,7 @@ export interface MetricsExportOptions {
 export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PluginMetricsService.name);
   private readonly metricsCollector = new PluginMetricsCollector();
-  
+
   private configuration: MetricsServiceConfiguration;
   private healthReportCache = new Map<string, PluginHealthReport>();
   private alertThresholds = new Map<string, any>();
@@ -52,7 +47,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     if (this.configuration.enabled) {
       this.logger.log('Starting Plugin Metrics Service');
       this.metricsCollector.startCollection();
-      
+
       // Start periodic health reporting
       this.startHealthReporting();
     } else {
@@ -85,14 +80,9 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Recorded plugin unload: ${pluginName}`);
   }
 
-  recordRequest(
-    pluginName: string, 
-    responseTime: number, 
-    isError: boolean = false,
-    endpoint?: string
-  ): void {
+  recordRequest(pluginName: string, responseTime: number, isError = false, endpoint?: string): void {
     this.metricsCollector.recordRequest(pluginName, responseTime, isError, endpoint);
-    
+
     // Check for performance alerts
     this.checkPerformanceAlerts(pluginName, responseTime, isError);
   }
@@ -114,18 +104,19 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     return this.metricsCollector.getSystemMetrics();
   }
 
-  getTopPerformers(limit: number = 5): PluginMetrics[] {
+  getTopPerformers(limit = 5): PluginMetrics[] {
     return this.metricsCollector.getTopPerformers(limit);
   }
 
-  getWorstPerformers(limit: number = 5): PluginMetrics[] {
+  getWorstPerformers(limit = 5): PluginMetrics[] {
     return this.metricsCollector.getWorstPerformers(limit);
   }
 
   // Health monitoring methods
   getPluginHealthReport(pluginName: string): PluginHealthReport | undefined {
     const cached = this.healthReportCache.get(pluginName);
-    if (cached && Date.now() - cached.lastCheckTime.getTime() < 60000) { // 1 minute cache
+    if (cached && Date.now() - cached.lastCheckTime.getTime() < 60000) {
+      // 1 minute cache
       return cached;
     }
 
@@ -139,7 +130,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
 
   getAllHealthReports(): PluginHealthReport[] {
     const allMetrics = this.getAllMetrics();
-    return allMetrics.map(metrics => {
+    return allMetrics.map((metrics) => {
       const cached = this.healthReportCache.get(metrics.pluginName);
       if (cached && Date.now() - cached.lastCheckTime.getTime() < 60000) {
         return cached;
@@ -163,12 +154,12 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     systemStatus: 'healthy' | 'degraded' | 'critical';
   } {
     const reports = this.getAllHealthReports();
-    const healthyCount = reports.filter(r => r.healthStatus === 'healthy').length;
-    const degradedCount = reports.filter(r => r.healthStatus === 'degraded').length;
-    const unhealthyCount = reports.filter(r => r.healthStatus === 'unhealthy').length;
+    const healthyCount = reports.filter((r) => r.healthStatus === 'healthy').length;
+    const degradedCount = reports.filter((r) => r.healthStatus === 'degraded').length;
+    const unhealthyCount = reports.filter((r) => r.healthStatus === 'unhealthy').length;
 
     const criticalIssues: string[] = [];
-    reports.forEach(report => {
+    reports.forEach((report) => {
       if (report.healthStatus === 'unhealthy') {
         criticalIssues.push(`${report.pluginName}: ${report.issues.join(', ')}`);
       }
@@ -177,7 +168,8 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     let systemStatus: 'healthy' | 'degraded' | 'critical' = 'healthy';
     if (unhealthyCount > 0 || criticalIssues.length > 0) {
       systemStatus = 'critical';
-    } else if (degradedCount > reports.length * 0.2) { // More than 20% degraded
+    } else if (degradedCount > reports.length * 0.2) {
+      // More than 20% degraded
       systemStatus = 'degraded';
     }
 
@@ -187,7 +179,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
       degradedPlugins: degradedCount,
       unhealthyPlugins: unhealthyCount,
       criticalIssues,
-      systemStatus
+      systemStatus,
     };
   }
 
@@ -214,14 +206,13 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
 
     // Apply plugin filter
     if (options.plugins && options.plugins.length > 0) {
-      filteredMetrics = allMetrics.filter(m => options.plugins!.includes(m.pluginName));
+      filteredMetrics = allMetrics.filter((m) => options.plugins!.includes(m.pluginName));
     }
 
     // Apply time range filter (simplified - would need timestamp tracking for full implementation)
     if (options.timeRange) {
-      filteredMetrics = filteredMetrics.filter(m => 
-        m.lastActivity >= options.timeRange!.start && 
-        m.lastActivity <= options.timeRange!.end
+      filteredMetrics = filteredMetrics.filter(
+        (m) => m.lastActivity >= options.timeRange!.start && m.lastActivity <= options.timeRange!.end
       );
     }
 
@@ -254,7 +245,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     }
     const pluginThresholds = this.alertThresholds.get(pluginName);
     pluginThresholds[metric] = threshold;
-    
+
     this.logger.log(`Set alert threshold for ${pluginName}.${metric}: ${threshold}`);
   }
 
@@ -274,7 +265,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
       memoryCheckInterval: parseInt(process.env.PLUGIN_MEMORY_CHECK_INTERVAL || '10000', 10),
       errorRateThreshold: parseFloat(process.env.PLUGIN_ERROR_RATE_THRESHOLD || '0.05'),
       responseTimeThreshold: parseInt(process.env.PLUGIN_RESPONSE_TIME_THRESHOLD || '5000', 10),
-      memoryGrowthThreshold: parseFloat(process.env.PLUGIN_MEMORY_GROWTH_THRESHOLD || '0.2')
+      memoryGrowthThreshold: parseFloat(process.env.PLUGIN_MEMORY_GROWTH_THRESHOLD || '0.2'),
     };
   }
 
@@ -283,7 +274,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     this.alertThresholds.set('*', {
       errorRate: this.configuration.errorRateThreshold,
       responseTime: this.configuration.responseTimeThreshold,
-      memoryGrowth: this.configuration.memoryGrowthThreshold
+      memoryGrowth: this.configuration.memoryGrowthThreshold,
     });
   }
 
@@ -293,7 +284,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
       const summary = this.getSystemHealthSummary();
       if (summary.systemStatus === 'critical') {
         this.logger.error(`System health critical: ${summary.unhealthyPlugins} unhealthy plugins`);
-        summary.criticalIssues.forEach(issue => this.logger.error(`Critical: ${issue}`));
+        summary.criticalIssues.forEach((issue) => this.logger.error(`Critical: ${issue}`));
       } else if (summary.systemStatus === 'degraded') {
         this.logger.warn(`System health degraded: ${summary.degradedPlugins} degraded plugins`);
       }
@@ -322,7 +313,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (performanceHistory.length > 0) {
-      const recentErrors = performanceHistory.slice(-10).filter(entry => entry.isError).length;
+      const recentErrors = performanceHistory.slice(-10).filter((entry) => entry.isError).length;
       if (recentErrors > 3) {
         issues.push(`Recent error spike: ${recentErrors} errors in last 10 requests`);
         recommendations.push('Investigate recent changes or external dependencies');
@@ -339,7 +330,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
       healthStatus,
       issues,
       recommendations,
-      lastCheckTime: new Date()
+      lastCheckTime: new Date(),
     };
   }
 
@@ -349,13 +340,13 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
       healthStatus: 'unhealthy',
       issues: ['No metrics available'],
       recommendations: ['Ensure plugin is properly loaded and instrumented'],
-      lastCheckTime: new Date()
+      lastCheckTime: new Date(),
     };
   }
 
   private checkPerformanceAlerts(pluginName: string, responseTime: number, isError: boolean): void {
     const thresholds = this.getAlertThresholds(pluginName);
-    
+
     if (responseTime > (thresholds.responseTime || this.configuration.responseTimeThreshold)) {
       this.logger.warn(`Performance alert: ${pluginName} response time ${responseTime}ms exceeds threshold`);
     }
@@ -363,7 +354,9 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     if (isError) {
       const metrics = this.getPluginMetrics(pluginName);
       if (metrics && metrics.errorRate > (thresholds.errorRate || this.configuration.errorRateThreshold)) {
-        this.logger.warn(`Error rate alert: ${pluginName} error rate ${(metrics.errorRate * 100).toFixed(2)}% exceeds threshold`);
+        this.logger.warn(
+          `Error rate alert: ${pluginName} error rate ${(metrics.errorRate * 100).toFixed(2)}% exceeds threshold`
+        );
       }
     }
   }
@@ -372,12 +365,12 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     const exportData: any = {
       timestamp: new Date().toISOString(),
       systemMetrics: this.getSystemMetrics(),
-      pluginMetrics: metrics
+      pluginMetrics: metrics,
     };
 
     if (options.includePerformanceHistory) {
       exportData.performanceHistory = {};
-      metrics.forEach(metric => {
+      metrics.forEach((metric) => {
         const snapshot = this.getPluginMetricsSnapshot(metric.pluginName);
         if (snapshot) {
           exportData.performanceHistory[metric.pluginName] = snapshot.performanceHistory;
@@ -390,13 +383,23 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
 
   private exportAsCsv(metrics: PluginMetrics[]): string {
     const headers = [
-      'pluginName', 'version', 'status', 'loadTime', 'memoryUsage', 'peakMemoryUsage',
-      'requestCount', 'errorCount', 'errorRate', 'avgResponseTime', 'uptime', 'lastActivity'
+      'pluginName',
+      'version',
+      'status',
+      'loadTime',
+      'memoryUsage',
+      'peakMemoryUsage',
+      'requestCount',
+      'errorCount',
+      'errorRate',
+      'avgResponseTime',
+      'uptime',
+      'lastActivity',
     ];
 
     const csvLines = [headers.join(',')];
-    
-    metrics.forEach(metric => {
+
+    metrics.forEach((metric) => {
       const row = [
         metric.pluginName,
         metric.version,
@@ -409,7 +412,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
         metric.errorRate.toFixed(4),
         metric.avgResponseTime.toFixed(2),
         metric.uptime,
-        metric.lastActivity.toISOString()
+        metric.lastActivity.toISOString(),
       ];
       csvLines.push(row.join(','));
     });
@@ -419,21 +422,21 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
 
   private exportAsPrometheus(metrics: PluginMetrics[]): string {
     const lines: string[] = [];
-    
+
     // System metrics
     const systemMetrics = this.getSystemMetrics();
     lines.push(`# HELP plugin_system_total_plugins Total number of plugins`);
     lines.push(`# TYPE plugin_system_total_plugins gauge`);
     lines.push(`plugin_system_total_plugins ${systemMetrics.totalPlugins}`);
-    
+
     lines.push(`# HELP plugin_system_loaded_plugins Number of loaded plugins`);
     lines.push(`# TYPE plugin_system_loaded_plugins gauge`);
     lines.push(`plugin_system_loaded_plugins ${systemMetrics.loadedPlugins}`);
 
     // Plugin-specific metrics
-    metrics.forEach(metric => {
+    metrics.forEach((metric) => {
       const labels = `{plugin="${metric.pluginName}",version="${metric.version}",status="${metric.status}"}`;
-      
+
       lines.push(`plugin_load_time_milliseconds${labels} ${metric.loadTime}`);
       lines.push(`plugin_memory_usage_bytes${labels} ${metric.memoryUsage}`);
       lines.push(`plugin_requests_total${labels} ${metric.requestCount}`);

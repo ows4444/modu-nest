@@ -28,11 +28,11 @@ interface CacheStatistics {
 
 /**
  * Plugin Validation Cache Service
- * 
+ *
  * Provides caching for plugin validation results to eliminate redundant security
  * scanning and improve performance. Uses SHA-256 checksums as cache keys to ensure
  * cache validity and supports different validation types with configurable TTL.
- * 
+ *
  * Features:
  * - SHA-256 checksum-based caching
  * - TTL expiration with automatic cleanup
@@ -44,21 +44,23 @@ interface CacheStatistics {
 @Injectable()
 export class PluginValidationCacheService {
   private readonly logger = new Logger(PluginValidationCacheService.name);
-  
+
   private validationCache = new Map<string, ValidationCacheEntry>();
-  
+
   // Configuration
   private readonly CACHE_TTL = parseInt(process.env.PLUGIN_VALIDATION_CACHE_TTL || '86400000', 10); // 24 hours
   private readonly MAX_CACHE_SIZE = parseInt(process.env.PLUGIN_VALIDATION_CACHE_SIZE || '1000', 10);
   private readonly CLEANUP_INTERVAL = parseInt(process.env.PLUGIN_VALIDATION_CLEANUP_INTERVAL || '3600000', 10); // 1 hour
-  
+
   // Statistics tracking
   private totalHits = 0;
   private totalMisses = 0;
   private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.logger.log(`Validation cache initialized: TTL=${this.CACHE_TTL}ms, maxSize=${this.MAX_CACHE_SIZE}, cleanupInterval=${this.CLEANUP_INTERVAL}ms`);
+    this.logger.log(
+      `Validation cache initialized: TTL=${this.CACHE_TTL}ms, maxSize=${this.MAX_CACHE_SIZE}, cleanupInterval=${this.CLEANUP_INTERVAL}ms`
+    );
     this.startPeriodicCleanup();
   }
 
@@ -68,9 +70,12 @@ export class PluginValidationCacheService {
    * @param validationType - Type of validation requested (optional)
    * @returns Cached validation result or null if not found/expired
    */
-  getCachedValidation(checksum: string, validationType?: 'security' | 'manifest' | 'structure' | 'full'): PluginValidationResult | null {
+  getCachedValidation(
+    checksum: string,
+    validationType?: 'security' | 'manifest' | 'structure' | 'full'
+  ): PluginValidationResult | null {
     const cached = this.validationCache.get(checksum);
-    
+
     if (!cached) {
       this.totalMisses++;
       this.logger.debug(`Cache miss for checksum: ${checksum.substring(0, 8)}...`);
@@ -82,14 +87,20 @@ export class PluginValidationCacheService {
     if (now - cached.timestamp > this.CACHE_TTL) {
       this.validationCache.delete(checksum);
       this.totalMisses++;
-      this.logger.debug(`Cache expired for checksum: ${checksum.substring(0, 8)}... (age: ${now - cached.timestamp}ms)`);
+      this.logger.debug(
+        `Cache expired for checksum: ${checksum.substring(0, 8)}... (age: ${now - cached.timestamp}ms)`
+      );
       return null;
     }
 
     // Check validation type compatibility
     if (validationType && cached.validationType !== validationType && cached.validationType !== 'full') {
       this.totalMisses++;
-      this.logger.debug(`Cache type mismatch for checksum: ${checksum.substring(0, 8)}... (cached: ${cached.validationType}, requested: ${validationType})`);
+      this.logger.debug(
+        `Cache type mismatch for checksum: ${checksum.substring(0, 8)}... (cached: ${
+          cached.validationType
+        }, requested: ${validationType})`
+      );
       return null;
     }
 
@@ -97,8 +108,12 @@ export class PluginValidationCacheService {
     cached.accessCount++;
     cached.lastAccessed = now;
     this.totalHits++;
-    
-    this.logger.debug(`Cache hit for checksum: ${checksum.substring(0, 8)}... (type: ${cached.validationType}, hits: ${cached.accessCount})`);
+
+    this.logger.debug(
+      `Cache hit for checksum: ${checksum.substring(0, 8)}... (type: ${cached.validationType}, hits: ${
+        cached.accessCount
+      })`
+    );
     return cached.result;
   }
 
@@ -109,7 +124,7 @@ export class PluginValidationCacheService {
    * @param validationType - Type of validation performed
    */
   setCachedValidation(
-    checksum: string, 
+    checksum: string,
     result: PluginValidationResult,
     validationType: 'security' | 'manifest' | 'structure' | 'full' = 'full'
   ): void {
@@ -125,12 +140,16 @@ export class PluginValidationCacheService {
       checksum,
       validationType,
       accessCount: 0,
-      lastAccessed: now
+      lastAccessed: now,
     };
 
     this.validationCache.set(checksum, entry);
-    
-    this.logger.debug(`Cached validation result for checksum: ${checksum.substring(0, 8)}... (type: ${validationType}, valid: ${result.isValid})`);
+
+    this.logger.debug(
+      `Cached validation result for checksum: ${checksum.substring(0, 8)}... (type: ${validationType}, valid: ${
+        result.isValid
+      })`
+    );
   }
 
   /**
@@ -141,7 +160,7 @@ export class PluginValidationCacheService {
     this.validationCache.clear();
     this.totalHits = 0;
     this.totalMisses = 0;
-    
+
     this.logger.log(`Cache cleared: removed ${size} entries`);
   }
 
@@ -181,7 +200,7 @@ export class PluginValidationCacheService {
       if (entry.timestamp < oldestTimestamp) {
         oldestTimestamp = entry.timestamp;
       }
-      
+
       validationTypes[entry.validationType] = (validationTypes[entry.validationType] || 0) + 1;
     }
 
@@ -199,7 +218,7 @@ export class PluginValidationCacheService {
       totalMisses: this.totalMisses,
       oldestEntry: oldestTimestamp < now ? new Date(oldestTimestamp) : null,
       memoryUsage,
-      validationTypes
+      validationTypes,
     };
   }
 
@@ -244,7 +263,7 @@ export class PluginValidationCacheService {
       accessCount: cached.accessCount,
       lastAccessed: new Date(cached.lastAccessed),
       isValid: cached.result.isValid,
-      age: now - cached.timestamp
+      age: now - cached.timestamp,
     };
   }
 
@@ -296,7 +315,11 @@ export class PluginValidationCacheService {
 
     if (oldestKey) {
       this.validationCache.delete(oldestKey);
-      this.logger.debug(`Evicted oldest cache entry: ${oldestKey.substring(0, 8)}... (last accessed: ${new Date(oldestTime).toISOString()})`);
+      this.logger.debug(
+        `Evicted oldest cache entry: ${oldestKey.substring(0, 8)}... (last accessed: ${new Date(
+          oldestTime
+        ).toISOString()})`
+      );
     }
   }
 

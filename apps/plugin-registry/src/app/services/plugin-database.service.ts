@@ -70,7 +70,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     await this.initializeDatabase();
     await this.runMigrations();
-    
+
     // Start automatic backup schedule
     if (this.config.autoBackupInterval > 0) {
       this.startAutoBackup();
@@ -164,7 +164,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
             CREATE INDEX IF NOT EXISTS idx_plugins_checksum ON plugins(checksum);
             CREATE INDEX IF NOT EXISTS idx_plugins_status ON plugins(status);
             CREATE INDEX IF NOT EXISTS idx_plugins_upload_date ON plugins(upload_date);
-          `
+          `,
         },
         {
           version: 2,
@@ -187,7 +187,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
             CREATE INDEX IF NOT EXISTS idx_plugin_versions_plugin_id ON plugin_versions(plugin_id);
             CREATE INDEX IF NOT EXISTS idx_plugin_versions_version ON plugin_versions(version);
             CREATE INDEX IF NOT EXISTS idx_plugin_versions_latest ON plugin_versions(is_latest);
-          `
+          `,
         },
         {
           version: 3,
@@ -205,21 +205,20 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
 
             CREATE INDEX IF NOT EXISTS idx_download_history_plugin_id ON download_history(plugin_id);
             CREATE INDEX IF NOT EXISTS idx_download_history_date ON download_history(download_date);
-          `
-        }
+          `,
+        },
       ];
 
       for (const migration of migrations) {
-        const existing = await this.queryOne<{ version: number }>(
-          'SELECT version FROM migrations WHERE version = ?',
-          [migration.version]
-        );
+        const existing = await this.queryOne<{ version: number }>('SELECT version FROM migrations WHERE version = ?', [
+          migration.version,
+        ]);
 
         if (!existing) {
           this.logger.log(`Running migration ${migration.version}: ${migration.name}`);
-          
+
           // Execute migration SQL (multiple statements)
-          const statements = migration.sql.split(';').filter(stmt => stmt.trim());
+          const statements = migration.sql.split(';').filter((stmt) => stmt.trim());
           for (const statement of statements) {
             if (statement.trim()) {
               await this.executeQuery(statement);
@@ -227,10 +226,10 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
           }
 
           // Record migration
-          await this.executeQuery(
-            'INSERT INTO migrations (version, name) VALUES (?, ?)',
-            [migration.version, migration.name]
-          );
+          await this.executeQuery('INSERT INTO migrations (version, name) VALUES (?, ?)', [
+            migration.version,
+            migration.name,
+          ]);
 
           this.logger.log(`Migration ${migration.version} completed`);
         }
@@ -243,7 +242,12 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async savePlugin(manifest: PluginManifest, filePath: string, fileSize: number, checksum: string): Promise<DatabasePluginRecord> {
+  async savePlugin(
+    manifest: PluginManifest,
+    filePath: string,
+    fileSize: number,
+    checksum: string
+  ): Promise<DatabasePluginRecord> {
     try {
       const now = new Date();
       const manifestJson = JSON.stringify(manifest);
@@ -279,7 +283,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
           tags,
           dependencies,
           now,
-          now
+          now,
         ]
       );
 
@@ -298,23 +302,19 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getPluginByName(name: string): Promise<DatabasePluginRecord | null> {
-    return this.queryOne<DatabasePluginRecord>(
-      'SELECT * FROM plugins WHERE name = ? AND status = "active"',
-      [name]
-    );
+    return this.queryOne<DatabasePluginRecord>('SELECT * FROM plugins WHERE name = ? AND status = "active"', [name]);
   }
 
   async getPluginByChecksum(checksum: string): Promise<DatabasePluginRecord | null> {
-    return this.queryOne<DatabasePluginRecord>(
-      'SELECT * FROM plugins WHERE checksum = ?',
-      [checksum]
-    );
+    return this.queryOne<DatabasePluginRecord>('SELECT * FROM plugins WHERE checksum = ?', [checksum]);
   }
 
-  async getAllPlugins(status: 'active' | 'deprecated' | 'disabled' | 'all' = 'active'): Promise<DatabasePluginRecord[]> {
+  async getAllPlugins(
+    status: 'active' | 'deprecated' | 'disabled' | 'all' = 'active'
+  ): Promise<DatabasePluginRecord[]> {
     const whereClause = status === 'all' ? '' : 'WHERE status = ?';
     const params = status === 'all' ? [] : [status];
-    
+
     return this.queryAll<DatabasePluginRecord>(
       `SELECT * FROM plugins ${whereClause} ORDER BY upload_date DESC`,
       params
@@ -349,10 +349,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
       }
 
       // Delete from database
-      await this.executeQuery(
-        'DELETE FROM plugins WHERE name = ?',
-        [name]
-      );
+      await this.executeQuery('DELETE FROM plugins WHERE name = ?', [name]);
 
       this.logger.log(`Plugin deleted from database: ${name}`);
       return true;
@@ -390,13 +387,27 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async getDatabaseStats(): Promise<DatabaseStats> {
     try {
-      const totalPlugins = await this.queryOne<{ count: number }>('SELECT COUNT(*) as count FROM plugins WHERE status = "active"');
-      const totalStorage = await this.queryOne<{ total: number }>('SELECT SUM(file_size) as total FROM plugins WHERE status = "active"');
-      const avgSize = await this.queryOne<{ avg: number }>('SELECT AVG(file_size) as avg FROM plugins WHERE status = "active"');
-      const mostPopular = await this.queryOne<{ name: string }>('SELECT name FROM plugins WHERE status = "active" ORDER BY download_count DESC LIMIT 1');
-      const oldest = await this.queryOne<{ name: string }>('SELECT name FROM plugins WHERE status = "active" ORDER BY upload_date ASC LIMIT 1');
-      const newest = await this.queryOne<{ name: string }>('SELECT name FROM plugins WHERE status = "active" ORDER BY upload_date DESC LIMIT 1');
-      const totalDownloads = await this.queryOne<{ total: number }>('SELECT SUM(download_count) as total FROM plugins WHERE status = "active"');
+      const totalPlugins = await this.queryOne<{ count: number }>(
+        'SELECT COUNT(*) as count FROM plugins WHERE status = "active"'
+      );
+      const totalStorage = await this.queryOne<{ total: number }>(
+        'SELECT SUM(file_size) as total FROM plugins WHERE status = "active"'
+      );
+      const avgSize = await this.queryOne<{ avg: number }>(
+        'SELECT AVG(file_size) as avg FROM plugins WHERE status = "active"'
+      );
+      const mostPopular = await this.queryOne<{ name: string }>(
+        'SELECT name FROM plugins WHERE status = "active" ORDER BY download_count DESC LIMIT 1'
+      );
+      const oldest = await this.queryOne<{ name: string }>(
+        'SELECT name FROM plugins WHERE status = "active" ORDER BY upload_date ASC LIMIT 1'
+      );
+      const newest = await this.queryOne<{ name: string }>(
+        'SELECT name FROM plugins WHERE status = "active" ORDER BY upload_date DESC LIMIT 1'
+      );
+      const totalDownloads = await this.queryOne<{ total: number }>(
+        'SELECT SUM(download_count) as total FROM plugins WHERE status = "active"'
+      );
 
       // Get database file size
       const dbStats = fs.statSync(this.dbPath);
@@ -456,7 +467,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
   async restoreBackup(backupFilename: string): Promise<void> {
     try {
       const backupPath = path.join(this.backupDir, backupFilename);
-      
+
       if (!fs.existsSync(backupPath)) {
         throw new Error(`Backup file not found: ${backupFilename}`);
       }
@@ -466,7 +477,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
 
       // Replace current database with backup
       fs.copyFileSync(backupPath, this.dbPath);
-      
+
       // Reinitialize database connection
       await this.initializeDatabase();
 
@@ -491,7 +502,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
           const filePath = path.join(this.backupDir, file);
           const stats = fs.statSync(filePath);
           const type = file.includes('-full-') ? 'full' : 'incremental';
-          
+
           backups.push({
             filename: file,
             size: stats.size,
@@ -511,10 +522,10 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
   private async cleanupOldBackups(): Promise<void> {
     try {
       const backups = await this.listBackups();
-      
+
       if (backups.length > this.config.maxBackups) {
         const backupsToDelete = backups.slice(this.config.maxBackups);
-        
+
         for (const backup of backupsToDelete) {
           const backupPath = path.join(this.backupDir, backup.filename);
           fs.unlinkSync(backupPath);
@@ -535,7 +546,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
         this.logger.error('Automatic backup failed:', error);
       }
     }, this.config.autoBackupInterval);
-    
+
     this.logger.log(`Automatic backup scheduled every ${this.config.autoBackupInterval / 1000 / 60} minutes`);
   }
 
@@ -562,7 +573,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     return new Promise((resolve, reject) => {
-      this.db!.run(sql, params, function(err) {
+      this.db!.run(sql, params, function (err) {
         if (err) {
           reject(err);
         } else {
@@ -582,7 +593,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
         if (err) {
           reject(err);
         } else {
-          resolve(row as T || null);
+          resolve((row as T) || null);
         }
       });
     });
@@ -598,7 +609,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
         if (err) {
           reject(err);
         } else {
-          resolve(rows as T[] || []);
+          resolve((rows as T[]) || []);
         }
       });
     });

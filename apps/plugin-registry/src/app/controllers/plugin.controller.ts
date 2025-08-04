@@ -74,14 +74,10 @@ export class PluginController {
 
   @Get(':name/download')
   @Header('Content-Type', 'application/zip')
-  async downloadPlugin(
-    @Param('name') name: string, 
-    @Req() req: Request,
-    @Res() res: Response
-  ): Promise<void> {
+  async downloadPlugin(@Param('name') name: string, @Req() req: Request, @Res() res: Response): Promise<void> {
     const userAgent = req.get('User-Agent');
     const ipAddress = req.ip || req.connection.remoteAddress;
-    
+
     const { buffer, metadata } = await this.pluginRegistryService.downloadPlugin(name, userAgent, ipAddress);
 
     res.setHeader('Content-Disposition', `attachment; filename="${metadata.name}-${metadata.version}.zip"`);
@@ -104,7 +100,7 @@ export class PluginController {
   async getValidationCacheStats() {
     return {
       cache: this.pluginRegistryService.getValidationCacheStats(),
-      message: 'Validation cache statistics retrieved successfully'
+      message: 'Validation cache statistics retrieved successfully',
     };
   }
 
@@ -112,7 +108,7 @@ export class PluginController {
   async clearValidationCache() {
     this.pluginRegistryService.clearValidationCache();
     return {
-      message: 'Validation cache cleared successfully'
+      message: 'Validation cache cleared successfully',
     };
   }
 
@@ -141,7 +137,7 @@ export class PluginController {
     const backup = await dbService.createBackup(type);
     return {
       message: 'Database backup created successfully',
-      backup
+      backup,
     };
   }
 
@@ -156,7 +152,7 @@ export class PluginController {
     const dbService = this.pluginRegistryService.getDatabaseService();
     await dbService.restoreBackup(filename);
     return {
-      message: `Database restored from backup: ${filename}`
+      message: `Database restored from backup: ${filename}`,
     };
   }
 }

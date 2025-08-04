@@ -45,7 +45,7 @@ export class PluginStorageService implements OnModuleInit {
     try {
       const dbPlugins = await this.databaseService.getAllPlugins('active');
       this.plugins.clear();
-      
+
       for (const dbPlugin of dbPlugins) {
         const metadata = this.mapDatabaseToMetadata(dbPlugin);
         const pluginPackage: PluginPackage = {
@@ -54,9 +54,9 @@ export class PluginStorageService implements OnModuleInit {
         };
         this.plugins.set(dbPlugin.name, pluginPackage);
       }
-      
+
       this.logger.log(`Loaded ${this.plugins.size} plugins from database`);
-      
+
       // Migrate from old metadata file if it exists and database is empty
       if (this.plugins.size === 0 && fs.existsSync(this.config.metadataFile)) {
         await this.migrateFromMetadataFile();
@@ -75,25 +75,20 @@ export class PluginStorageService implements OnModuleInit {
       this.logger.log('Migrating plugins from metadata file to database...');
       const data = await readFile(this.config.metadataFile, 'utf-8');
       const pluginsArray: PluginPackage[] = JSON.parse(data);
-      
+
       for (const plugin of pluginsArray) {
         const filePath = path.join(this.config.pluginsDir, plugin.filePath);
         if (fs.existsSync(filePath)) {
           const stats = fs.statSync(filePath);
-          await this.databaseService.savePlugin(
-            plugin.metadata,
-            filePath,
-            stats.size,
-            plugin.metadata.checksum
-          );
+          await this.databaseService.savePlugin(plugin.metadata, filePath, stats.size, plugin.metadata.checksum);
           this.plugins.set(plugin.metadata.name, plugin);
         }
       }
-      
+
       // Backup and remove old metadata file
       const backupPath = this.config.metadataFile + '.backup';
       fs.renameSync(this.config.metadataFile, backupPath);
-      
+
       this.logger.log(`Migrated ${pluginsArray.length} plugins to database. Old metadata backed up to ${backupPath}`);
     } catch (error) {
       this.logger.error('Failed to migrate from metadata file:', error);
@@ -114,7 +109,6 @@ export class PluginStorageService implements OnModuleInit {
     };
   }
 
-
   async storePlugin(metadata: PluginMetadata, pluginBuffer: Buffer): Promise<void> {
     const fileName = `${metadata.name}-${metadata.version}.zip`;
     const filePath = path.join(this.config.pluginsDir, fileName);
@@ -128,12 +122,7 @@ export class PluginStorageService implements OnModuleInit {
       await writeFile(filePath, new Uint8Array(pluginBuffer));
 
       // Save to database
-      await this.databaseService.savePlugin(
-        metadata,
-        filePath,
-        pluginBuffer.length,
-        metadata.checksum
-      );
+      await this.databaseService.savePlugin(metadata, filePath, pluginBuffer.length, metadata.checksum);
 
       // Update memory cache
       const pluginPackage: PluginPackage = {
@@ -152,7 +141,7 @@ export class PluginStorageService implements OnModuleInit {
           this.logger.error(`Failed to cleanup file after database error: ${cleanupError}`);
         }
       }
-      
+
       this.logger.error(`Failed to store plugin ${metadata.name}:`, error);
       throw new Error(`Plugin storage failed: ${(error as Error).message}`);
     }
@@ -179,7 +168,7 @@ export class PluginStorageService implements OnModuleInit {
         filePath: path.basename(dbPlugin.file_path),
       };
       this.plugins.set(name, pluginPackage);
-      
+
       return pluginPackage;
     } catch (error) {
       this.logger.error(`Failed to get plugin ${name} from database:`, error);
@@ -198,7 +187,7 @@ export class PluginStorageService implements OnModuleInit {
   async getAllPluginsFromDatabase(): Promise<PluginPackage[]> {
     try {
       const dbPlugins = await this.databaseService.getAllPlugins('active');
-      return dbPlugins.map(dbPlugin => ({
+      return dbPlugins.map((dbPlugin) => ({
         metadata: this.mapDatabaseToMetadata(dbPlugin),
         filePath: path.basename(dbPlugin.file_path),
       }));
@@ -294,12 +283,11 @@ export class PluginStorageService implements OnModuleInit {
     try {
       const dbStats = await this.databaseService.getDatabaseStats();
       const memoryStats = this.getStorageStats();
-      
+
       return {
         memory: memoryStats,
         database: dbStats,
-        cacheHitRate: this.plugins.size > 0 ? 
-          (this.plugins.size / dbStats.totalPlugins) * 100 : 0,
+        cacheHitRate: this.plugins.size > 0 ? (this.plugins.size / dbStats.totalPlugins) * 100 : 0,
       };
     } catch (error) {
       this.logger.error('Failed to get detailed storage stats:', error);
@@ -329,7 +317,7 @@ export class PluginStorageService implements OnModuleInit {
   async searchPlugins(query: string): Promise<PluginPackage[]> {
     try {
       const dbPlugins = await this.databaseService.searchPlugins(query);
-      return dbPlugins.map(dbPlugin => ({
+      return dbPlugins.map((dbPlugin) => ({
         metadata: this.mapDatabaseToMetadata(dbPlugin),
         filePath: path.basename(dbPlugin.file_path),
       }));

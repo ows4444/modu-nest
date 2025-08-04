@@ -97,10 +97,9 @@ export class PluginGuardRegistryService implements PluginGuardRegistry {
     return Array.from(this.guards.values()).filter((guard) => {
       // External guards are automatically available
       if (guard.metadata.scope === 'external') return true;
-      
+
       // Local guards must be explicitly exported
-      return guard.metadata.scope === 'local' && 
-             (guard.metadata as any).exported === true;
+      return guard.metadata.scope === 'local' && (guard.metadata as any).exported === true;
     });
   }
 

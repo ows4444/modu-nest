@@ -1,4 +1,10 @@
-import { PluginManifest, PluginValidationResult, LocalGuardEntry, ExternalGuardEntry, PluginSecurity } from './plugin-interfaces';
+import {
+  PluginManifest,
+  PluginValidationResult,
+  LocalGuardEntry,
+  ExternalGuardEntry,
+  PluginSecurity,
+} from './plugin-interfaces';
 
 export class PluginValidator {
   private static readonly REQUIRED_FIELDS: (keyof PluginManifest)[] = [
@@ -63,7 +69,6 @@ export class PluginValidator {
       errors.push(...securityValidation.errors);
       warnings.push(...securityValidation.warnings);
     }
-
 
     return {
       isValid: errors.length === 0,
@@ -181,7 +186,9 @@ export class PluginValidator {
 
         // Validate guard name format (security: prevent injection attacks)
         if (!/^[a-zA-Z][a-zA-Z0-9-_]*$/.test(guard.name)) {
-          errors.push(`${guardPrefix}: guard name '${guard.name}' must start with a letter and contain only letters, numbers, hyphens, and underscores`);
+          errors.push(
+            `${guardPrefix}: guard name '${guard.name}' must start with a letter and contain only letters, numbers, hyphens, and underscores`
+          );
         }
       }
 
@@ -217,7 +224,12 @@ export class PluginValidator {
   /**
    * Validate local guard entry
    */
-  private static validateLocalGuardEntry(guard: LocalGuardEntry, prefix: string, errors: string[], _warnings: string[]): void {
+  private static validateLocalGuardEntry(
+    guard: LocalGuardEntry,
+    prefix: string,
+    errors: string[],
+    _warnings: string[]
+  ): void {
     // Class name is required for local guards
     if (!guard.class || typeof guard.class !== 'string' || !guard.class.trim()) {
       errors.push(`${prefix}: class is required for local guards and must be a non-empty string`);
@@ -255,14 +267,21 @@ export class PluginValidator {
   /**
    * Validate external guard entry
    */
-  private static validateExternalGuardEntry(guard: ExternalGuardEntry, prefix: string, errors: string[], warnings: string[]): void {
+  private static validateExternalGuardEntry(
+    guard: ExternalGuardEntry,
+    prefix: string,
+    errors: string[],
+    warnings: string[]
+  ): void {
     // Source is required for external guards
     if (!guard.source || typeof guard.source !== 'string' || !guard.source.trim()) {
       errors.push(`${prefix}: source is required for external guards and must be a non-empty string`);
     } else {
       // Validate source format (security: prevent malicious plugin references)
       if (!/^[a-z0-9-_]+$/.test(guard.source)) {
-        errors.push(`${prefix}: source '${guard.source}' must contain only lowercase letters, numbers, hyphens, and underscores`);
+        errors.push(
+          `${prefix}: source '${guard.source}' must contain only lowercase letters, numbers, hyphens, and underscores`
+        );
       }
     }
 
@@ -329,12 +348,12 @@ export class PluginValidator {
         if (!['sha256', 'sha512', 'md5'].includes(security.checksum.algorithm)) {
           errors.push('Checksum algorithm must be sha256, sha512, or md5');
         }
-        
+
         // Validate hash format
-        const hashLength = security.checksum.algorithm === 'sha256' ? 64 : 
-                          security.checksum.algorithm === 'sha512' ? 128 : 32;
+        const hashLength =
+          security.checksum.algorithm === 'sha256' ? 64 : security.checksum.algorithm === 'sha512' ? 128 : 32;
         const hashRegex = new RegExp(`^[a-fA-F0-9]{${hashLength}}$`);
-        
+
         if (!hashRegex.test(security.checksum.hash)) {
           errors.push(`Invalid ${security.checksum.algorithm} hash format`);
         }
@@ -366,11 +385,14 @@ export class PluginValidator {
         if (limits.maxMemory !== undefined) {
           if (!Number.isInteger(limits.maxMemory) || limits.maxMemory <= 0) {
             errors.push('maxMemory must be a positive integer (bytes)');
-          } else if (limits.maxMemory > 2147483648) { // 2GB
+          } else if (limits.maxMemory > 2147483648) {
+            // 2GB
             warnings.push('Memory limit exceeds 2GB - may cause system instability');
-          } else if (limits.maxMemory > 1073741824) { // 1GB
+          } else if (limits.maxMemory > 1073741824) {
+            // 1GB
             warnings.push('Memory limit exceeds recommended maximum (1GB)');
-          } else if (limits.maxMemory < 16777216) { // 16MB
+          } else if (limits.maxMemory < 16777216) {
+            // 16MB
             warnings.push('Memory limit is very low (<16MB) - plugin may fail to load');
           }
         }
@@ -388,7 +410,8 @@ export class PluginValidator {
         if (limits.maxFileSize !== undefined) {
           if (!Number.isInteger(limits.maxFileSize) || limits.maxFileSize <= 0) {
             errors.push('maxFileSize must be a positive integer (bytes)');
-          } else if (limits.maxFileSize > 104857600) { // 100MB
+          } else if (limits.maxFileSize > 104857600) {
+            // 100MB
             warnings.push('File size limit exceeds 100MB - consider if necessary');
           }
         }
@@ -397,7 +420,8 @@ export class PluginValidator {
         if (limits.maxNetworkBandwidth !== undefined) {
           if (!Number.isInteger(limits.maxNetworkBandwidth) || limits.maxNetworkBandwidth <= 0) {
             errors.push('maxNetworkBandwidth must be a positive integer (bytes/sec)');
-          } else if (limits.maxNetworkBandwidth > 104857600) { // 100MB/s
+          } else if (limits.maxNetworkBandwidth > 104857600) {
+            // 100MB/s
             warnings.push('Network bandwidth limit is very high (>100MB/s)');
           }
         }
@@ -413,7 +437,7 @@ export class PluginValidator {
         if (!['RSA-SHA256', 'ECDSA-SHA256', 'EdDSA'].includes(security.signature.algorithm)) {
           warnings.push('Consider using RSA-SHA256, ECDSA-SHA256, or EdDSA for signature algorithm');
         }
-        
+
         // Basic validation for key and signature format
         if (security.signature.publicKey.length < 64) {
           warnings.push('Public key appears to be very short - verify format');
@@ -426,5 +450,4 @@ export class PluginValidator {
 
     return { isValid: errors.length === 0, errors, warnings };
   }
-
 }
