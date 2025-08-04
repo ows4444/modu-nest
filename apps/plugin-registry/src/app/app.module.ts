@@ -6,6 +6,8 @@ import { PluginController } from './controllers/plugin.controller';
 import { HealthController } from './controllers/health.controller';
 import { PluginRegistryService } from './services/plugin-registry.service';
 import { PluginStorageService } from './services/plugin-storage.service';
+import { PluginValidationCacheService } from './services/plugin-validation-cache.service';
+import { PluginDatabaseService } from './services/plugin-database.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { SharedConfigModule } from '@modu-nest/config';
 
@@ -35,13 +37,15 @@ import { SharedConfigModule } from '@modu-nest/config';
   ],
   controllers: [AppController, PluginController, HealthController],
   providers: [
-    PluginRegistryService,
+    PluginDatabaseService,
     PluginStorageService,
+    PluginValidationCacheService,
+    PluginRegistryService,
     {
       provide: APP_INTERCEPTOR,
       useClass: ErrorHandlingInterceptor,
     },
   ],
-  exports: [PluginRegistryService, PluginStorageService],
+  exports: [PluginRegistryService, PluginStorageService, PluginValidationCacheService, PluginDatabaseService],
 })
 export class AppModule {}

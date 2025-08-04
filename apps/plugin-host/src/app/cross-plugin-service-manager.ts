@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { Mutex } from 'async-mutex';
 import { CrossPluginServiceConfig, PluginManifest } from '@modu-nest/plugin-types';
 
 export interface CrossPluginServiceProvider {
@@ -10,16 +11,48 @@ export interface CrossPluginServiceProvider {
   inject?: any[];
 }
 
+/**
+ * Thread-safe Cross-Plugin Service Manager
+ * 
+ * This service manages cross-plugin service registration and access with comprehensive
+ * thread safety using async-mutex. All operations that modify or read the service
+ * registry are protected by a mutex to prevent race conditions during concurrent
+ * plugin loading/unloading operations.
+ * 
+ * Thread Safety Strategy:
+ * - All public methods that modify registry state are async and mutex-protected
+ * - Read operations are also mutex-protected to ensure consistency
+ * - Internal methods (_Internal suffix) contain the actual implementation
+ * - Synchronous versions kept for backward compatibility but marked deprecated
+ */
 @Injectable()
 export class CrossPluginServiceManager {
   private readonly logger = new Logger(CrossPluginServiceManager.name);
   private readonly serviceRegistry = new Map<string, CrossPluginServiceProvider>();
   private readonly globalTokens = new Set<string>();
+  
+  // Thread safety mutex for all registry operations
+  private readonly registryMutex = new Mutex();
 
   /**
    * Create cross-plugin service providers based on plugin manifest configuration
+   * Thread-safe operation using mutex protection
    */
-  createCrossPluginProviders(
+  async createCrossPluginProviders(
+    pluginName: string,
+    manifest: PluginManifest,
+    pluginModule: Record<string, unknown>
+  ): Promise<CrossPluginServiceProvider[]> {
+    return await this.registryMutex.runExclusive(async () => {
+      return this.createCrossPluginProvidersInternal(pluginName, manifest, pluginModule);
+    });
+  }
+
+  /**
+   * Internal implementation of cross-plugin provider creation
+   * @private
+   */
+  private createCrossPluginProvidersInternal(
     pluginName: string,
     manifest: PluginManifest,
     pluginModule: Record<string, unknown>
@@ -34,15 +67,17 @@ export class CrossPluginServiceManager {
       try {
         const provider = this.createServiceProvider(pluginName, serviceConfig, pluginModule);
         if (provider) {
+          const finalToken = this.registerService(serviceConfig.token, provider);
+          // Update provider with final token in case of collision
+          provider.provide = finalToken;
           providers.push(provider);
-          this.registerService(serviceConfig.token, provider);
           
           if (serviceConfig.global) {
-            this.globalTokens.add(serviceConfig.token);
+            this.globalTokens.add(finalToken);
           }
 
           this.logger.debug(
-            `Created cross-plugin provider '${serviceConfig.token}' for service '${serviceConfig.serviceName}' from plugin '${pluginName}'`
+            `Created cross-plugin provider '${finalToken}' for service '${serviceConfig.serviceName}' from plugin '${pluginName}'`
           );
         }
       } catch (error) {
@@ -58,8 +93,23 @@ export class CrossPluginServiceManager {
 
   /**
    * Create global service providers for exported services to enable cross-plugin access
+   * Thread-safe operation using mutex protection
    */
-  createGlobalServiceProviders(
+  async createGlobalServiceProviders(
+    pluginName: string,
+    exportedServices: string[],
+    pluginModule: Record<string, unknown>
+  ): Promise<CrossPluginServiceProvider[]> {
+    return await this.registryMutex.runExclusive(async () => {
+      return this.createGlobalServiceProvidersInternal(pluginName, exportedServices, pluginModule);
+    });
+  }
+
+  /**
+   * Internal implementation of global service provider creation
+   * @private
+   */
+  private createGlobalServiceProvidersInternal(
     pluginName: string,
     exportedServices: string[],
     pluginModule: Record<string, unknown>
@@ -77,11 +127,13 @@ export class CrossPluginServiceManager {
           useClass: serviceClass,
         };
 
+        const finalToken = this.registerService(globalToken, provider);
+        // Update provider with final token in case of collision
+        provider.provide = finalToken;
         providers.push(provider);
-        this.registerService(globalToken, provider);
-        this.globalTokens.add(globalToken);
+        this.globalTokens.add(finalToken);
 
-        this.logger.debug(`Created global provider '${globalToken}' for ${pluginName}:${serviceName}`);
+        this.logger.debug(`Created global provider '${finalToken}' for ${pluginName}:${serviceName}`);
       }
     }
 
@@ -90,8 +142,19 @@ export class CrossPluginServiceManager {
 
   /**
    * Get a cross-plugin service provider by token
+   * Thread-safe operation using mutex protection for consistency
    */
-  getServiceProvider(token: string): CrossPluginServiceProvider | undefined {
+  async getServiceProvider(token: string): Promise<CrossPluginServiceProvider | undefined> {
+    return await this.registryMutex.runExclusive(async () => {
+      return this.serviceRegistry.get(token);
+    });
+  }
+
+  /**
+   * Get a cross-plugin service provider by token (synchronous version for internal use)
+   * @deprecated Use async getServiceProvider for thread safety
+   */
+  getServiceProviderSync(token: string): CrossPluginServiceProvider | undefined {
     return this.serviceRegistry.get(token);
   }
 
@@ -118,8 +181,19 @@ export class CrossPluginServiceManager {
 
   /**
    * Remove services for a specific plugin (cleanup on unload)
+   * Thread-safe operation using mutex protection
    */
-  removePluginServices(pluginName: string): void {
+  async removePluginServices(pluginName: string): Promise<void> {
+    return await this.registryMutex.runExclusive(async () => {
+      return this.removePluginServicesInternal(pluginName);
+    });
+  }
+
+  /**
+   * Internal implementation of plugin service removal
+   * @private
+   */
+  private removePluginServicesInternal(pluginName: string): void {
     const tokensToRemove: string[] = [];
     
     for (const [token] of this.serviceRegistry) {
@@ -139,8 +213,31 @@ export class CrossPluginServiceManager {
 
   /**
    * Get comprehensive statistics about cross-plugin services
+   * Thread-safe operation using mutex protection for consistent data
    */
-  getStatistics(): {
+  async getStatistics(): Promise<{
+    totalServices: number;
+    globalServices: number;
+    localServices: number;
+    servicesByPlugin: Record<string, number>;
+    tokenCollisions: number;
+    averageTokenLength: number;
+    tokenPatterns: {
+      cryptographicTokens: number;
+      legacyTokens: number;
+      collisionResolvedTokens: number;
+    };
+  }> {
+    return await this.registryMutex.runExclusive(async () => {
+      return this.getStatisticsInternal();
+    });
+  }
+
+  /**
+   * Internal implementation of statistics collection
+   * @private
+   */
+  private getStatisticsInternal(): {
     totalServices: number;
     globalServices: number;
     localServices: number;
@@ -300,14 +397,21 @@ export class CrossPluginServiceManager {
     };
   }
 
-  private registerService(token: string, provider: CrossPluginServiceProvider): void {
+  /**
+   * Register a service in the registry with collision detection
+   * This method is called from within mutex-protected operations, so it doesn't need its own mutex
+   * @private
+   */
+  private registerService(token: string, provider: CrossPluginServiceProvider): string {
+    let finalToken = token;
     if (this.serviceRegistry.has(token)) {
       // Handle collision with better token generation
       const newToken = this.createGlobalTokenWithRetry(token);
       this.logger.warn(`Token collision detected, regenerating: ${token} -> ${newToken}`);
-      token = newToken;
+      finalToken = newToken;
     }
-    this.serviceRegistry.set(token, provider);
+    this.serviceRegistry.set(finalToken, provider);
+    return finalToken;
   }
 
   /**
@@ -434,10 +538,13 @@ export class CrossPluginServiceManager {
 
   /**
    * Clear all services (useful for testing or system reset)
+   * Thread-safe operation using mutex protection
    */
-  clearAllServices(): void {
-    this.logger.warn('Clearing all cross-plugin services');
-    this.serviceRegistry.clear();
-    this.globalTokens.clear();
+  async clearAllServices(): Promise<void> {
+    return await this.registryMutex.runExclusive(async () => {
+      this.logger.warn('Clearing all cross-plugin services');
+      this.serviceRegistry.clear();
+      this.globalTokens.clear();
+    });
   }
 }

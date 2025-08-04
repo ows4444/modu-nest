@@ -1,4 +1,4 @@
-import { PluginManifest, PluginValidationResult, LocalGuardEntry, ExternalGuardEntry } from './plugin-interfaces';
+import { PluginManifest, PluginValidationResult, LocalGuardEntry, ExternalGuardEntry, PluginSecurity } from './plugin-interfaces';
 
 export class PluginValidator {
   private static readonly REQUIRED_FIELDS: (keyof PluginManifest)[] = [
@@ -56,6 +56,14 @@ export class PluginValidator {
       errors.push(...moduleValidation.errors);
       warnings.push(...moduleValidation.warnings);
     }
+
+    // Validate security configuration
+    if (manifest.security) {
+      const securityValidation = this.validateSecurityConfiguration(manifest.security);
+      errors.push(...securityValidation.errors);
+      warnings.push(...securityValidation.warnings);
+    }
+
 
     return {
       isValid: errors.length === 0,
@@ -297,4 +305,126 @@ export class PluginValidator {
       }
     }
   }
+
+  /**
+   * Comprehensive validation for security configuration
+   */
+  static validateSecurityConfiguration(security: PluginSecurity): PluginValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Validate trust level
+    if (!security.trustLevel || typeof security.trustLevel !== 'string') {
+      errors.push('Security trustLevel is required and must be a string');
+    } else if (!['internal', 'verified', 'community'].includes(security.trustLevel)) {
+      errors.push('Invalid trust level - must be internal, verified, or community');
+    }
+
+    // Validate checksum if present
+    if (security.checksum) {
+      if (!security.checksum.algorithm || !security.checksum.hash) {
+        errors.push('Checksum must include both algorithm and hash');
+      } else {
+        // Validate checksum algorithm
+        if (!['sha256', 'sha512', 'md5'].includes(security.checksum.algorithm)) {
+          errors.push('Checksum algorithm must be sha256, sha512, or md5');
+        }
+        
+        // Validate hash format
+        const hashLength = security.checksum.algorithm === 'sha256' ? 64 : 
+                          security.checksum.algorithm === 'sha512' ? 128 : 32;
+        const hashRegex = new RegExp(`^[a-fA-F0-9]{${hashLength}}$`);
+        
+        if (!hashRegex.test(security.checksum.hash)) {
+          errors.push(`Invalid ${security.checksum.algorithm} hash format`);
+        }
+
+        // Security warning for weak algorithms
+        if (security.checksum.algorithm === 'md5') {
+          warnings.push('MD5 is cryptographically weak - consider using SHA-256 or SHA-512');
+        }
+      }
+    }
+
+    // Validate sandbox configuration
+    if (security.sandbox) {
+      if (typeof security.sandbox.enabled !== 'boolean') {
+        errors.push('Sandbox enabled must be a boolean');
+      }
+
+      if (security.sandbox.isolationLevel) {
+        if (!['vm', 'process', 'container'].includes(security.sandbox.isolationLevel)) {
+          errors.push('Sandbox isolationLevel must be vm, process, or container');
+        }
+      }
+
+      // Validate resource limits
+      if (security.sandbox.resourceLimits) {
+        const limits = security.sandbox.resourceLimits;
+
+        // Memory validation
+        if (limits.maxMemory !== undefined) {
+          if (!Number.isInteger(limits.maxMemory) || limits.maxMemory <= 0) {
+            errors.push('maxMemory must be a positive integer (bytes)');
+          } else if (limits.maxMemory > 2147483648) { // 2GB
+            warnings.push('Memory limit exceeds 2GB - may cause system instability');
+          } else if (limits.maxMemory > 1073741824) { // 1GB
+            warnings.push('Memory limit exceeds recommended maximum (1GB)');
+          } else if (limits.maxMemory < 16777216) { // 16MB
+            warnings.push('Memory limit is very low (<16MB) - plugin may fail to load');
+          }
+        }
+
+        // CPU validation
+        if (limits.maxCPU !== undefined) {
+          if (typeof limits.maxCPU !== 'number' || limits.maxCPU < 0 || limits.maxCPU > 100) {
+            errors.push('maxCPU must be between 0 and 100 percent');
+          } else if (limits.maxCPU > 80) {
+            warnings.push('CPU limit is very high (>80%) - may impact system performance');
+          }
+        }
+
+        // File system validation
+        if (limits.maxFileSize !== undefined) {
+          if (!Number.isInteger(limits.maxFileSize) || limits.maxFileSize <= 0) {
+            errors.push('maxFileSize must be a positive integer (bytes)');
+          } else if (limits.maxFileSize > 104857600) { // 100MB
+            warnings.push('File size limit exceeds 100MB - consider if necessary');
+          }
+        }
+
+        // Network validation
+        if (limits.maxNetworkBandwidth !== undefined) {
+          if (!Number.isInteger(limits.maxNetworkBandwidth) || limits.maxNetworkBandwidth <= 0) {
+            errors.push('maxNetworkBandwidth must be a positive integer (bytes/sec)');
+          } else if (limits.maxNetworkBandwidth > 104857600) { // 100MB/s
+            warnings.push('Network bandwidth limit is very high (>100MB/s)');
+          }
+        }
+      }
+    }
+
+    // Validate signature if present
+    if (security.signature) {
+      if (!security.signature.algorithm || !security.signature.publicKey || !security.signature.signature) {
+        errors.push('Signature must include algorithm, publicKey, and signature');
+      } else {
+        // Validate signature algorithm
+        if (!['RSA-SHA256', 'ECDSA-SHA256', 'EdDSA'].includes(security.signature.algorithm)) {
+          warnings.push('Consider using RSA-SHA256, ECDSA-SHA256, or EdDSA for signature algorithm');
+        }
+        
+        // Basic validation for key and signature format
+        if (security.signature.publicKey.length < 64) {
+          warnings.push('Public key appears to be very short - verify format');
+        }
+        if (security.signature.signature.length < 64) {
+          warnings.push('Signature appears to be very short - verify format');
+        }
+      }
+    }
+
+    return { isValid: errors.length === 0, errors, warnings };
+  }
+
 }

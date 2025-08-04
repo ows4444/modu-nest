@@ -13,9 +13,10 @@ import {
   ParseIntPipe,
   ValidationPipe,
   UsePipes,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import type { Response, Request } from 'express';
 import type { Express } from 'express';
 import 'multer';
 import { PluginRegistryService } from '../services/plugin-registry.service';
@@ -73,8 +74,15 @@ export class PluginController {
 
   @Get(':name/download')
   @Header('Content-Type', 'application/zip')
-  async downloadPlugin(@Param('name') name: string, @Res() res: Response): Promise<void> {
-    const { buffer, metadata } = await this.pluginRegistryService.downloadPlugin(name);
+  async downloadPlugin(
+    @Param('name') name: string, 
+    @Req() req: Request,
+    @Res() res: Response
+  ): Promise<void> {
+    const userAgent = req.get('User-Agent');
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    
+    const { buffer, metadata } = await this.pluginRegistryService.downloadPlugin(name, userAgent, ipAddress);
 
     res.setHeader('Content-Disposition', `attachment; filename="${metadata.name}-${metadata.version}.zip"`);
     res.setHeader('Content-Length', buffer.length);
@@ -89,6 +97,66 @@ export class PluginController {
     return {
       message: `Plugin ${name} deleted successfully`,
       deletedPlugin: name,
+    };
+  }
+
+  @Get('cache/stats')
+  async getValidationCacheStats() {
+    return {
+      cache: this.pluginRegistryService.getValidationCacheStats(),
+      message: 'Validation cache statistics retrieved successfully'
+    };
+  }
+
+  @Delete('cache/clear')
+  async clearValidationCache() {
+    this.pluginRegistryService.clearValidationCache();
+    return {
+      message: 'Validation cache cleared successfully'
+    };
+  }
+
+  @Get('search')
+  async searchPlugins(@Query('q') query: string): Promise<PluginResponseDto[]> {
+    if (!query || query.trim().length === 0) {
+      throw new BadRequestException('Search query is required');
+    }
+    return this.pluginRegistryService.searchPlugins(query.trim());
+  }
+
+  @Get('stats/detailed')
+  async getDetailedStats() {
+    return this.pluginRegistryService.getDetailedRegistryStats();
+  }
+
+  @Get('database/stats')
+  async getDatabaseStats() {
+    const dbService = this.pluginRegistryService.getDatabaseService();
+    return dbService.getDatabaseStats();
+  }
+
+  @Post('database/backup')
+  async createDatabaseBackup(@Query('type') type: 'full' | 'incremental' = 'full') {
+    const dbService = this.pluginRegistryService.getDatabaseService();
+    const backup = await dbService.createBackup(type);
+    return {
+      message: 'Database backup created successfully',
+      backup
+    };
+  }
+
+  @Get('database/backups')
+  async listDatabaseBackups() {
+    const dbService = this.pluginRegistryService.getDatabaseService();
+    return dbService.listBackups();
+  }
+
+  @Post('database/restore/:filename')
+  async restoreDatabaseBackup(@Param('filename') filename: string) {
+    const dbService = this.pluginRegistryService.getDatabaseService();
+    await dbService.restoreBackup(filename);
+    return {
+      message: `Database restored from backup: ${filename}`
     };
   }
 }

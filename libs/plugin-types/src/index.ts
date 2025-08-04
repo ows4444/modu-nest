@@ -55,3 +55,12 @@ export * from './lib/plugin-permission.service';
 
 // Plugin circuit breaker for resilience
 export * from './lib/plugin-circuit-breaker';
+
+// Plugin metrics collection system
+export * from './lib/plugin-metrics-collector';
+
+// Plugin caching system
+export * from './lib/plugin-cache.service';
+
+// Plugin version utilities
+export * from './lib/plugin-version-utils';

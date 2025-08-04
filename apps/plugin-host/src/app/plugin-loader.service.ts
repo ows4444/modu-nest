@@ -14,8 +14,11 @@ import {
   PluginCircuitBreaker,
   PluginCircuitOpenError,
   CircuitBreakerState,
+  PluginCacheService,
+  PluginCacheKeyBuilder,
 } from '@modu-nest/plugin-types';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
+import { PluginMetricsService } from './plugin-metrics.service';
 
 @Injectable()
 export class PluginLoaderService {
@@ -27,9 +30,28 @@ export class PluginLoaderService {
   private discoveredPlugins = new Map<string, PluginDiscovery>();
   private crossPluginServiceManager = new CrossPluginServiceManager();
   private circuitBreaker = new PluginCircuitBreaker();
+  private metricsService?: PluginMetricsService;
+  private cacheService = new PluginCacheService();
+
+  // Memory management for plugin cleanup
+  private readonly pluginWeakRefs = new Map<string, WeakRef<any>>();
+  private readonly pluginTimers = new Map<string, NodeJS.Timeout[]>();
+  private readonly pluginEventListeners = new Map<string, Array<{ target: any; event: string; listener: Function }>>();
+  private readonly pluginInstances = new Map<string, Set<any>>();
+
+  // FinalizationRegistry to track garbage collection
+  private readonly cleanupRegistry = new FinalizationRegistry((pluginName: string) => {
+    this.logger.debug(`Plugin instance garbage collected: ${pluginName}`);
+    this.pluginWeakRefs.delete(pluginName);
+  });
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
+  }
+
+  setMetricsService(metricsService: PluginMetricsService): void {
+    this.metricsService = metricsService;
+    this.logger.debug('Metrics service configured for plugin loader');
   }
 
   async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
@@ -206,6 +228,14 @@ export class PluginLoaderService {
   private async loadManifest(pluginPath: string): Promise<PluginManifest> {
     const manifestPath = path.join(pluginPath, 'plugin.manifest.json');
 
+    // Check cache first using the manifest path as key
+    const cacheKey = PluginCacheKeyBuilder.pluginManifest(manifestPath);
+    const cachedManifest = this.cacheService.get<PluginManifest>(cacheKey);
+    if (cachedManifest) {
+      this.logger.debug(`Using cached manifest: ${manifestPath}`);
+      return cachedManifest;
+    }
+
     try {
       await fs.promises.access(manifestPath);
     } catch {
@@ -219,6 +249,10 @@ export class PluginLoaderService {
     if (!manifest.name || !manifest.version || !manifest.module) {
       throw new Error(`Invalid plugin manifest: ${manifestPath}`);
     }
+
+    // Cache the manifest for 10 minutes
+    this.cacheService.set(cacheKey, manifest, 10 * 60 * 1000);
+    this.logger.debug(`Cached manifest: ${manifestPath}`);
 
     return manifest;
   }
@@ -372,7 +406,7 @@ export class PluginLoaderService {
         // Don't rethrow circuit breaker errors - they indicate the plugin should be skipped
         return null;
       }
-      
+
       this.logger.error(`Plugin loading failed for ${pluginName}:`, error);
       throw error;
     }
@@ -397,11 +431,17 @@ export class PluginLoaderService {
   }
 
   private async loadSinglePlugin(pluginName: string): Promise<LoadedPlugin | null> {
+    const loadStartTime = Date.now();
+
     const discovery = this.discoveredPlugins.get(pluginName);
     if (!discovery) {
       this.logger.error(`Plugin discovery not found: ${pluginName}`);
+      this.metricsService?.recordPluginLoadError(pluginName, new Error('Plugin discovery not found'));
       return null;
     }
+
+    // Record plugin load start
+    this.metricsService?.recordPluginLoadStart(pluginName);
 
     // Wait for all dependencies to be loaded
     await this.waitForDependencies(discovery.dependencies);
@@ -437,8 +477,18 @@ export class PluginLoaderService {
       // Execute afterLoad lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'afterLoad');
 
+      // Register plugin for memory tracking
+      this.registerPluginForMemoryTracking(manifest.name, pluginModule, loadedPlugin);
+
+      // Record successful plugin load
+      const loadTime = Date.now() - loadStartTime;
+      this.metricsService?.recordPluginLoad(manifest.name, loadTime, manifest.version);
+
       return loadedPlugin;
     } catch (error) {
+      // Record plugin load error
+      this.metricsService?.recordPluginLoadError(pluginName, error as Error);
+
       // Execute onError lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'onError', error);
       throw error;
@@ -631,7 +681,7 @@ export class PluginLoaderService {
       providers.push(...guardProviders);
 
       // Add cross-plugin service providers for dependency injection
-      const crossPluginProviders = this.crossPluginServiceManager.createCrossPluginProviders(
+      const crossPluginProviders = await this.crossPluginServiceManager.createCrossPluginProviders(
         manifest.name,
         manifest,
         pluginModule
@@ -640,7 +690,7 @@ export class PluginLoaderService {
 
       // Make exported services globally available
       if (manifest.module.exports) {
-        const globalProviders = this.crossPluginServiceManager.createGlobalServiceProviders(
+        const globalProviders = await this.crossPluginServiceManager.createGlobalServiceProviders(
           manifest.name,
           manifest.module.exports,
           pluginModule
@@ -777,7 +827,7 @@ export class PluginLoaderService {
     const pluginNames = Array.from(this.loadedPlugins.keys());
     for (const pluginName of pluginNames) {
       await this.guardManager.removePluginGuards(pluginName);
-      this.crossPluginServiceManager.removePluginServices(pluginName);
+      await this.crossPluginServiceManager.removePluginServices(pluginName);
     }
 
     this.loadedPlugins.clear();
@@ -797,13 +847,16 @@ export class PluginLoaderService {
   /**
    * Gets plugin statistics including guard information
    */
-  getPluginStats() {
+  async getPluginStats() {
     const plugins = Array.from(this.loadedPlugins.values());
     const guardStats = this.guardManager.getStatistics();
-    const serviceStats = this.crossPluginServiceManager.getStatistics();
+    const serviceStats = await this.crossPluginServiceManager.getStatistics();
 
     // Calculate loading state distribution
     const stateDistribution = this.getLoadingStateDistribution();
+
+    // Calculate memory statistics
+    const memoryStats = this.getOverallMemoryStats();
 
     return {
       totalLoaded: plugins.length,
@@ -822,6 +875,7 @@ export class PluginLoaderService {
       }, {} as Record<string, number>),
       guards: guardStats,
       crossPluginServices: serviceStats,
+      memoryManagement: memoryStats,
     };
   }
 
@@ -1003,15 +1057,22 @@ export class PluginLoaderService {
           ),
         ]);
 
-        this.logger.debug(`✓ Lifecycle hook '${hook}' [${i + 1}/${handlers.length}] executed successfully for plugin: ${plugin.manifest.name}`);
+        this.logger.debug(
+          `✓ Lifecycle hook '${hook}' [${i + 1}/${handlers.length}] executed successfully for plugin: ${
+            plugin.manifest.name
+          }`
+        );
       } catch (error) {
-        this.logger.error(`Lifecycle hook '${hook}' [${i + 1}/${handlers.length}] failed for plugin '${plugin.manifest.name}':`, error);
+        this.logger.error(
+          `Lifecycle hook '${hook}' [${i + 1}/${handlers.length}] failed for plugin '${plugin.manifest.name}':`,
+          error
+        );
 
         // Critical hooks should fail fast
         if (hook === 'beforeLoad') {
           throw error;
         }
-        
+
         // For other hooks, log but continue with remaining hooks
         // This prevents one failing hook from breaking all hooks
       }
@@ -1049,12 +1110,12 @@ export class PluginLoaderService {
         for (const hookType of lifecycleHooks) {
           const metadataKey = `plugin:hook:${hookType}`;
           const hasHook = Reflect.getMetadata(metadataKey, method);
-          
+
           if (hasHook) {
             if (!hooks.has(hookType)) {
               hooks.set(hookType, []);
             }
-            
+
             // Bind the method to the instance if it's a class
             let boundMethod: Function;
             if (typeof exportValue === 'function') {
@@ -1064,19 +1125,24 @@ export class PluginLoaderService {
                 const instance = new ClassConstructor();
                 boundMethod = method.bind(instance);
               } catch (error) {
-                this.logger.warn(`Failed to instantiate class '${exportName}' for lifecycle hook '${hookType}':`, error);
+                this.logger.warn(
+                  `Failed to instantiate class '${exportName}' for lifecycle hook '${hookType}':`,
+                  error
+                );
                 continue;
               }
             } else {
               // This is already an instance/object
               boundMethod = method.bind(exportValue);
             }
-            
+
             const hookHandlers = hooks.get(hookType);
             if (hookHandlers) {
               hookHandlers.push(boundMethod);
             }
-            this.logger.debug(`Found lifecycle hook '${hookType}' in method '${exportName}.${methodName}' for plugin: ${plugin.manifest.name}`);
+            this.logger.debug(
+              `Found lifecycle hook '${hookType}' in method '${exportName}.${methodName}' for plugin: ${plugin.manifest.name}`
+            );
           }
         }
       }
@@ -1088,6 +1154,363 @@ export class PluginLoaderService {
     }
 
     return hooks;
+  }
+
+  /**
+   * Register plugin for comprehensive memory tracking
+   * @private
+   */
+  private registerPluginForMemoryTracking(pluginName: string, pluginModule: any, loadedPlugin: LoadedPlugin): void {
+    try {
+      // Create WeakRef for the main plugin instance
+      if (pluginModule) {
+        const weakRef = new WeakRef(pluginModule);
+        this.pluginWeakRefs.set(pluginName, weakRef);
+        this.cleanupRegistry.register(pluginModule, pluginName);
+      }
+
+      // Track all instances created by the plugin
+      const instances = new Set<any>();
+      this.pluginInstances.set(pluginName, instances);
+
+      // Scan plugin module for instances and potential memory references
+      if (pluginModule && typeof pluginModule === 'object') {
+        this.trackPluginInstances(pluginName, pluginModule, instances);
+      }
+
+      this.logger.debug(`Memory tracking registered for plugin: ${pluginName} (${instances.size} instances tracked)`);
+    } catch (error) {
+      this.logger.warn(`Failed to register memory tracking for plugin ${pluginName}:`, error);
+    }
+  }
+
+  /**
+   * Track instances within plugin module for cleanup
+   * @private
+   */
+  private trackPluginInstances(pluginName: string, obj: any, instances: Set<any>): void {
+    if (!obj) return;
+
+    try {
+      // Add the object itself to tracking
+      instances.add(obj);
+
+      // Track exported classes and their prototypes
+      Object.values(obj).forEach((value) => {
+        if (value && typeof value === 'function') {
+          // This is likely a class constructor
+          instances.add(value);
+          if (value.prototype) {
+            instances.add(value.prototype);
+          }
+        } else if (value && typeof value === 'object') {
+          // Track object instances
+          instances.add(value);
+        }
+      });
+    } catch (error) {
+      this.logger.debug(`Error tracking instances for ${pluginName}:`, error);
+    }
+  }
+
+  /**
+   * Track timers and intervals created by plugins
+   */
+  registerPluginTimer(pluginName: string, timer: NodeJS.Timeout): void {
+    if (!this.pluginTimers.has(pluginName)) {
+      this.pluginTimers.set(pluginName, []);
+    }
+    this.pluginTimers.get(pluginName)!.push(timer);
+  }
+
+  /**
+   * Track event listeners added by plugins
+   */
+  registerPluginEventListener(pluginName: string, target: any, event: string, listener: Function): void {
+    if (!this.pluginEventListeners.has(pluginName)) {
+      this.pluginEventListeners.set(pluginName, []);
+    }
+    this.pluginEventListeners.get(pluginName)!.push({ target, event, listener });
+  }
+
+  /**
+   * Comprehensive plugin cleanup with memory leak prevention
+   * @private
+   */
+  private async performComprehensiveCleanup(pluginName: string): Promise<void> {
+    this.logger.debug(`Starting comprehensive cleanup for plugin: ${pluginName}`);
+
+    try {
+      // 1. Clear all timers and intervals
+      await this.clearPluginTimers(pluginName);
+
+      // 2. Remove all event listeners
+      await this.clearPluginEventListeners(pluginName);
+
+      // 3. Clear WeakRefs and instance tracking
+      await this.clearPluginInstanceTracking(pluginName);
+
+      // 4. Clear module cache (existing functionality)
+      await this.clearPluginModuleCache(pluginName);
+
+      // 5. Force garbage collection hint (if available)
+      this.forceGarbageCollectionHint();
+
+      this.logger.debug(`Comprehensive cleanup completed for plugin: ${pluginName}`);
+    } catch (error) {
+      this.logger.error(`Error during comprehensive cleanup for ${pluginName}:`, error);
+    }
+  }
+
+  /**
+   * Clear all timers associated with a plugin
+   * @private
+   */
+  private async clearPluginTimers(pluginName: string): Promise<void> {
+    const timers = this.pluginTimers.get(pluginName);
+    if (timers && timers.length > 0) {
+      this.logger.debug(`Clearing ${timers.length} timers for plugin: ${pluginName}`);
+
+      for (const timer of timers) {
+        try {
+          clearTimeout(timer);
+          clearInterval(timer);
+        } catch (error) {
+          this.logger.debug(`Error clearing timer for ${pluginName}:`, error);
+        }
+      }
+
+      this.pluginTimers.delete(pluginName);
+    }
+  }
+
+  /**
+   * Clear all event listeners associated with a plugin
+   * @private
+   */
+  private async clearPluginEventListeners(pluginName: string): Promise<void> {
+    const listeners = this.pluginEventListeners.get(pluginName);
+    if (listeners && listeners.length > 0) {
+      this.logger.debug(`Removing ${listeners.length} event listeners for plugin: ${pluginName}`);
+
+      for (const { target, event, listener } of listeners) {
+        try {
+          if (target && typeof target.removeEventListener === 'function') {
+            target.removeEventListener(event, listener);
+          } else if (target && typeof target.off === 'function') {
+            target.off(event, listener);
+          } else if (target && typeof target.removeListener === 'function') {
+            target.removeListener(event, listener);
+          }
+        } catch (error) {
+          this.logger.debug(`Error removing event listener for ${pluginName}:`, error);
+        }
+      }
+
+      this.pluginEventListeners.delete(pluginName);
+    }
+  }
+
+  /**
+   * Clear instance tracking and WeakRefs
+   * @private
+   */
+  private async clearPluginInstanceTracking(pluginName: string): Promise<void> {
+    // Clear WeakRef
+    const weakRef = this.pluginWeakRefs.get(pluginName);
+    if (weakRef) {
+      this.pluginWeakRefs.delete(pluginName);
+      this.logger.debug(`WeakRef cleared for plugin: ${pluginName}`);
+    }
+
+    // Clear instance tracking
+    const instances = this.pluginInstances.get(pluginName);
+    if (instances) {
+      this.logger.debug(`Clearing tracking for ${instances.size} instances of plugin: ${pluginName}`);
+
+      // Attempt to null out references in tracked instances
+      for (const instance of instances) {
+        try {
+          // For objects, try to clear their properties to break circular references
+          if (instance && typeof instance === 'object' && !Array.isArray(instance)) {
+            Object.keys(instance).forEach((key) => {
+              try {
+                if (instance[key] && typeof instance[key] === 'object') {
+                  instance[key] = null;
+                }
+              } catch (error) {
+                // Ignore errors when clearing properties (may be read-only)
+              }
+            });
+          }
+        } catch (error) {
+          this.logger.debug(`Error clearing instance references for ${pluginName}:`, error);
+        }
+      }
+
+      instances.clear();
+      this.pluginInstances.delete(pluginName);
+    }
+  }
+
+  /**
+   * Force garbage collection hint (if available in Node.js)
+   * @private
+   */
+  private forceGarbageCollectionHint(): void {
+    try {
+      // Check if global.gc is available (Node.js with --expose-gc flag)
+      if (typeof global !== 'undefined' && global.gc && typeof global.gc === 'function') {
+        global.gc();
+        this.logger.debug('Garbage collection triggered');
+      } else {
+        // No GC available, but that's okay - this is just a hint
+        this.logger.debug('Garbage collection not available (--expose-gc flag not set)');
+      }
+    } catch (error) {
+      this.logger.debug('Error triggering garbage collection:', error);
+    }
+  }
+
+  /**
+   * Get memory usage statistics for a plugin
+   */
+  getPluginMemoryStats(pluginName: string): {
+    hasWeakRef: boolean;
+    isAlive: boolean;
+    trackedInstances: number;
+    activeTimers: number;
+    activeEventListeners: number;
+  } {
+    const weakRef = this.pluginWeakRefs.get(pluginName);
+    const instances = this.pluginInstances.get(pluginName);
+    const timers = this.pluginTimers.get(pluginName);
+    const listeners = this.pluginEventListeners.get(pluginName);
+
+    return {
+      hasWeakRef: !!weakRef,
+      isAlive: weakRef ? weakRef.deref() !== undefined : false,
+      trackedInstances: instances ? instances.size : 0,
+      activeTimers: timers ? timers.length : 0,
+      activeEventListeners: listeners ? listeners.length : 0,
+    };
+  }
+
+  /**
+   * Get overall memory management statistics
+   * @private
+   */
+  private getOverallMemoryStats(): {
+    totalTrackedPlugins: number;
+    totalWeakRefs: number;
+    totalAliveInstances: number;
+    totalTrackedInstances: number;
+    totalActiveTimers: number;
+    totalActiveEventListeners: number;
+    pluginMemoryDetails: Record<
+      string,
+      {
+        hasWeakRef: boolean;
+        isAlive: boolean;
+        trackedInstances: number;
+        activeTimers: number;
+        activeEventListeners: number;
+      }
+    >;
+    systemMemoryUsage: NodeJS.MemoryUsage;
+  } {
+    const pluginNames = Array.from(this.loadedPlugins.keys());
+    const pluginMemoryDetails: Record<string, any> = {};
+
+    let totalWeakRefs = 0;
+    let totalAliveInstances = 0;
+    let totalTrackedInstances = 0;
+    let totalActiveTimers = 0;
+    let totalActiveEventListeners = 0;
+
+    // Collect stats for each plugin
+    pluginNames.forEach((pluginName) => {
+      const stats = this.getPluginMemoryStats(pluginName);
+      pluginMemoryDetails[pluginName] = stats;
+
+      if (stats.hasWeakRef) totalWeakRefs++;
+      if (stats.isAlive) totalAliveInstances++;
+      totalTrackedInstances += stats.trackedInstances;
+      totalActiveTimers += stats.activeTimers;
+      totalActiveEventListeners += stats.activeEventListeners;
+    });
+
+    // Get system memory usage
+    const systemMemoryUsage = process.memoryUsage();
+
+    return {
+      totalTrackedPlugins: pluginNames.length,
+      totalWeakRefs,
+      totalAliveInstances,
+      totalTrackedInstances,
+      totalActiveTimers,
+      totalActiveEventListeners,
+      pluginMemoryDetails,
+      systemMemoryUsage,
+    };
+  }
+
+  /**
+   * Force cleanup of all unloaded plugins to free memory
+   */
+  async forceMemoryCleanup(): Promise<{
+    pluginsProcessed: number;
+    totalTimersCleared: number;
+    totalListenersRemoved: number;
+    totalInstancesCleared: number;
+  }> {
+    this.logger.log('Starting forced memory cleanup for all plugins...');
+
+    let pluginsProcessed = 0;
+    let totalTimersCleared = 0;
+    let totalListenersRemoved = 0;
+    let totalInstancesCleared = 0;
+
+    // Process all tracked plugins, including unloaded ones
+    const allTrackedPlugins = new Set([
+      ...this.pluginWeakRefs.keys(),
+      ...this.pluginTimers.keys(),
+      ...this.pluginEventListeners.keys(),
+      ...this.pluginInstances.keys(),
+    ]);
+
+    for (const pluginName of allTrackedPlugins) {
+      const isLoaded = this.loadedPlugins.has(pluginName);
+
+      // Only clean up unloaded plugins or force cleanup for all
+      if (!isLoaded) {
+        this.logger.debug(`Performing forced cleanup for unloaded plugin: ${pluginName}`);
+
+        const timers = this.pluginTimers.get(pluginName);
+        const listeners = this.pluginEventListeners.get(pluginName);
+        const instances = this.pluginInstances.get(pluginName);
+
+        if (timers) totalTimersCleared += timers.length;
+        if (listeners) totalListenersRemoved += listeners.length;
+        if (instances) totalInstancesCleared += instances.size;
+
+        await this.performComprehensiveCleanup(pluginName);
+        pluginsProcessed++;
+      }
+    }
+
+    // Force garbage collection hint
+    this.forceGarbageCollectionHint();
+
+    const result = {
+      pluginsProcessed,
+      totalTimersCleared,
+      totalListenersRemoved,
+      totalInstancesCleared,
+    };
+
+    this.logger.log(`Forced memory cleanup completed: ${JSON.stringify(result)}`);
+    return result;
   }
 
   /**
@@ -1105,7 +1528,7 @@ export class PluginLoaderService {
     try {
       const dynamicRequire = createRequire(__filename);
       const resolvedPath = dynamicRequire.resolve(mainPath);
-      
+
       if (dynamicRequire.cache[resolvedPath]) {
         delete dynamicRequire.cache[resolvedPath];
         this.logger.debug(`Cleared module cache for plugin: ${pluginName}`);
@@ -1115,8 +1538,8 @@ export class PluginLoaderService {
       const moduleDir = path.dirname(resolvedPath);
       let clearedCount = 0;
       Object.keys(dynamicRequire.cache)
-        .filter(cachePath => cachePath.startsWith(moduleDir))
-        .forEach(cachePath => {
+        .filter((cachePath) => cachePath.startsWith(moduleDir))
+        .forEach((cachePath) => {
           delete dynamicRequire.cache[cachePath];
           clearedCount++;
         });
@@ -1146,10 +1569,10 @@ export class PluginLoaderService {
 
       // Clean up guards and services
       await this.guardManager.removePluginGuards(pluginName);
-      this.crossPluginServiceManager.removePluginServices(pluginName);
+      await this.crossPluginServiceManager.removePluginServices(pluginName);
 
-      // Clear module cache
-      await this.clearPluginModuleCache(pluginName);
+      // Perform comprehensive memory cleanup
+      await this.performComprehensiveCleanup(pluginName);
 
       // Remove from loaded plugins
       this.loadedPlugins.delete(pluginName);
@@ -1157,6 +1580,16 @@ export class PluginLoaderService {
 
       // Execute afterUnload lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'afterUnload');
+
+      // Invalidate cache entries for this plugin
+      const pluginPattern = PluginCacheKeyBuilder.pluginPattern(pluginName);
+      const invalidatedCount = this.cacheService.invalidatePattern(pluginPattern);
+      if (invalidatedCount > 0) {
+        this.logger.debug(`Invalidated ${invalidatedCount} cache entries for plugin: ${pluginName}`);
+      }
+
+      // Record plugin unload
+      this.metricsService?.recordPluginUnload(pluginName);
 
       this.logger.log(`Plugin unloaded successfully: ${pluginName}`);
     } catch (error) {
@@ -1396,7 +1829,9 @@ export class PluginLoaderService {
       return await this.circuitBreaker.execute(pluginName, operation);
     } catch (error) {
       if (error instanceof PluginCircuitOpenError) {
-        this.logger.warn(`Operation '${operationName || 'unknown'}' blocked by circuit breaker for plugin '${pluginName}'`);
+        this.logger.warn(
+          `Operation '${operationName || 'unknown'}' blocked by circuit breaker for plugin '${pluginName}'`
+        );
       }
       throw error;
     }
@@ -1429,14 +1864,12 @@ export class PluginLoaderService {
   /**
    * Enhanced plugin statistics including circuit breaker information
    */
-  getEnhancedPluginStats() {
-    const baseStats = this.getPluginStats();
+  async getEnhancedPluginStats() {
+    const baseStats = await this.getPluginStats();
     const circuitBreakerStats = this.getAllCircuitBreakerStats();
-    
+
     // Create a map for easy lookup
-    const cbStatsByPlugin = new Map(
-      circuitBreakerStats.map(stat => [stat.pluginName, stat])
-    );
+    const cbStatsByPlugin = new Map(circuitBreakerStats.map((stat) => [stat.pluginName, stat]));
 
     return {
       ...baseStats,
@@ -1445,22 +1878,85 @@ export class PluginLoaderService {
         pluginStats: circuitBreakerStats,
         summary: {
           totalPlugins: circuitBreakerStats.length,
-          openCircuits: circuitBreakerStats.filter(s => s.state === CircuitBreakerState.OPEN).length,
-          halfOpenCircuits: circuitBreakerStats.filter(s => s.state === CircuitBreakerState.HALF_OPEN).length,
-          averageFailureRate: circuitBreakerStats.length > 0 
-            ? circuitBreakerStats.reduce((sum, s) => sum + s.failureRate, 0) / circuitBreakerStats.length
-            : 0,
-          averageUptime: circuitBreakerStats.length > 0
-            ? circuitBreakerStats.reduce((sum, s) => sum + s.uptime, 0) / circuitBreakerStats.length
-            : 100,
-        }
+          openCircuits: circuitBreakerStats.filter((s) => s.state === CircuitBreakerState.OPEN).length,
+          halfOpenCircuits: circuitBreakerStats.filter((s) => s.state === CircuitBreakerState.HALF_OPEN).length,
+          averageFailureRate:
+            circuitBreakerStats.length > 0
+              ? circuitBreakerStats.reduce((sum, s) => sum + s.failureRate, 0) / circuitBreakerStats.length
+              : 0,
+          averageUptime:
+            circuitBreakerStats.length > 0
+              ? circuitBreakerStats.reduce((sum, s) => sum + s.uptime, 0) / circuitBreakerStats.length
+              : 100,
+        },
       },
-      pluginsWithCircuitBreaker: Array.from(this.loadedPlugins.keys()).map(pluginName => ({
+      pluginsWithCircuitBreaker: Array.from(this.loadedPlugins.keys()).map((pluginName) => ({
         pluginName,
         circuitBreaker: cbStatsByPlugin.get(pluginName) || null,
         isLoaded: true,
-      }))
+      })),
     };
+  }
+
+  /**
+   * Get comprehensive cache statistics
+   * @returns Cache statistics including hit rate, memory usage, and entry details
+   */
+  getCacheStatistics() {
+    return this.cacheService.getCacheStats();
+  }
+
+  /**
+   * Clear all plugin cache entries
+   * @returns Number of entries cleared
+   */
+  clearPluginCache(): number {
+    const stats = this.cacheService.getCacheStats();
+    this.cacheService.clear();
+    this.logger.log(`Cleared all plugin cache entries (${stats.size} entries)`);
+    return stats.size;
+  }
+
+  /**
+   * Invalidate cache entries for a specific plugin
+   * @param pluginName - Name of the plugin
+   * @returns Number of entries invalidated
+   */
+  invalidatePluginCache(pluginName: string): number {
+    const pattern = PluginCacheKeyBuilder.pluginPattern(pluginName);
+    const count = this.cacheService.invalidatePattern(pattern);
+    this.logger.log(`Invalidated ${count} cache entries for plugin: ${pluginName}`);
+    return count;
+  }
+
+  /**
+   * Invalidate cache entries by type (manifest, metadata, etc.)
+   * @param cacheType - Type of cache entries to invalidate
+   * @returns Number of entries invalidated
+   */
+  invalidateCacheByType(cacheType: string): number {
+    const pattern = PluginCacheKeyBuilder.typePattern(cacheType);
+    const count = this.cacheService.invalidatePattern(pattern);
+    this.logger.log(`Invalidated ${count} cache entries of type: ${cacheType}`);
+    return count;
+  }
+
+  /**
+   * Get cache entry details for debugging
+   * @param key - Cache key
+   * @returns Cache entry details or undefined
+   */
+  getCacheEntryDetails(key: string) {
+    return this.cacheService.getEntryDetails(key);
+  }
+
+  /**
+   * Get all cache keys matching a pattern
+   * @param pattern - Regular expression pattern
+   * @returns Array of matching cache keys
+   */
+  getCacheKeys(pattern?: RegExp): string[] {
+    return pattern ? this.cacheService.getKeysMatching(pattern) : this.cacheService.getKeys();
   }
 }
 

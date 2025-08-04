@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { PluginValidator, PluginResponseDto } from '@modu-nest/plugin-types';
 import { PluginMetadata, CreatePluginDto, RegistryStats, PluginListResponseDto } from '@modu-nest/plugin-types';
 import { PluginStorageService } from './plugin-storage.service';
+import { PluginValidationCacheService } from './plugin-validation-cache.service';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CreatePluginValidationDto } from '../dto/plugin.dto';
@@ -20,7 +21,10 @@ export class PluginRegistryService {
     MAX_FILE_SIZE: parseInt(process.env.PLUGIN_MAX_FILE_SIZE || '52428800', 10), // 50MB
   };
 
-  constructor(private readonly storageService: PluginStorageService) {
+  constructor(
+    private readonly storageService: PluginStorageService,
+    private readonly validationCacheService: PluginValidationCacheService
+  ) {
     this.logger.log(`Security configuration loaded: timeout=${this.SECURITY_CONFIG.REGEX_TIMEOUT_MS}ms, maxContentSize=${this.SECURITY_CONFIG.MAX_CONTENT_SIZE} bytes`);
   }
 
@@ -31,6 +35,10 @@ export class PluginRegistryService {
         `Plugin file size (${pluginBuffer.length} bytes) exceeds maximum allowed size (${this.SECURITY_CONFIG.MAX_FILE_SIZE} bytes)`
       );
     }
+
+    // Calculate checksum early for caching
+    const checksum = crypto.createHash('sha256').update(new Uint8Array(pluginBuffer)).digest('hex');
+    this.logger.debug(`Processing plugin with checksum: ${checksum.substring(0, 8)}...`);
 
     const extractedManifest: CreatePluginDto = await this.extractManifestFromZip(pluginBuffer);
 
@@ -44,15 +52,15 @@ export class PluginRegistryService {
       throw new BadRequestException(`Invalid plugin manifest: ${errorMessages}`);
     }
 
-    // Validate manifest
-    const validationResult = PluginValidator.validateManifest(extractedManifest);
-    if (!validationResult.isValid) {
-      throw new BadRequestException(`Invalid plugin manifest: ${validationResult.errors.join(', ')}`);
+    // Validate manifest using cache
+    const manifestValidationResult = await this.validateManifestWithCache(extractedManifest, checksum);
+    if (!manifestValidationResult.isValid) {
+      throw new BadRequestException(`Invalid plugin manifest: ${manifestValidationResult.errors.join(', ')}`);
     }
 
     // Log warnings if any
-    if (validationResult.warnings.length > 0) {
-      this.logger.warn(`Plugin validation warnings: ${validationResult.warnings.join(', ')}`);
+    if (manifestValidationResult.warnings.length > 0) {
+      this.logger.warn(`Plugin validation warnings: ${manifestValidationResult.warnings.join(', ')}`);
     }
 
     // Check if plugin already exists with same version
@@ -62,14 +70,13 @@ export class PluginRegistryService {
       );
     }
 
-    // Validate ZIP structure
-    await this.validatePluginStructure(pluginBuffer);
+    // Validate ZIP structure using cache
+    await this.validatePluginStructureWithCache(pluginBuffer, checksum);
 
-    // Perform security validation
-    await this.validatePluginSecurity(pluginBuffer);
+    // Perform security validation using cache
+    await this.validatePluginSecurityWithCache(pluginBuffer, checksum);
 
     // Create metadata
-    const checksum = crypto.createHash('sha256').update(new Uint8Array(pluginBuffer)).digest('hex');
     const metadata: PluginMetadata = {
       ...extractedManifest,
       uploadedAt: new Date().toISOString(),
@@ -80,7 +87,7 @@ export class PluginRegistryService {
     // Store plugin
     await this.storageService.storePlugin(metadata, pluginBuffer);
 
-    this.logger.log(`Plugin ${metadata.name} v${metadata.version} uploaded successfully`);
+    this.logger.log(`Plugin ${metadata.name} v${metadata.version} uploaded successfully (checksum: ${checksum.substring(0, 8)}...)`);
     return metadata;
   }
 
@@ -280,7 +287,7 @@ export class PluginRegistryService {
     return this.mapToResponseDto(plugin.metadata);
   }
 
-  async downloadPlugin(name: string): Promise<{
+  async downloadPlugin(name: string, userAgent?: string, ipAddress?: string): Promise<{
     buffer: Buffer;
     metadata: PluginMetadata;
   }> {
@@ -288,6 +295,9 @@ export class PluginRegistryService {
     if (!plugin) {
       throw new NotFoundException(`Plugin ${name} not found`);
     }
+
+    // Record download in database
+    await this.storageService.recordDownload(name, userAgent, ipAddress);
 
     const buffer = await this.storageService.getPluginBuffer(name);
     return {
@@ -315,6 +325,34 @@ export class PluginRegistryService {
   }
 
   /**
+   * Get detailed registry statistics including database metrics
+   */
+  async getDetailedRegistryStats() {
+    const detailedStats = await this.storageService.getDetailedStorageStats();
+    return {
+      ...detailedStats,
+      uptime: process.uptime().toString(),
+      validation: this.getValidationCacheStats(),
+      security: this.getSecurityStats(),
+    };
+  }
+
+  /**
+   * Search plugins by query
+   */
+  async searchPlugins(query: string): Promise<PluginResponseDto[]> {
+    const plugins = await this.storageService.searchPlugins(query);
+    return plugins.map(p => this.mapToResponseDto(p.metadata));
+  }
+
+  /**
+   * Get database service for advanced operations
+   */
+  getDatabaseService() {
+    return this.storageService.getDatabaseService();
+  }
+
+  /**
    * Get security configuration and statistics
    */
   getSecurityStats(): {
@@ -332,6 +370,120 @@ export class PluginRegistryService {
       unsafeModulesCount: this.UNSAFE_MODULES.length,
       unsafeModules: [...this.UNSAFE_MODULES],
     };
+  }
+
+  /**
+   * Get validation cache statistics
+   */
+  getValidationCacheStats() {
+    return this.validationCacheService.getCacheStats();
+  }
+
+  /**
+   * Clear validation cache
+   */
+  clearValidationCache(): void {
+    this.validationCacheService.clearCache();
+    this.logger.log('Validation cache cleared');
+  }
+
+  /**
+   * Validate manifest with caching support
+   */
+  private async validateManifestWithCache(manifest: CreatePluginDto, checksum: string) {
+    // Check cache first
+    const cachedResult = this.validationCacheService.getCachedValidation(checksum, 'manifest');
+    if (cachedResult) {
+      this.logger.debug(`Using cached manifest validation for checksum: ${checksum.substring(0, 8)}...`);
+      return cachedResult;
+    }
+
+    // Perform validation
+    const validationResult = PluginValidator.validateManifest(manifest);
+    
+    // Cache the result
+    this.validationCacheService.setCachedValidation(checksum, validationResult, 'manifest');
+    
+    return validationResult;
+  }
+
+  /**
+   * Validate plugin structure with caching support
+   */
+  private async validatePluginStructureWithCache(pluginBuffer: Buffer, checksum: string): Promise<void> {
+    // Check cache first
+    const cachedResult = this.validationCacheService.getCachedValidation(checksum, 'structure');
+    if (cachedResult) {
+      this.logger.debug(`Using cached structure validation for checksum: ${checksum.substring(0, 8)}...`);
+      if (!cachedResult.isValid) {
+        throw new BadRequestException(`Invalid plugin structure: ${cachedResult.errors.join(', ')}`);
+      }
+      if (cachedResult.warnings.length > 0) {
+        this.logger.warn(`Plugin structure warnings: ${cachedResult.warnings.join(', ')}`);
+      }
+      return;
+    }
+
+    // Perform validation (delegate to existing method)
+    try {
+      await this.validatePluginStructure(pluginBuffer);
+      
+      // Cache successful result
+      const successResult = { isValid: true, errors: [], warnings: [] };
+      this.validationCacheService.setCachedValidation(checksum, successResult, 'structure');
+      
+    } catch (error) {
+      // Cache failed result
+      if (error instanceof BadRequestException) {
+        const failedResult = { 
+          isValid: false, 
+          errors: [error.message.replace('Invalid plugin structure: ', '')], 
+          warnings: [] 
+        };
+        this.validationCacheService.setCachedValidation(checksum, failedResult, 'structure');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Validate plugin security with caching support
+   */
+  private async validatePluginSecurityWithCache(pluginBuffer: Buffer, checksum: string): Promise<void> {
+    // Check cache first
+    const cachedResult = this.validationCacheService.getCachedValidation(checksum, 'security');
+    if (cachedResult) {
+      this.logger.debug(`Using cached security validation for checksum: ${checksum.substring(0, 8)}...`);
+      if (!cachedResult.isValid) {
+        throw new BadRequestException(cachedResult.errors.join('\n'));
+      }
+      if (cachedResult.warnings.length > 0) {
+        this.logger.warn(`Plugin security warnings: ${cachedResult.warnings.join(', ')}`);
+      }
+      this.logger.log('Security validation passed - cached result');
+      return;
+    }
+
+    // Perform validation (delegate to existing method)
+    try {
+      await this.validatePluginSecurity(pluginBuffer);
+      
+      // Cache successful result
+      const successResult = { isValid: true, errors: [], warnings: [] };
+      this.validationCacheService.setCachedValidation(checksum, successResult, 'security');
+      
+    } catch (error) {
+      // Cache failed result
+      if (error instanceof BadRequestException) {
+        const failedResult = { 
+          isValid: false, 
+          errors: [error.message], 
+          warnings: [] 
+        };
+        this.validationCacheService.setCachedValidation(checksum, failedResult, 'security');
+      }
+      throw error;
+    }
   }
 
   private mapToResponseDto(metadata: PluginMetadata): PluginResponseDto {

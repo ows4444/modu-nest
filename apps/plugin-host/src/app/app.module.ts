@@ -2,6 +2,7 @@ import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
+import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
@@ -45,6 +46,7 @@ export class AppModule implements OnModuleInit {
           provide: PluginLoaderService,
           useValue: pluginLoaderInstance,
         },
+        PluginMetricsService,
         RegistryClientService,
         CrossPluginServiceManager,
         PluginGuardRegistryService,
@@ -63,12 +65,16 @@ export class AppModule implements OnModuleInit {
 
   constructor(
     private pluginLoader: PluginLoaderService,
+    private metricsService: PluginMetricsService,
     private guardRegistry: PluginGuardRegistryService,
     private guardInterceptor: PluginGuardInterceptor
   ) {}
 
   async onModuleInit() {
     this.instanceLogger.log('AppModule initialized - plugins should be loaded');
+
+    // Set up metrics service in plugin loader
+    this.pluginLoader.setMetricsService(this.metricsService);
 
     // Set up guard registry in plugin loader
     this.pluginLoader.setGuardRegistry(this.guardRegistry);

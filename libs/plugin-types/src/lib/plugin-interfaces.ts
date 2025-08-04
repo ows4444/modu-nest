@@ -55,19 +55,6 @@ export interface PluginSecurity {
   };
 }
 
-export interface PluginMetrics {
-  performance?: {
-    maxStartupTime?: number;
-    maxResponseTime?: number;
-    healthCheckInterval?: number;
-  };
-  monitoring?: {
-    enablePerformanceTracking?: boolean;
-    enableErrorTracking?: boolean;
-    enableSecurityMonitoring?: boolean;
-    logLevel?: 'debug' | 'info' | 'warn' | 'error';
-  };
-}
 
 export interface PluginCompatibility {
   minimumHostVersion?: string;
@@ -85,7 +72,6 @@ export interface PluginManifest {
   loadOrder?: number;
   critical?: boolean;
   security?: PluginSecurity;
-  metrics?: PluginMetrics;
   compatibility?: PluginCompatibility;
   module: PluginModuleMeta;
 }
@@ -150,6 +136,7 @@ export interface PluginVersion {
   major: number;
   minor: number;
   patch: number;
-  prerelease?: string;
-  build?: string;
+  prerelease?: string | null;
+  build?: string | null;
+  raw?: string;
 }
