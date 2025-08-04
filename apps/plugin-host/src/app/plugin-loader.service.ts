@@ -23,7 +23,6 @@ export class PluginLoaderService {
   private discoveredPlugins = new Map<string, PluginDiscovery>();
   private crossPluginServiceManager = new CrossPluginServiceManager();
 
-
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
   }
@@ -60,42 +59,64 @@ export class PluginLoaderService {
 
   private async discoverPlugins(): Promise<PluginDiscovery[]> {
     const pluginsPath = process.env.PLUGINS_DIR || path.resolve(__dirname, 'assets', 'plugins');
-    const discoveries: PluginDiscovery[] = [];
 
-    if (!fs.existsSync(pluginsPath)) {
+    try {
+      await fs.promises.access(pluginsPath);
+    } catch {
       this.logger.warn(`Plugins directory not found: ${pluginsPath}`);
-      return discoveries;
+      return [];
     }
 
-    const pluginDirs = fs
-      .readdirSync(pluginsPath, { withFileTypes: true })
-      .filter((dirent) => dirent.isDirectory())
-      .map((dirent) => dirent.name);
+    const pluginDirs = await fs.promises.readdir(pluginsPath, { withFileTypes: true });
+    const directories = pluginDirs.filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
 
-    for (const pluginDir of pluginDirs) {
-      try {
-        const pluginPath = path.join(pluginsPath, pluginDir);
-        const manifest = await this.loadManifest(pluginPath);
+    // Process plugins in parallel using Promise.allSettled
+    const discoveryPromises = directories.map((pluginDir) => this.discoverSinglePlugin(pluginsPath, pluginDir));
 
-        const discovery: PluginDiscovery = {
-          name: manifest.name,
-          path: pluginPath,
-          manifest,
-          dependencies: manifest.dependencies || [],
-          loadOrder: manifest.loadOrder || 0,
-        };
+    const results = await Promise.allSettled(discoveryPromises);
+    const discoveries: PluginDiscovery[] = [];
 
-        discoveries.push(discovery);
-        this.discoveredPlugins.set(manifest.name, discovery);
-        this.loadingState.set(manifest.name, PluginLoadingState.DISCOVERED);
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const pluginDir = directories[i];
 
-        this.logger.debug(`Discovered plugin: ${manifest.name} (dependencies: [${discovery.dependencies.join(', ')}])`);
-      } catch (error) {
-        this.logger.error(`Failed to discover plugin ${pluginDir}:`, error);
+      if (result.status === 'fulfilled' && result.value) {
+        discoveries.push(result.value);
+        this.discoveredPlugins.set(result.value.name, result.value);
+        this.loadingState.set(result.value.name, PluginLoadingState.DISCOVERED);
+        this.logger.debug(
+          `Discovered plugin: ${result.value.name} (dependencies: [${result.value.dependencies.join(', ')}])`
+        );
+      } else {
+        this.logger.error(
+          `Failed to discover plugin ${pluginDir}:`,
+          result.status === 'rejected' ? result.reason : 'Unknown error'
+        );
       }
     }
 
     return discoveries;
+  }
+
+  /**
+   * Discovers a single plugin directory and loads its manifest
+   * @param pluginsPath - Base plugins directory path
+   * @param pluginDir - Individual plugin directory name
+   * @returns Promise<PluginDiscovery | null> - Plugin discovery or null if failed
+   */
+  private async discoverSinglePlugin(pluginsPath: string, pluginDir: string): Promise<PluginDiscovery | null> {
+    const pluginPath = path.join(pluginsPath, pluginDir);
+    const manifest = await this.loadManifest(pluginPath);
+
+    const discovery: PluginDiscovery = {
+      name: manifest.name,
+      path: pluginPath,
+      manifest,
+      dependencies: manifest.dependencies || [],
+      loadOrder: manifest.loadOrder || 0,
+    };
+
+    return discovery;
   }
 
   private calculateLoadOrder(discoveries: PluginDiscovery[]): string[] {
@@ -161,11 +182,13 @@ export class PluginLoaderService {
   private async loadManifest(pluginPath: string): Promise<PluginManifest> {
     const manifestPath = path.join(pluginPath, 'plugin.manifest.json');
 
-    if (!fs.existsSync(manifestPath)) {
+    try {
+      await fs.promises.access(manifestPath);
+    } catch {
       throw new Error(`Plugin manifest not found: ${manifestPath}`);
     }
 
-    const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+    const manifestContent = await fs.promises.readFile(manifestPath, 'utf-8');
     const manifest = JSON.parse(manifestContent) as PluginManifest;
 
     // Basic validation
@@ -346,7 +369,6 @@ export class PluginLoaderService {
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
-
 
   private async createDynamicModuleFromPlugin(
     manifest: PluginManifest,
@@ -747,7 +769,6 @@ export class PluginLoaderService {
       },
     };
   }
-
 
   /**
    * Adds plugin name metadata to controllers for guard isolation
