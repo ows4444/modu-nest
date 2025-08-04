@@ -11,6 +11,9 @@ import {
   PluginGuardRegistryService,
   LocalGuardEntry,
   PluginLifecycleHook,
+  PluginCircuitBreaker,
+  PluginCircuitOpenError,
+  CircuitBreakerState,
 } from '@modu-nest/plugin-types';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 
@@ -23,6 +26,7 @@ export class PluginLoaderService {
   private loadingState = new Map<string, PluginLoadingState>();
   private discoveredPlugins = new Map<string, PluginDiscovery>();
   private crossPluginServiceManager = new CrossPluginServiceManager();
+  private circuitBreaker = new PluginCircuitBreaker();
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
@@ -337,16 +341,38 @@ export class PluginLoaderService {
   }
 
   /**
-   * Load a single plugin with comprehensive error handling
+   * Load a single plugin with comprehensive error handling and circuit breaker protection
    */
   private async loadPluginWithErrorHandling(pluginName: string): Promise<LoadedPlugin | null> {
     try {
       this.logger.debug(`Loading plugin: ${pluginName}`);
       this.loadingState.set(pluginName, PluginLoadingState.LOADING);
 
-      const plugin = await this.loadSinglePlugin(pluginName);
+      // Configure circuit breaker for this plugin based on manifest settings
+      const discovery = this.discoveredPlugins.get(pluginName);
+      if (discovery?.manifest.critical === false) {
+        // Non-critical plugins get more lenient circuit breaker settings
+        this.circuitBreaker.setPluginConfig(pluginName, {
+          maxFailures: 2,
+          resetTimeout: 15000, // 15 seconds
+          operationTimeout: 10000, // 10 seconds
+        });
+      }
+
+      // Execute plugin loading with circuit breaker protection
+      const plugin = await this.circuitBreaker.execute(pluginName, async () => {
+        return await this.loadSinglePlugin(pluginName);
+      });
+
       return plugin;
     } catch (error) {
+      if (error instanceof PluginCircuitOpenError) {
+        this.logger.warn(`Plugin loading blocked by circuit breaker for ${pluginName}: ${error.message}`);
+        this.loadingState.set(pluginName, PluginLoadingState.FAILED);
+        // Don't rethrow circuit breaker errors - they indicate the plugin should be skipped
+        return null;
+      }
+      
       this.logger.error(`Plugin loading failed for ${pluginName}:`, error);
       throw error;
     }
@@ -1311,6 +1337,130 @@ export class PluginLoaderService {
         }
       }
     }
+  }
+
+  /**
+   * Get circuit breaker statistics for a specific plugin
+   */
+  getCircuitBreakerStats(pluginName: string) {
+    return this.circuitBreaker.getPluginStats(pluginName);
+  }
+
+  /**
+   * Get circuit breaker statistics for all plugins
+   */
+  getAllCircuitBreakerStats() {
+    return this.circuitBreaker.getAllStats();
+  }
+
+  /**
+   * Check if a plugin's circuit breaker is currently open
+   */
+  isPluginCircuitOpen(pluginName: string): boolean {
+    return this.circuitBreaker.isCircuitOpen(pluginName);
+  }
+
+  /**
+   * Get the current circuit breaker state for a plugin
+   */
+  getPluginCircuitState(pluginName: string): CircuitBreakerState {
+    return this.circuitBreaker.getCurrentState(pluginName);
+  }
+
+  /**
+   * Reset circuit breaker for a specific plugin
+   */
+  resetPluginCircuitBreaker(pluginName: string): void {
+    this.circuitBreaker.resetPlugin(pluginName);
+    this.logger.log(`Circuit breaker reset for plugin: ${pluginName}`);
+  }
+
+  /**
+   * Reset all circuit breakers
+   */
+  resetAllCircuitBreakers(): void {
+    this.circuitBreaker.resetAll();
+    this.logger.log('All circuit breakers reset');
+  }
+
+  /**
+   * Execute a plugin operation with circuit breaker protection
+   * This can be used by external services to protect plugin-related operations
+   */
+  async executeWithCircuitBreaker<T>(
+    pluginName: string,
+    operation: () => Promise<T>,
+    operationName?: string
+  ): Promise<T> {
+    try {
+      return await this.circuitBreaker.execute(pluginName, operation);
+    } catch (error) {
+      if (error instanceof PluginCircuitOpenError) {
+        this.logger.warn(`Operation '${operationName || 'unknown'}' blocked by circuit breaker for plugin '${pluginName}'`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Configure circuit breaker settings for a specific plugin
+   */
+  configurePluginCircuitBreaker(
+    pluginName: string,
+    config: {
+      maxFailures?: number;
+      resetTimeout?: number;
+      operationTimeout?: number;
+      halfOpenMaxCalls?: number;
+      monitoringWindow?: number;
+    }
+  ): void {
+    this.circuitBreaker.setPluginConfig(pluginName, config);
+    this.logger.log(`Circuit breaker configured for plugin '${pluginName}':`, config);
+  }
+
+  /**
+   * Cleanup circuit breaker resources (called on service shutdown)
+   */
+  private destroyCircuitBreaker(): void {
+    this.circuitBreaker.destroy();
+  }
+
+  /**
+   * Enhanced plugin statistics including circuit breaker information
+   */
+  getEnhancedPluginStats() {
+    const baseStats = this.getPluginStats();
+    const circuitBreakerStats = this.getAllCircuitBreakerStats();
+    
+    // Create a map for easy lookup
+    const cbStatsByPlugin = new Map(
+      circuitBreakerStats.map(stat => [stat.pluginName, stat])
+    );
+
+    return {
+      ...baseStats,
+      circuitBreaker: {
+        enabled: true,
+        pluginStats: circuitBreakerStats,
+        summary: {
+          totalPlugins: circuitBreakerStats.length,
+          openCircuits: circuitBreakerStats.filter(s => s.state === CircuitBreakerState.OPEN).length,
+          halfOpenCircuits: circuitBreakerStats.filter(s => s.state === CircuitBreakerState.HALF_OPEN).length,
+          averageFailureRate: circuitBreakerStats.length > 0 
+            ? circuitBreakerStats.reduce((sum, s) => sum + s.failureRate, 0) / circuitBreakerStats.length
+            : 0,
+          averageUptime: circuitBreakerStats.length > 0
+            ? circuitBreakerStats.reduce((sum, s) => sum + s.uptime, 0) / circuitBreakerStats.length
+            : 100,
+        }
+      },
+      pluginsWithCircuitBreaker: Array.from(this.loadedPlugins.keys()).map(pluginName => ({
+        pluginName,
+        circuitBreaker: cbStatsByPlugin.get(pluginName) || null,
+        isLoaded: true,
+      }))
+    };
   }
 }
 
