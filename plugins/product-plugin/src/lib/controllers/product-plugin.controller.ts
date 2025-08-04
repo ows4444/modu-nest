@@ -1,4 +1,4 @@
-import { PluginRoute, PluginGet, PluginPost, PluginPut, PluginDelete, PluginUseGuards } from '@modu-nest/plugin-types';
+import { PluginRoute, PluginGet, PluginPost, PluginPut, PluginDelete, PluginUseGuards, PluginPermissions } from '@modu-nest/plugin-types';
 import { Body, Param, Query, Request, ValidationPipe, UsePipes } from '@nestjs/common';
 import { ProductPluginService } from '../services/product-plugin.service';
 
@@ -15,6 +15,7 @@ export class ProductPluginController {
 
   @PluginGet('all')
   @PluginUseGuards('user-auth')
+  @PluginPermissions(['products:read'])
   getAllProducts() {
     return this.productPluginService.getAllProducts();
   }
@@ -48,6 +49,7 @@ export class ProductPluginController {
 
   @PluginPost()
   @PluginUseGuards('user-auth', 'product-access')
+  @PluginPermissions(['products:write:own'])
   @UsePipes(new ValidationPipe())
   createProduct(@Body() createProductDto: any, @Request() req: any) {
     const userId = req.user?.id;
@@ -56,6 +58,7 @@ export class ProductPluginController {
 
   @PluginPut(':id')
   @PluginUseGuards('user-auth', 'product-access', 'product-ownership')
+  @PluginPermissions(['products:write:own'])
   @UsePipes(new ValidationPipe())
   updateProduct(@Param('id') id: string, @Body() updateProductDto: any) {
     return this.productPluginService.updateProduct(id, updateProductDto);
@@ -63,6 +66,7 @@ export class ProductPluginController {
 
   @PluginDelete(':id')
   @PluginUseGuards('user-auth', 'product-access', 'product-ownership')
+  @PluginPermissions(['products:delete:own'])
   deleteProduct(@Param('id') id: string) {
     this.productPluginService.deleteProduct(id);
     return { message: 'Product deleted successfully' };

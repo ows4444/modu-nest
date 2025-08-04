@@ -1,4 +1,4 @@
-import { PluginRoute, PluginGet, PluginPost, PluginPut, PluginDelete, PluginUseGuards } from '@modu-nest/plugin-types';
+import { PluginRoute, PluginGet, PluginPost, PluginPut, PluginDelete, PluginUseGuards, PluginPermissions } from '@modu-nest/plugin-types';
 import { Body, Param, Query, ValidationPipe, UsePipes } from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
 
@@ -15,24 +15,28 @@ export class UserPluginController {
 
   @PluginGet('all')
   @PluginUseGuards('user-auth', 'admin-role')
+  @PluginPermissions(['users:read', 'admin:access'])
   getAllUsers() {
     return this.userPluginService.getAllUsers();
   }
 
   @PluginGet('by-role')
   @PluginUseGuards('user-auth', 'admin-role')
+  @PluginPermissions(['users:read', 'admin:access'])
   getUsersByRole(@Query('role') role: string) {
     return this.userPluginService.getUsersByRole(role);
   }
 
   @PluginGet(':id')
   @PluginUseGuards('user-auth', 'user-ownership')
+  @PluginPermissions(['users:read:own'])
   getUserById(@Param('id') id: string) {
     return this.userPluginService.getUserById(id);
   }
 
   @PluginPost()
   @PluginUseGuards('user-auth', 'admin-role')
+  @PluginPermissions(['users:write', 'admin:access'])
   @UsePipes(new ValidationPipe())
   createUser(@Body() createUserDto: any) {
     return this.userPluginService.createUser(createUserDto);
@@ -40,6 +44,7 @@ export class UserPluginController {
 
   @PluginPut(':id')
   @PluginUseGuards('user-auth', 'user-ownership')
+  @PluginPermissions(['users:write:own'])
   @UsePipes(new ValidationPipe())
   updateUser(@Param('id') id: string, @Body() updateUserDto: any) {
     return this.userPluginService.updateUser(id, updateUserDto);
@@ -47,6 +52,7 @@ export class UserPluginController {
 
   @PluginDelete(':id')
   @PluginUseGuards('user-auth', 'admin-role')
+  @PluginPermissions(['users:delete', 'admin:access'])
   deleteUser(@Param('id') id: string) {
     this.userPluginService.deleteUser(id);
     return { message: 'User deleted successfully' };
@@ -67,6 +73,7 @@ export class UserPluginController {
 
   @PluginGet('test/admin-only')
   @PluginUseGuards('user-auth', 'admin-role')
+  @PluginPermissions(['admin:*'])
   testAdminOnly() {
     return { message: 'This endpoint requires admin role', timestamp: new Date() };
   }

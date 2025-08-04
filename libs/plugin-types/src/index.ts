@@ -48,3 +48,7 @@ export * from './lib/plugin-guards';
 export * from './lib/plugin-guard-registry.service';
 export * from './lib/plugin-guard-interceptor';
 export { PluginGuardManager } from './lib/plugin-guard-manager';
+
+// Plugin permission system
+export * from './lib/plugin-permission-interceptor';
+export * from './lib/plugin-permission.service';

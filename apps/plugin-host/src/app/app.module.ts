@@ -1,10 +1,17 @@
 import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
-import { PluginGuardInterceptor, PluginGuardRegistryService } from '@modu-nest/plugin-types';
+import { 
+  PluginGuardInterceptor, 
+  PluginGuardRegistryService,
+  PluginPermissionInterceptor,
+  DefaultPluginPermissionService,
+  PLUGIN_PERMISSION_SERVICE
+} from '@modu-nest/plugin-types';
 
 @Module({})
 export class AppModule implements OnModuleInit {
@@ -42,6 +49,14 @@ export class AppModule implements OnModuleInit {
         CrossPluginServiceManager,
         PluginGuardRegistryService,
         PluginGuardInterceptor,
+        {
+          provide: PLUGIN_PERMISSION_SERVICE,
+          useClass: DefaultPluginPermissionService,
+        },
+        {
+          provide: APP_GUARD,
+          useClass: PluginPermissionInterceptor,
+        },
       ],
     };
   }
@@ -109,7 +124,7 @@ export class AppModule implements OnModuleInit {
           if (depPlugin && depPlugin.manifest.module.guards) {
             for (const guard of depPlugin.manifest.module.guards) {
               // Add all exported guards from dependency plugins
-              if (guard.scope === 'local' && (guard as any).exported === true) {
+              if (guard.scope === 'local' && (guard as unknown as Record<string, unknown>).exported === true) {
                 guards.push(guard.name);
               }
             }
