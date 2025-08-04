@@ -19,6 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Quick Start
 
 This is an **enterprise-grade microservice-based plugin architecture** with two main applications:
+
 - **Plugin Host** (Port 4001) - Dynamically loads and manages plugins with sophisticated dependency resolution
 - **Plugin Registry** (Port 6001) - Validates, stores, and distributes plugins with comprehensive security scanning
 
@@ -38,6 +39,7 @@ nx run my-plugin:plugin-validate
 ## Common Commands
 
 ### Building and Testing
+
 ```bash
 # Build specific project with dependency resolution
 nx build <project-name>
@@ -58,6 +60,7 @@ nx affected:build
 ```
 
 ### Plugin Development Lifecycle
+
 ```bash
 # Generate plugin with complete structure
 nx g @modu-nest/plugin:plugin <plugin-name>
@@ -79,6 +82,7 @@ nx run <plugin-name>:plugin-registry-publish
 ```
 
 ### Advanced Development Commands
+
 ```bash
 # Run E2E tests with global setup/teardown
 nx run plugin-host-e2e:e2e
@@ -101,26 +105,33 @@ nx report
 The architecture implements sophisticated patterns for enterprise plugin management:
 
 #### 1. Plugin Host (`apps/plugin-host/`)
+
 **Primary Components:**
+
 - **PluginLoaderService**: Orchestrates complete plugin lifecycle with dependency resolution
 - **CrossPluginServiceManager**: Manages controlled inter-plugin communication
 - **PluginGuardManager**: Enforces security isolation between plugins
 
 **Advanced Features:**
+
 - **Topological Sorting**: Resolves plugin load order with priority queue implementation
 - **Asynchronous Dependency Resolution**: 30-second timeout with polling-based waiting
 - **Hot Reloading**: Development-friendly plugin reloading with proper cleanup
 - **Memory Management**: Proper cleanup of guards, services, and module references
 
 #### 2. Plugin Registry (`apps/plugin-registry/`)
+
 **Security-First Design:**
+
 - **Multi-layer Validation**: Manifest validation, import scanning, and structural verification
 - **ZIP Content Analysis**: Deep inspection of uploaded plugin packages
 - **Security Blacklist**: Comprehensive blocking of dangerous Node.js modules
 - **Cryptographic Verification**: SHA-256 checksums and optional signature validation
 
 #### 3. Plugin Types Library (`libs/plugin-types/`)
+
 **Comprehensive Type System:**
+
 - **Plugin Interfaces**: Complete typing for manifests, guards, and services
 - **Validation Framework**: Runtime validation with detailed error reporting
 - **Security Types**: Trust levels, sandboxing, and resource limit definitions
@@ -131,6 +142,7 @@ The architecture implements sophisticated patterns for enterprise plugin managem
 The system implements a sophisticated 5-phase loading process:
 
 #### Phase 1: Discovery and Manifest Parsing
+
 ```typescript
 // Scans PLUGINS_DIR for plugin.manifest.json files
 const discoveries = await this.discoverPlugins();
@@ -139,6 +151,7 @@ await this.validateManifest(manifest);
 ```
 
 #### Phase 2: Dependency Graph Construction
+
 ```typescript
 // Builds dependency graph with cycle detection
 const loadOrder = this.calculateLoadOrder(discoveries);
@@ -147,6 +160,7 @@ const queue = new PriorityQueue<PluginDiscovery>((a, b) => a.loadOrder - b.loadO
 ```
 
 #### Phase 3: Security Validation
+
 ```typescript
 // Import scanning for dangerous modules
 const unsafeImports = this.scanForUnsafeImports(content);
@@ -155,6 +169,7 @@ const isolationResult = await this.verifyGuardIsolation();
 ```
 
 #### Phase 4: Dynamic Module Creation
+
 ```typescript
 // Runtime NestJS module generation
 const DynamicPluginModule = class {};
@@ -163,6 +178,7 @@ moduleDecorator(DynamicPluginModule);
 ```
 
 #### Phase 5: Cross-Plugin Service Registration
+
 ```typescript
 // Global service token creation
 const globalProviders = this.crossPluginServiceManager.createGlobalServiceProviders();
@@ -182,11 +198,11 @@ providers.push(...guardProviders, ...crossPluginProviders, ...globalProviders);
   "dependencies": ["user-plugin", "core-services"],
   "loadOrder": 200,
   "critical": false,
-  
+
   "security": {
     "trustLevel": "verified",
     "checksum": {
-      "algorithm": "sha256", 
+      "algorithm": "sha256",
       "hash": "abc123..."
     },
     "sandbox": {
@@ -198,7 +214,7 @@ providers.push(...guardProviders, ...crossPluginProviders, ...globalProviders);
       }
     }
   },
-  
+
   "metrics": {
     "performance": {
       "maxStartupTime": 5000,
@@ -209,13 +225,13 @@ providers.push(...guardProviders, ...crossPluginProviders, ...globalProviders);
       "logLevel": "info"
     }
   },
-  
+
   "module": {
     "controllers": ["AdvancedController"],
     "providers": ["AdvancedService", "InternalHelper"],
     "exports": ["AdvancedService"],
     "imports": ["DatabaseModule"],
-    
+
     "guards": [
       {
         "name": "advanced-access",
@@ -230,7 +246,7 @@ providers.push(...guardProviders, ...crossPluginProviders, ...globalProviders);
         "scope": "external"
       }
     ],
-    
+
     "crossPluginServices": [
       {
         "serviceName": "AdvancedService",
@@ -250,21 +266,23 @@ providers.push(...guardProviders, ...crossPluginProviders, ...globalProviders);
 The system provides plugin-specific decorators for enhanced development:
 
 ```typescript
-import { 
-  PluginGet, PluginPost, PluginMetadataDecorator, 
-  PluginPermissions, PluginRoutePrefix 
+import {
+  PluginGet,
+  PluginPost,
+  PluginMetadataDecorator,
+  PluginPermissions,
+  PluginRoutePrefix,
 } from '@modu-nest/plugin-types';
 
 @PluginRoutePrefix('api/advanced')
 @PluginMetadataDecorator({ version: '1.0.0', features: ['caching'] })
 export class AdvancedController {
-  
   @PluginGet('data')
   @PluginPermissions(['read:data'])
   async getData() {
     return { data: 'Advanced plugin data' };
   }
-  
+
   @PluginPost('process')
   @PluginPermissions(['write:data'])
   async processData(@Body() data: any) {
@@ -285,7 +303,7 @@ export class DependentService {
     @Inject('USER_PLUGIN_SERVICE') private userService: any,
     @Inject('ADVANCED_SERVICE') private advancedService: any
   ) {}
-  
+
   async processWithDependencies(data: any) {
     const user = await this.userService.getCurrentUser();
     return await this.advancedService.process(data, user);
@@ -301,16 +319,13 @@ import { Reflector } from '@nestjs/core';
 
 @Injectable()
 export class AdvancedAccessGuard implements CanActivate {
-  constructor(
-    private reflector: Reflector,
-    @Inject('USER_AUTH_GUARD') private userAuthGuard: any
-  ) {}
-  
+  constructor(private reflector: Reflector, @Inject('USER_AUTH_GUARD') private userAuthGuard: any) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Check user authentication first
     const isAuthenticated = await this.userAuthGuard.canActivate(context);
     if (!isAuthenticated) return false;
-    
+
     // Check plugin-specific permissions
     const permissions = this.reflector.get('plugin:permissions', context.getHandler());
     return this.validatePermissions(permissions, context);
@@ -327,12 +342,12 @@ import { PluginEnvironmentService } from '@modu-nest/plugin-types';
 @Injectable()
 export class PluginConfigService {
   constructor(private envService: PluginEnvironmentService) {}
-  
+
   getFeatureFlag(flag: string): boolean {
     // Access plugin-specific feature flags from environment
     return process.env[`PLUGIN_${flag.toUpperCase()}`] === 'true';
   }
-  
+
   getResourceLimit(resource: string): number {
     const securityConfig = this.envService.getSecurityConfig();
     switch (resource) {
@@ -352,22 +367,24 @@ export class PluginConfigService {
 The build system uses **Nx 21.3.7** with sophisticated optimization strategies:
 
 #### Key Features:
+
 - **Incremental Compilation**: TypeScript composite projects with build info caching
-- **Dependency Tracking**: Project references prevent unnecessary rebuilds  
+- **Dependency Tracking**: Project references prevent unnecessary rebuilds
 - **Named Inputs**: Aggressive caching based on relevant file changes only
 - **Parallel Execution**: Independent projects build simultaneously
 
 #### Build Targets and Optimizations:
+
 ```typescript
 // Production build optimization
 const buildOptions = {
   target: 'es2022',
-  module: 'nodenext', 
+  module: 'nodenext',
   composite: true,
   incremental: true,
   strict: true,
   removeComments: options.production,
-  skipLibCheck: options.production
+  skipLibCheck: options.production,
 };
 ```
 
@@ -376,16 +393,18 @@ const buildOptions = {
 The plugin build system implements multi-stage processing:
 
 #### Stage 1: Validation and Security Scanning
+
 ```bash
 nx run my-plugin:plugin-validate
 # - Manifest semantic versioning validation
-# - TypeScript compilation verification  
+# - TypeScript compilation verification
 # - Unsafe import detection
 # - Guard dependency validation
 ```
 
 #### Stage 2: Compilation and Optimization
-```bash  
+
+```bash
 nx run my-plugin:plugin-build --production
 # - TypeScript compilation with optimizations
 # - JavaScript minification (production)
@@ -394,6 +413,7 @@ nx run my-plugin:plugin-build --production
 ```
 
 #### Stage 3: Packaging and Distribution
+
 ```bash
 nx run my-plugin:plugin-zip
 # - ZIP creation with selective file inclusion
@@ -408,7 +428,7 @@ nx run my-plugin:plugin-zip
 {
   "compilerOptions": {
     "composite": true,           // Enable project references
-    "declarationMap": true,      // Source maps for declarations  
+    "declarationMap": true,      // Source maps for declarations
     "module": "nodenext",        // Modern Node.js resolution
     "target": "es2022",          // Modern JavaScript target
     "experimentalDecorators": true, // NestJS support
@@ -434,6 +454,7 @@ nx run my-plugin:plugin-zip
 The testing system supports multiple testing strategies:
 
 #### Unit Testing Configuration:
+
 ```typescript
 // For applications (SWC for speed)
 {
@@ -442,7 +463,7 @@ The testing system supports multiple testing strategies:
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts']
 }
 
-// For plugins (ts-jest for compatibility)  
+// For plugins (ts-jest for compatibility)
 {
   transform: { '^.+\\.[tj]s$': ['ts-jest', { tsconfig: 'tsconfig.spec.json' }] },
   testEnvironment: 'node'
@@ -450,6 +471,7 @@ The testing system supports multiple testing strategies:
 ```
 
 #### E2E Testing Infrastructure:
+
 ```typescript
 // Global setup with port management
 export default async function globalSetup() {
@@ -463,6 +485,7 @@ axios.defaults.baseURL = `http://localhost:${port}`;
 ### Testing Patterns for Plugin Development
 
 #### Plugin Service Testing:
+
 ```typescript
 describe('PluginService', () => {
   let service: PluginService;
@@ -473,7 +496,7 @@ describe('PluginService', () => {
       providers: [
         PluginService,
         { provide: 'USER_PLUGIN_SERVICE', useValue: mockUserService },
-        { provide: 'PLUGIN_REGISTRY', useValue: mockRegistry }
+        { provide: 'PLUGIN_REGISTRY', useValue: mockRegistry },
       ],
     }).compile();
 
@@ -488,6 +511,7 @@ describe('PluginService', () => {
 ```
 
 #### Guard Testing:
+
 ```typescript
 describe('PluginGuard', () => {
   let guard: PluginGuard;
@@ -547,7 +571,7 @@ PLUGIN_REGISTRY_PORT=6001
 PLUGINS_DIR=/path/to/plugins
 PLUGIN_REGISTRY_URL=http://localhost:6001
 
-# Security Settings  
+# Security Settings
 ALLOW_UNSIGNED_PLUGINS=false
 ENABLE_PLUGIN_SANDBOX=true
 MAX_PLUGIN_MEMORY=134217728
@@ -576,7 +600,7 @@ The system scans for dangerous imports during build:
 
 ```typescript
 private readonly UNSAFE_MODULES = [
-  'fs', 'fs/promises', 'child_process', 'process', 'os', 
+  'fs', 'fs/promises', 'child_process', 'process', 'os',
   'path', 'crypto', 'net', 'http', 'https', 'cluster',
   'worker_threads', 'vm', 'node:*' // Node.js prefixed modules
 ];
@@ -589,7 +613,7 @@ private scanForUnsafeImports(content: string): string[] {
 
 #### 2. Runtime Guard Isolation
 
-```typescript  
+```typescript
 async verifyGuardIsolation(): Promise<{
   isSecure: boolean;
   violations: string[];
@@ -608,9 +632,9 @@ interface PluginSandbox {
   enabled: boolean;
   isolationLevel: 'process' | 'vm' | 'container';
   resourceLimits: {
-    maxMemory: number;     // 128MB default
-    maxCPU: number;        // 50% default
-    maxFileSize: number;   // 10MB default
+    maxMemory: number; // 128MB default
+    maxCPU: number; // 50% default
+    maxFileSize: number; // 10MB default
     maxNetworkBandwidth: number;
   };
 }
@@ -642,6 +666,7 @@ interface PluginSandbox {
 ## API Endpoints
 
 ### Plugin Registry (Port 6001)
+
 ```bash
 # Plugin Management
 POST   /plugins                    # Upload plugin package with validation
@@ -657,6 +682,7 @@ GET    /metrics                    # Registry performance metrics
 ```
 
 ### Plugin Host (Port 4001)
+
 ```bash
 # Application Status
 GET    /                          # Application health and status
@@ -706,12 +732,12 @@ console.log(`Load order: ${loadOrder.join(' -> ')}`);
 const isolation = await pluginLoader.verifyGuardIsolation();
 if (!isolation.isSecure) {
   console.log('Security violations found:');
-  isolation.violations.forEach(violation => console.log(`  - ${violation}`));
-  
+  isolation.violations.forEach((violation) => console.log(`  - ${violation}`));
+
   console.log('Summary:', {
     totalPlugins: isolation.summary.totalPlugins,
     totalGuards: isolation.summary.totalGuards,
-    externalReferences: isolation.summary.externalReferences
+    externalReferences: isolation.summary.externalReferences,
   });
 }
 
@@ -721,7 +747,7 @@ console.log('Guard resolution:', {
   totalGuards: guardStats.totalGuards,
   localGuards: guardStats.localGuards,
   externalReferences: guardStats.externalReferences,
-  resolutionErrors: guardStats.resolutionErrors
+  resolutionErrors: guardStats.resolutionErrors,
 });
 ```
 
@@ -745,24 +771,28 @@ nx run my-plugin:plugin-zip --list-contents
 ### Common Error Patterns and Solutions
 
 #### Circular Dependencies
+
 ```bash
 Error: Circular dependencies detected: plugin-a, plugin-b
 Solution: Review plugin manifest dependencies, adjust loadOrder values
 ```
 
 #### Missing Guards
-```bash  
+
+```bash
 Error: Plugin 'my-plugin' has unresolvable guard dependencies: ['missing-guard']
 Solution: Verify guard exports in dependency plugin manifests
 ```
 
 #### Security Violations
+
 ```bash
 Error: Security validation failed - unsafe imports detected: fs, child_process
 Solution: Remove dangerous Node.js imports, use NestJS/framework alternatives
 ```
 
 #### Memory Issues
+
 ```bash
 Error: Plugin exceeded memory limit: 150MB > 128MB
 Solution: Optimize plugin code, increase MAX_PLUGIN_MEMORY if needed
@@ -778,7 +808,7 @@ const serviceStats = crossPluginManager.getStatistics();
 console.log('Service performance:', {
   totalServices: serviceStats.totalServices,
   globalServices: serviceStats.globalServices,
-  averageResolutionTime: serviceStats.averageResolutionTime
+  averageResolutionTime: serviceStats.averageResolutionTime,
 });
 
 // Memory usage monitoring
@@ -786,7 +816,7 @@ const memoryUsage = process.memoryUsage();
 console.log('Memory usage:', {
   heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
   heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
-  external: Math.round(memoryUsage.external / 1024 / 1024) + 'MB'
+  external: Math.round(memoryUsage.external / 1024 / 1024) + 'MB',
 });
 ```
 

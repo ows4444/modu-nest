@@ -1,4 +1,12 @@
-import { PluginRoute, PluginGet, PluginPost, PluginPut, PluginDelete, PluginUseGuards, PluginPermissions } from '@modu-nest/plugin-types';
+import {
+  PluginRoute,
+  PluginGet,
+  PluginPost,
+  PluginPut,
+  PluginDelete,
+  PluginUseGuards,
+  PluginPermissions,
+} from '@modu-nest/plugin-types';
 import { Body, Param, Query, ValidationPipe, UsePipes } from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
 
