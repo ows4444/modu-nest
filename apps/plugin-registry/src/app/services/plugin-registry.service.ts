@@ -286,12 +286,12 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     metadata: PluginMetadata;
   }> {
     try {
-      const result = await this.storageOrchestrator.downloadPlugin(name, userAgent, ipAddress);
+      const downloadResult = await this.storageOrchestrator.downloadPlugin(name, userAgent, ipAddress);
 
       // Emit plugin downloaded event
-      this.eventEmitter.emitPluginDownloaded(name, userAgent, ipAddress, result.buffer.length);
+      this.eventEmitter.emitPluginDownloaded(name, userAgent, ipAddress, downloadResult.buffer.length);
 
-      return result;
+      return downloadResult;
     } catch (error) {
       // Record error metrics
       if (error instanceof Error) {
@@ -533,19 +533,19 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         timestamp: new Date()
       });
 
-      const result = await this.versionManager.promoteVersion(pluginName, version);
+      const promotionResult = await this.versionManager.promoteVersion(pluginName, version);
 
       // Emit version promotion completed event
       this.eventEmitter.emit('plugin-version-promotion-completed', {
         pluginName,
-        fromVersion: result.previousActiveVersion,
-        toVersion: result.newActiveVersion,
-        affectedDependents: result.affectedDependents,
-        warnings: result.warnings,
+        fromVersion: promotionResult.previousActiveVersion,
+        toVersion: promotionResult.newActiveVersion,
+        affectedDependents: promotionResult.affectedDependents,
+        warnings: promotionResult.warnings,
         timestamp: new Date()
       });
 
-      return result;
+      return promotionResult;
     } catch (error) {
       if (error instanceof Error) {
         this.errorMetrics.recordError(error as any, { pluginName, operation: 'promotePluginVersion' });
@@ -579,18 +579,18 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         timestamp: new Date()
       });
 
-      const result = await this.versionManager.rollbackToVersion(pluginName, targetVersion, options);
+      const rollbackResult = await this.versionManager.rollbackToVersion(pluginName, targetVersion, options);
 
       // Emit rollback completed event
       this.eventEmitter.emit('plugin-version-rollback-completed', {
         pluginName,
-        fromVersion: result.previousActiveVersion,
-        toVersion: result.newActiveVersion,
+        fromVersion: rollbackResult.previousActiveVersion,
+        toVersion: rollbackResult.newActiveVersion,
         rollbackReason: options?.rollbackReason,
         timestamp: new Date()
       });
 
-      return result;
+      return rollbackResult;
     } catch (error) {
       if (error instanceof Error) {
         this.errorMetrics.recordError(error as any, { pluginName, operation: 'rollbackPluginVersion' });

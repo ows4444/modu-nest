@@ -322,28 +322,29 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     const discoveries: PluginDiscovery[] = [];
 
     for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      const pluginDir = directories[i];
+      const discoveryResult = results[i];
+      const pluginDirectoryName = directories[i];
 
-      if (result.status === 'fulfilled' && result.value) {
-        discoveries.push(result.value);
-        this.discoveredPlugins.set(result.value.name, result.value);
-        this.stateMachine.transition(result.value.name, PluginTransition.REDISCOVER);
+      if (discoveryResult.status === 'fulfilled' && discoveryResult.value) {
+        const pluginDiscovery = discoveryResult.value;
+        discoveries.push(pluginDiscovery);
+        this.discoveredPlugins.set(pluginDiscovery.name, pluginDiscovery);
+        this.stateMachine.transition(pluginDiscovery.name, PluginTransition.REDISCOVER);
         
         // Emit plugin discovered event
         this.eventEmitter.emitPluginDiscovered(
-          result.value.name,
-          result.value.path,
-          result.value.manifest
+          pluginDiscovery.name,
+          pluginDiscovery.path,
+          pluginDiscovery.manifest
         );
         
         this.logger.debug(
-          `Discovered plugin: ${result.value.name} (dependencies: [${result.value.dependencies.join(', ')}])`
+          `Discovered plugin: ${pluginDiscovery.name} (dependencies: [${pluginDiscovery.dependencies.join(', ')}])`
         );
       } else {
         this.logger.error(
-          `Failed to discover plugin ${pluginDir}:`,
-          result.status === 'rejected' ? result.reason : 'Unknown error'
+          `Failed to discover plugin ${pluginDirectoryName}:`,
+          discoveryResult.status === 'rejected' ? discoveryResult.reason : 'Unknown error'
         );
       }
     }
@@ -361,7 +362,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     const pluginPath = path.join(pluginsPath, pluginDir);
     const manifest = await this.loadManifest(pluginPath);
 
-    const discovery: PluginDiscovery = {
+    const pluginDiscoveryInfo: PluginDiscovery = {
       name: manifest.name,
       path: pluginPath,
       manifest,
@@ -369,7 +370,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       loadOrder: manifest.loadOrder || 0,
     };
 
-    return discovery;
+    return pluginDiscoveryInfo;
   }
 
   private calculateLoadOrder(discoveries: PluginDiscovery[]): string[] {
@@ -396,40 +397,40 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     }
 
     // Topological sort with priority queue (load order)
-    const queue = new PriorityQueue<PluginDiscovery>((a, b) => a.loadOrder - b.loadOrder);
-    const result: string[] = [];
+    const loadOrderQueue = new PriorityQueue<PluginDiscovery>((a, b) => a.loadOrder - b.loadOrder);
+    const orderedPluginNames: string[] = [];
 
     // Add nodes with no dependencies
-    for (const plugin of discoveries) {
-      if ((inDegree.get(plugin.name) || 0) === 0) {
-        queue.enqueue(plugin);
+    for (const pluginDiscovery of discoveries) {
+      if ((inDegree.get(pluginDiscovery.name) || 0) === 0) {
+        loadOrderQueue.enqueue(pluginDiscovery);
       }
     }
 
-    while (!queue.isEmpty()) {
-      const current = queue.dequeue()!;
-      result.push(current.name);
+    while (!loadOrderQueue.isEmpty()) {
+      const currentPlugin = loadOrderQueue.dequeue()!;
+      orderedPluginNames.push(currentPlugin.name);
 
       // Update in-degrees of dependent plugins
-      for (const plugin of discoveries) {
-        if (plugin.dependencies.includes(current.name)) {
-          const newInDegree = (inDegree.get(plugin.name) || 0) - 1;
-          inDegree.set(plugin.name, newInDegree);
+      for (const pluginDiscovery of discoveries) {
+        if (pluginDiscovery.dependencies.includes(currentPlugin.name)) {
+          const updatedInDegree = (inDegree.get(pluginDiscovery.name) || 0) - 1;
+          inDegree.set(pluginDiscovery.name, updatedInDegree);
 
-          if (newInDegree === 0) {
-            queue.enqueue(plugin);
+          if (updatedInDegree === 0) {
+            loadOrderQueue.enqueue(pluginDiscovery);
           }
         }
       }
     }
 
     // Check for circular dependencies
-    if (result.length !== discoveries.length) {
-      const remaining = discoveries.filter((p) => !result.includes(p.name));
-      throw new Error(`Circular dependencies detected: ${remaining.map((p) => p.name).join(', ')}`);
+    if (orderedPluginNames.length !== discoveries.length) {
+      const pluginsWithCircularDeps = discoveries.filter((p) => !orderedPluginNames.includes(p.name));
+      throw new Error(`Circular dependencies detected: ${pluginsWithCircularDeps.map((p) => p.name).join(', ')}`);
     }
 
-    return result;
+    return orderedPluginNames;
   }
 
   private async loadManifest(pluginPath: string): Promise<PluginManifest> {
@@ -601,17 +602,17 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private async loadSinglePlugin(pluginName: string): Promise<LoadedPlugin | null> {
     const loadStartTime = Date.now();
 
-    const discovery = this.validatePluginDiscovery(pluginName);
-    if (!discovery) {
+    const pluginDiscoveryInfo = this.validatePluginDiscovery(pluginName);
+    if (!pluginDiscoveryInfo) {
       return null;
     }
 
-    this.emitLoadingStartEvents(pluginName, discovery);
+    this.emitLoadingStartEvents(pluginName, pluginDiscoveryInfo);
 
     try {
-      await this.resolveDependencies(pluginName, discovery.dependencies);
-      const pluginModule = await this.loadAndValidatePlugin(pluginName, discovery);
-      const loadedPlugin = await this.instantiatePlugin(pluginName, discovery, pluginModule);
+      await this.resolveDependencies(pluginName, pluginDiscoveryInfo.dependencies);
+      const pluginModule = await this.loadAndValidatePlugin(pluginName, pluginDiscoveryInfo);
+      const loadedPlugin = await this.instantiatePlugin(pluginName, pluginDiscoveryInfo, pluginModule);
       
       this.finalizePluginLoad(pluginName, loadedPlugin, loadStartTime);
       
@@ -623,8 +624,8 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   }
 
   private validatePluginDiscovery(pluginName: string): PluginDiscovery | null {
-    const discovery = this.discoveredPlugins.get(pluginName);
-    if (!discovery) {
+    const pluginDiscoveryInfo = this.discoveredPlugins.get(pluginName);
+    if (!pluginDiscoveryInfo) {
       this.logger.error(`Plugin discovery not found: ${pluginName}`);
       this.metricsService?.recordPluginLoadError(pluginName, new Error('Plugin discovery not found'));
       
@@ -636,14 +637,14 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       
       return null;
     }
-    return discovery;
+    return pluginDiscoveryInfo;
   }
 
-  private emitLoadingStartEvents(pluginName: string, discovery: PluginDiscovery): void {
+  private emitLoadingStartEvents(pluginName: string, pluginDiscoveryInfo: PluginDiscovery): void {
     this.eventEmitter.emitPluginLoadingStarted(
       pluginName,
       this.loadingStrategy.name,
-      discovery.dependencies
+      pluginDiscoveryInfo.dependencies
     );
 
     this.metricsService?.recordPluginLoadStart(pluginName);
@@ -654,26 +655,26 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     await this.dependencyResolver.waitForDependencies(pluginName, dependencies);
   }
 
-  private async loadAndValidatePlugin(pluginName: string, discovery: PluginDiscovery): Promise<Record<string, unknown>> {
+  private async loadAndValidatePlugin(pluginName: string, pluginDiscoveryInfo: PluginDiscovery): Promise<Record<string, unknown>> {
     this.eventEmitter.emitPluginLoadingProgress(pluginName, 'validation', 30);
-    return await this.importPluginModule(discovery.path);
+    return await this.importPluginModule(pluginDiscoveryInfo.path);
   }
 
-  private async instantiatePlugin(pluginName: string, discovery: PluginDiscovery, pluginModule: Record<string, unknown>): Promise<LoadedPlugin> {
+  private async instantiatePlugin(pluginName: string, pluginDiscoveryInfo: PluginDiscovery, pluginModule: Record<string, unknown>): Promise<LoadedPlugin> {
     this.eventEmitter.emitPluginLoadingProgress(pluginName, 'instantiation', 50);
 
     const loadedPlugin: LoadedPlugin = {
-      manifest: discovery.manifest,
+      manifest: pluginDiscoveryInfo.manifest,
       module: null as any,
       instance: pluginModule,
     };
 
     await this.executeLifecycleHook(loadedPlugin, 'beforeLoad');
-    await this.processPluginGuards(pluginName, discovery.manifest, pluginModule);
+    await this.processPluginGuards(pluginName, pluginDiscoveryInfo.manifest, pluginModule);
 
     this.eventEmitter.emitPluginLoadingProgress(pluginName, 'initialization', 80);
 
-    const dynamicModule = await this.createDynamicModuleFromPlugin(discovery.manifest, pluginModule);
+    const dynamicModule = await this.createDynamicModuleFromPlugin(pluginDiscoveryInfo.manifest, pluginModule);
     if (!dynamicModule) {
       throw new Error(`Failed to create dynamic module for plugin: ${pluginName}`);
     }
@@ -681,7 +682,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     loadedPlugin.module = dynamicModule;
     await this.executeLifecycleHook(loadedPlugin, 'afterLoad');
 
-    this.registerPluginForMemoryTracking(discovery.manifest.name, pluginModule, loadedPlugin);
+    this.registerPluginForMemoryTracking(pluginDiscoveryInfo.manifest.name, pluginModule, loadedPlugin);
 
     return loadedPlugin;
   }
@@ -1391,24 +1392,24 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    * Track instances within plugin module for cleanup
    * @private
    */
-  private trackPluginInstances(pluginName: string, obj: any, instances: Set<any>): void {
-    if (!obj) return;
+  private trackPluginInstances(pluginName: string, pluginModule: any, instances: Set<any>): void {
+    if (!pluginModule) return;
 
     try {
       // Add the object itself to tracking
-      instances.add(obj);
+      instances.add(pluginModule);
 
       // Track exported classes and their prototypes
-      Object.values(obj).forEach((value) => {
-        if (value && typeof value === 'function') {
+      Object.values(pluginModule).forEach((exportedValue) => {
+        if (exportedValue && typeof exportedValue === 'function') {
           // This is likely a class constructor
-          instances.add(value);
-          if (value.prototype) {
-            instances.add(value.prototype);
+          instances.add(exportedValue);
+          if (exportedValue.prototype) {
+            instances.add(exportedValue.prototype);
           }
-        } else if (value && typeof value === 'object') {
+        } else if (exportedValue && typeof exportedValue === 'object') {
           // Track object instances
-          instances.add(value);
+          instances.add(exportedValue);
         }
       });
     } catch (error) {

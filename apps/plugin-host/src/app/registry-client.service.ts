@@ -91,9 +91,9 @@ export class RegistryClientService {
   async listAvailablePlugins(): Promise<RegistryPluginMetadata[]> {
     try {
       this.logger.debug('Fetching available plugins from registry');
-      const response = await this.httpClient.get<RegistryPluginMetadata[]>('/api/plugins');
-      this.logger.log(`Found ${response.data.length} plugins in registry`);
-      return response.data;
+      const pluginListResponse = await this.httpClient.get<RegistryPluginMetadata[]>('/api/plugins');
+      this.logger.log(`Found ${pluginListResponse.data.length} plugins in registry`);
+      return pluginListResponse.data;
     } catch (error) {
       this.handleRegistryError('Failed to fetch plugins from registry', error);
       throw new HttpException('Failed to connect to plugin registry', HttpStatus.SERVICE_UNAVAILABLE);
@@ -107,8 +107,8 @@ export class RegistryClientService {
 
     try {
       this.logger.debug(`Fetching plugin info for: ${name}`);
-      const response = await this.httpClient.get<RegistryPluginMetadata>(`/api/plugins/${name}`);
-      return response.data;
+      const pluginInfoResponse = await this.httpClient.get<RegistryPluginMetadata>(`/api/plugins/${name}`);
+      return pluginInfoResponse.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new HttpException(`Plugin ${name} not found in registry`, HttpStatus.NOT_FOUND);
@@ -139,11 +139,11 @@ export class RegistryClientService {
       this.logger.log(`Downloading plugin ${name} from registry...`);
 
       // Get plugin info first
-      const pluginInfo = await this.httpClient.get(`/api/plugins/${name}`);
-      this.logger.debug(`Plugin info: ${pluginInfo.data.name} v${pluginInfo.data.version}`);
+      const pluginInfoResponse = await this.httpClient.get(`/api/plugins/${name}`);
+      this.logger.debug(`Plugin info: ${pluginInfoResponse.data.name} v${pluginInfoResponse.data.version}`);
 
       // Download the plugin file
-      const response = await this.httpClient.get(`/api/plugins/${name}/download`, {
+      const pluginDownloadResponse = await this.httpClient.get(`/api/plugins/${name}/download`, {
         responseType: 'arraybuffer',
         headers: {
           'Content-Type': undefined,
@@ -151,7 +151,7 @@ export class RegistryClientService {
         },
       });
 
-      const pluginBuffer = Buffer.from(response.data);
+      const pluginBuffer = Buffer.from(pluginDownloadResponse.data);
       this.logger.debug(`Downloaded ${pluginBuffer.length} bytes`);
 
       await this.extractPluginToDirectory(pluginBuffer, pluginDir, name);
@@ -302,7 +302,7 @@ export class RegistryClientService {
         contentType: 'application/zip',
       });
 
-      const response = await this.httpClient.post<RegistryPluginMetadata>('/api/plugins', formData, {
+      const uploadResponse = await this.httpClient.post<RegistryPluginMetadata>('/api/plugins', formData, {
         headers: {
           ...formData.getHeaders(),
         },
@@ -310,8 +310,8 @@ export class RegistryClientService {
         maxContentLength: Infinity,
       });
 
-      this.logger.log(`Plugin uploaded successfully: ${response.data.name} v${response.data.version}`);
-      return response.data;
+      this.logger.log(`Plugin uploaded successfully: ${uploadResponse.data.name} v${uploadResponse.data.version}`);
+      return uploadResponse.data;
     } catch (error) {
       this.handleRegistryError('Failed to upload plugin to registry', error);
 
