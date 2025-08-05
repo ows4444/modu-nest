@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { PluginController } from './controllers/plugin.controller';
 import { HealthController } from './controllers/health.controller';
 import { PluginVersionController } from './controllers/plugin-version.controller';
+import { PluginTrustController } from './controllers/plugin-trust.controller';
 import { PluginRegistryService } from './services/plugin-registry.service';
 import { PluginStorageService } from './services/plugin-storage.service';
 import { PluginValidationCacheService } from './services/plugin-validation-cache.service';
@@ -15,6 +16,7 @@ import { PluginRateLimitingService } from './services/plugin-rate-limiting.servi
 import { PluginBundleOptimizationService } from './services/plugin-bundle-optimization.service';
 import { PluginStorageOrchestratorService } from './services/plugin-storage-orchestrator.service';
 import { PluginVersionManager } from './services/plugin-version-manager';
+import { PluginTrustManager } from './services/plugin-trust-manager';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { SharedConfigModule } from '@modu-nest/config';
 import { RepositoryModule } from './modules/repository.module';
@@ -46,7 +48,7 @@ import { RepositoryModule } from './modules/repository.module';
       },
     }),
   ],
-  controllers: [AppController, PluginController, HealthController, PluginVersionController],
+  controllers: [AppController, PluginController, HealthController, PluginVersionController, PluginTrustController],
   providers: [
     PluginStorageService,
     PluginValidationCacheService,
@@ -57,6 +59,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginBundleOptimizationService,
     PluginStorageOrchestratorService,
     PluginVersionManager,
+    PluginTrustManager,
     PluginRegistryService,
     {
       provide: APP_INTERCEPTOR,
@@ -74,6 +77,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginBundleOptimizationService,
     PluginStorageOrchestratorService,
     PluginVersionManager,
+    PluginTrustManager,
   ],
 })
 export class AppModule {}

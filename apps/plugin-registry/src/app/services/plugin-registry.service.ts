@@ -17,6 +17,7 @@ import { PluginSignatureService } from './plugin-signature.service';
 import { PluginBundleOptimizationService } from './plugin-bundle-optimization.service';
 import { PluginStorageOrchestratorService } from './plugin-storage-orchestrator.service';
 import { PluginVersionManager } from './plugin-version-manager';
+import { PluginTrustManager, TrustLevel } from './plugin-trust-manager';
 
 @Injectable()
 export class PluginRegistryService implements IPluginEventSubscriber {
@@ -30,7 +31,8 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     private readonly signatureService: PluginSignatureService,
     private readonly bundleOptimizationService: PluginBundleOptimizationService,
     private readonly storageOrchestrator: PluginStorageOrchestratorService,
-    private readonly versionManager: PluginVersionManager
+    private readonly versionManager: PluginVersionManager,
+    private readonly trustManager: PluginTrustManager
   ) {
     this.eventEmitter = new PluginEventEmitter();
     this.subscribeToEvents(this.eventEmitter);
@@ -143,6 +145,62 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       }
 
       this.logger.log(`Plugin signature verified successfully: ${pluginName} (trustLevel: ${signatureResult.trustLevel})`);
+
+      // Trust level assignment and validation
+      const trustLevel = signatureResult.trustLevel as TrustLevel || TrustLevel.COMMUNITY;
+      
+      // Assign initial trust level based on signature verification
+      await this.trustManager.assignTrustLevel({
+        pluginName,
+        version: extractedManifest.version,
+        trustLevel,
+        assignedBy: 'system',
+        assignedAt: new Date(),
+        reason: `Initial trust level assignment based on signature verification`,
+        evidence: [{
+          type: 'signature',
+          description: 'Cryptographic signature verification',
+          score: signatureResult.verified ? 100 : 0,
+          verifiedBy: 'system',
+          verifiedAt: new Date(),
+          details: {
+            algorithm: signatureResult.algorithm,
+            verified: signatureResult.verified,
+            warnings: signatureResult.warnings
+          }
+        }]
+      });
+
+      // Validate plugin against trust policy
+      const policyValidation = await this.trustManager.validatePluginAgainstTrustPolicy(
+        pluginName,
+        extractedManifest,
+        extractedManifest.version
+      );
+
+      if (!policyValidation.isValid) {
+        const violationMessage = `Plugin violates trust policy: ${policyValidation.violations.join(', ')}`;
+        this.logger.error(violationMessage);
+        
+        // Record trust violation
+        await this.trustManager.recordTrustViolation({
+          pluginName,
+          version: extractedManifest.version,
+          violationType: 'security',
+          description: violationMessage,
+          severity: 'high',
+          detectedAt: new Date(),
+          details: {
+            violations: policyValidation.violations,
+            requiredActions: policyValidation.requiredActions
+          },
+          action: 'restrict'
+        });
+
+        throw new Error(`Plugin upload rejected: ${violationMessage}. Required actions: ${policyValidation.requiredActions.join(', ')}`);
+      }
+
+      this.logger.log(`Plugin trust policy validation passed: ${pluginName} (trustLevel: ${trustLevel})`);
 
       // Bundle optimization (if enabled)
       let finalPluginBuffer = pluginBuffer;
@@ -735,6 +793,169 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'upload', false);
       handlePluginError(error, { pluginName, version, operation: 'uploadPluginVersion' });
       throw error; // Re-throw to maintain API contract
+    }
+  }
+
+  // ========================================
+  // Trust Level Management Methods
+  // ========================================
+
+  /**
+   * Get trust level for a plugin
+   */
+  async getPluginTrustLevel(pluginName: string, version?: string) {
+    try {
+      return await this.trustManager.getTrustLevel(pluginName, version);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginTrustLevel' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'getPluginTrustLevel' });
+    }
+  }
+
+  /**
+   * Assign trust level to a plugin
+   */
+  async assignPluginTrustLevel(assignment: any) {
+    try {
+      this.logger.log(`Assigning trust level ${assignment.trustLevel} to plugin: ${assignment.pluginName}`);
+      
+      await this.trustManager.assignTrustLevel(assignment);
+
+      // Emit trust level assignment event
+      this.eventEmitter.emit('plugin-trust-level-assigned', {
+        ...assignment,
+        timestamp: new Date()
+      });
+
+      return { success: true };
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { 
+          pluginName: assignment.pluginName, 
+          operation: 'assignPluginTrustLevel' 
+        });
+      }
+      this.eventEmitter.emitPluginError(assignment.pluginName, error as Error, 'high', 'security', true);
+      handlePluginError(error, { pluginName: assignment.pluginName, operation: 'assignPluginTrustLevel' });
+    }
+  }
+
+  /**
+   * Validate plugin capability access
+   */
+  async validatePluginCapability(pluginName: string, capability: string, version?: string) {
+    try {
+      const canPerform = await this.trustManager.canPerformCapability(pluginName, capability, version);
+      
+      if (!canPerform) {
+        // Record capability violation
+        await this.trustManager.recordTrustViolation({
+          pluginName,
+          version: version || 'latest',
+          violationType: 'capability',
+          description: `Attempted to access denied capability: ${capability}`,
+          severity: 'medium',
+          detectedAt: new Date(),
+          details: { capability },
+          action: 'warn'
+        });
+      }
+
+      return { allowed: canPerform };
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'validatePluginCapability' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'security', true);
+      handlePluginError(error, { pluginName, operation: 'validatePluginCapability' });
+    }
+  }
+
+  /**
+   * Get trust policy for a trust level
+   */
+  async getTrustPolicy(trustLevel: TrustLevel) {
+    try {
+      return this.trustManager.getTrustPolicy(trustLevel);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { operation: 'getTrustPolicy' });
+      }
+      handlePluginError(error, { operation: 'getTrustPolicy' });
+    }
+  }
+
+  /**
+   * Get all available plugin capabilities
+   */
+  async getPluginCapabilities() {
+    try {
+      return this.trustManager.getAllCapabilities();
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { operation: 'getPluginCapabilities' });
+      }
+      handlePluginError(error, { operation: 'getPluginCapabilities' });
+    }
+  }
+
+  /**
+   * Get trust statistics for monitoring
+   */
+  async getTrustStatistics() {
+    try {
+      return await this.trustManager.getTrustStatistics();
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { operation: 'getTrustStatistics' });
+      }
+      handlePluginError(error, { operation: 'getTrustStatistics' });
+    }
+  }
+
+  /**
+   * Request trust level change
+   */
+  async requestTrustLevelChange(request: any) {
+    try {
+      this.logger.log(`Trust level change requested: ${request.pluginName} from ${request.currentTrustLevel} to ${request.requestedTrustLevel}`);
+      
+      await this.trustManager.requestTrustLevelChange(request);
+
+      // Emit trust level change request event
+      this.eventEmitter.emit('plugin-trust-level-change-requested', {
+        ...request,
+        timestamp: new Date()
+      });
+
+      return { success: true, message: 'Trust level change request submitted for review' };
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { 
+          pluginName: request.pluginName, 
+          operation: 'requestTrustLevelChange' 
+        });
+      }
+      this.eventEmitter.emitPluginError(request.pluginName, error as Error, 'medium', 'security', true);
+      handlePluginError(error, { pluginName: request.pluginName, operation: 'requestTrustLevelChange' });
+    }
+  }
+
+  /**
+   * Validate plugin against trust policy
+   */
+  async validatePluginTrustPolicy(pluginName: string, manifest: any, version?: string) {
+    try {
+      return await this.trustManager.validatePluginAgainstTrustPolicy(pluginName, manifest, version);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'validatePluginTrustPolicy' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'security', true);
+      handlePluginError(error, { pluginName, operation: 'validatePluginTrustPolicy' });
     }
   }
 }
