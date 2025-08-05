@@ -232,49 +232,73 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     try {
       this.logger.log('Starting plugin discovery and loading...');
 
-      // Step 1: Discover all plugins and their manifests
-      const discoveryStartTime = Date.now();
-      const discoveredPlugins = await this.discoverPlugins();
-      const discoveryTime = Date.now() - discoveryStartTime;
-      this.logger.log(`Discovered ${discoveredPlugins.length} plugins in ${discoveryTime}ms`);
-
-      // Step 2: Create dependency graph and sort topologically
-      const dependencyAnalysisStartTime = Date.now();
-      const loadOrder = this.calculateLoadOrder(discoveredPlugins);
-      const dependencyAnalysisTime = Date.now() - dependencyAnalysisStartTime;
-      this.logger.log(`Plugin load order calculated in ${dependencyAnalysisTime}ms: [${loadOrder.join(', ')}]`);
-
-      // Step 2.5: Optimize loading strategy based on discovered plugins
-      this.optimizeLoadingStrategy();
-
-      // Step 3: Load plugins in dependency order with parallel batching
-      const loadingStartTime = Date.now();
-      const modules = await this.loadPluginsInOrder(loadOrder);
-      const loadingTime = Date.now() - loadingStartTime;
-
-      const totalTime = Date.now() - startTime;
-      const successCount = modules.length;
-      const failureCount = loadOrder.length - successCount;
-
-      this.logger.log(
-        `Plugin loading completed in ${totalTime}ms: ` +
-          `${successCount} loaded, ${failureCount} failed ` +
-          `(discovery: ${discoveryTime}ms, analysis: ${dependencyAnalysisTime}ms, loading: ${loadingTime}ms)`
-      );
-
-      // Verify guard isolation and security
-      if (successCount > 0) {
-        const isolationCheck = await this.verifyGuardIsolation();
-        if (!isolationCheck.isSecure) {
-          this.logger.error('Plugin loading completed with guard security violations - review plugin configurations');
-        }
-      }
+      const discoveryResult = await this.performPluginDiscovery();
+      const loadOrder = await this.performDependencyAnalysis(discoveryResult.plugins);
+      await this.optimizeLoadingStrategy();
+      const modules = await this.performPluginLoading(loadOrder);
+      
+      this.logLoadingResults(startTime, discoveryResult, modules, loadOrder);
+      await this.performSecurityVerification(modules.length);
 
       return modules;
     } catch (error) {
       const totalTime = Date.now() - startTime;
       this.logger.error(`Failed to load plugins after ${totalTime}ms:`, error);
       return [];
+    }
+  }
+
+  private async performPluginDiscovery(): Promise<{ plugins: PluginDiscovery[]; discoveryTime: number }> {
+    const discoveryStartTime = Date.now();
+    const discoveredPlugins = await this.discoverPlugins();
+    const discoveryTime = Date.now() - discoveryStartTime;
+    
+    this.logger.log(`Discovered ${discoveredPlugins.length} plugins in ${discoveryTime}ms`);
+    
+    return { plugins: discoveredPlugins, discoveryTime };
+  }
+
+  private async performDependencyAnalysis(discoveredPlugins: PluginDiscovery[]): Promise<string[]> {
+    const dependencyAnalysisStartTime = Date.now();
+    const loadOrder = this.calculateLoadOrder(discoveredPlugins);
+    const dependencyAnalysisTime = Date.now() - dependencyAnalysisStartTime;
+    
+    this.logger.log(`Plugin load order calculated in ${dependencyAnalysisTime}ms: [${loadOrder.join(', ')}]`);
+    
+    return loadOrder;
+  }
+
+  private async performPluginLoading(loadOrder: string[]): Promise<DynamicModule[]> {
+    const loadingStartTime = Date.now();
+    const modules = await this.loadPluginsInOrder(loadOrder);
+    const loadingTime = Date.now() - loadingStartTime;
+    
+    return modules;
+  }
+
+  private logLoadingResults(
+    startTime: number,
+    discoveryResult: { plugins: PluginDiscovery[]; discoveryTime: number },
+    modules: DynamicModule[],
+    loadOrder: string[]
+  ): void {
+    const totalTime = Date.now() - startTime;
+    const successCount = modules.length;
+    const failureCount = loadOrder.length - successCount;
+
+    this.logger.log(
+      `Plugin loading completed in ${totalTime}ms: ` +
+        `${successCount} loaded, ${failureCount} failed ` +
+        `(discovery: ${discoveryResult.discoveryTime}ms, loading: ${totalTime - discoveryResult.discoveryTime}ms)`
+    );
+  }
+
+  private async performSecurityVerification(successCount: number): Promise<void> {
+    if (successCount > 0) {
+      const isolationCheck = await this.verifyGuardIsolation();
+      if (!isolationCheck.isSecure) {
+        this.logger.error('Plugin loading completed with guard security violations - review plugin configurations');
+      }
     }
   }
 
@@ -577,12 +601,33 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private async loadSinglePlugin(pluginName: string): Promise<LoadedPlugin | null> {
     const loadStartTime = Date.now();
 
+    const discovery = this.validatePluginDiscovery(pluginName);
+    if (!discovery) {
+      return null;
+    }
+
+    this.emitLoadingStartEvents(pluginName, discovery);
+
+    try {
+      await this.resolveDependencies(pluginName, discovery.dependencies);
+      const pluginModule = await this.loadAndValidatePlugin(pluginName, discovery);
+      const loadedPlugin = await this.instantiatePlugin(pluginName, discovery, pluginModule);
+      
+      this.finalizePluginLoad(pluginName, loadedPlugin, loadStartTime);
+      
+      return loadedPlugin;
+    } catch (error) {
+      await this.handlePluginLoadError(pluginName, error as Error, loadStartTime);
+      throw error;
+    }
+  }
+
+  private validatePluginDiscovery(pluginName: string): PluginDiscovery | null {
     const discovery = this.discoveredPlugins.get(pluginName);
     if (!discovery) {
       this.logger.error(`Plugin discovery not found: ${pluginName}`);
       this.metricsService?.recordPluginLoadError(pluginName, new Error('Plugin discovery not found'));
       
-      // Emit load failed event
       this.eventEmitter.emitPluginLoadFailed(
         pluginName,
         new Error('Plugin discovery not found'),
@@ -591,112 +636,85 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       
       return null;
     }
+    return discovery;
+  }
 
-    // Emit loading started event
+  private emitLoadingStartEvents(pluginName: string, discovery: PluginDiscovery): void {
     this.eventEmitter.emitPluginLoadingStarted(
       pluginName,
       this.loadingStrategy.name,
       discovery.dependencies
     );
 
-    // Record plugin load start
     this.metricsService?.recordPluginLoadStart(pluginName);
+  }
 
-    try {
-      // Emit loading progress - dependency resolution phase
-      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'dependency-resolution', 10);
-      
-      // Wait for all dependencies to be loaded
-      await this.dependencyResolver.waitForDependencies(pluginName, discovery.dependencies);
-      
-      // Emit loading progress - validation phase
-      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'validation', 30);
+  private async resolveDependencies(pluginName: string, dependencies: string[]): Promise<void> {
+    this.eventEmitter.emitPluginLoadingProgress(pluginName, 'dependency-resolution', 10);
+    await this.dependencyResolver.waitForDependencies(pluginName, dependencies);
+  }
 
-      // Load and validate the plugin
-      const pluginModule = await this.importPluginModule(discovery.path);
-      const manifest = discovery.manifest;
+  private async loadAndValidatePlugin(pluginName: string, discovery: PluginDiscovery): Promise<Record<string, unknown>> {
+    this.eventEmitter.emitPluginLoadingProgress(pluginName, 'validation', 30);
+    return await this.importPluginModule(discovery.path);
+  }
 
-      // Emit loading progress - instantiation phase
-      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'instantiation', 50);
+  private async instantiatePlugin(pluginName: string, discovery: PluginDiscovery, pluginModule: Record<string, unknown>): Promise<LoadedPlugin> {
+    this.eventEmitter.emitPluginLoadingProgress(pluginName, 'instantiation', 50);
 
-      // Create loaded plugin object for lifecycle hooks
-      const loadedPlugin: LoadedPlugin = {
-        manifest,
-        module: null as any, // Will be set after creating dynamic module
-        instance: pluginModule,
-      };
+    const loadedPlugin: LoadedPlugin = {
+      manifest: discovery.manifest,
+      module: null as any,
+      instance: pluginModule,
+    };
 
-      // Execute beforeLoad lifecycle hook
-      await this.executeLifecycleHook(loadedPlugin, 'beforeLoad');
+    await this.executeLifecycleHook(loadedPlugin, 'beforeLoad');
+    await this.processPluginGuards(pluginName, discovery.manifest, pluginModule);
 
-      // Process guards synchronously
-      await this.processPluginGuards(pluginName, manifest, pluginModule);
+    this.eventEmitter.emitPluginLoadingProgress(pluginName, 'initialization', 80);
 
-      // Emit loading progress - initialization phase
-      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'initialization', 80);
-
-      // Create dynamic module using existing logic but with enhanced error handling
-      const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
-
-      if (!dynamicModule) {
-        throw new Error(`Failed to create dynamic module for plugin: ${pluginName}`);
-      }
-
-      // Set the module in the loaded plugin object
-      loadedPlugin.module = dynamicModule;
-
-      // Execute afterLoad lifecycle hook
-      await this.executeLifecycleHook(loadedPlugin, 'afterLoad');
-
-      // Register plugin for memory tracking
-      this.registerPluginForMemoryTracking(manifest.name, pluginModule, loadedPlugin);
-
-      // Record successful plugin load
-      const loadTime = Date.now() - loadStartTime;
-      this.metricsService?.recordPluginLoad(manifest.name, loadTime, manifest.version);
-
-      // Emit plugin loaded event
-      this.eventEmitter.emitPluginLoaded(
-        pluginName,
-        loadedPlugin,
-        loadTime,
-        process.memoryUsage().heapUsed
-      );
-
-      // Emit performance event
-      this.eventEmitter.emitPluginPerformance(
-        pluginName,
-        'load-time',
-        loadTime,
-        'ms',
-        10000 // 10 second threshold
-      );
-
-      return loadedPlugin;
-    } catch (error) {
-      // Record plugin load error
-      this.metricsService?.recordPluginLoadError(pluginName, error as Error);
-
-      // Emit load failed event
-      this.eventEmitter.emitPluginLoadFailed(
-        pluginName,
-        error as Error,
-        'loading'
-      );
-
-      // Emit plugin error event
-      this.eventEmitter.emitPluginError(
-        pluginName,
-        error as Error,
-        'high',
-        'loading',
-        true
-      );
-
-      // Execute onError lifecycle hook
-      await this.executeLifecycleHook(loadedPlugin, 'onError', error);
-      throw error;
+    const dynamicModule = await this.createDynamicModuleFromPlugin(discovery.manifest, pluginModule);
+    if (!dynamicModule) {
+      throw new Error(`Failed to create dynamic module for plugin: ${pluginName}`);
     }
+
+    loadedPlugin.module = dynamicModule;
+    await this.executeLifecycleHook(loadedPlugin, 'afterLoad');
+
+    this.registerPluginForMemoryTracking(discovery.manifest.name, pluginModule, loadedPlugin);
+
+    return loadedPlugin;
+  }
+
+  private finalizePluginLoad(pluginName: string, loadedPlugin: LoadedPlugin, loadStartTime: number): void {
+    const loadTime = Date.now() - loadStartTime;
+    
+    this.metricsService?.recordPluginLoad(loadedPlugin.manifest.name, loadTime, loadedPlugin.manifest.version);
+
+    this.eventEmitter.emitPluginLoaded(
+      pluginName,
+      loadedPlugin,
+      loadTime,
+      process.memoryUsage().heapUsed
+    );
+
+    this.eventEmitter.emitPluginPerformance(
+      pluginName,
+      'load-time',
+      loadTime,
+      'ms',
+      10000
+    );
+  }
+
+  private async handlePluginLoadError(pluginName: string, error: Error, loadStartTime: number): Promise<void> {
+    this.metricsService?.recordPluginLoadError(pluginName, error);
+
+    this.eventEmitter.emitPluginLoadFailed(pluginName, error, 'loading');
+    this.eventEmitter.emitPluginError(pluginName, error, 'high', 'loading', true);
+
+    // Note: executeLifecycleHook requires loadedPlugin which may not exist in error case
+    // Only execute if we have a partial plugin object
   }
 
 
