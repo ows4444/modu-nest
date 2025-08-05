@@ -16,6 +16,7 @@ import { PluginSecurityService } from './plugin-security.service';
 import { PluginSignatureService } from './plugin-signature.service';
 import { PluginBundleOptimizationService } from './plugin-bundle-optimization.service';
 import { PluginStorageOrchestratorService } from './plugin-storage-orchestrator.service';
+import { PluginVersionManager } from './plugin-version-manager';
 
 @Injectable()
 export class PluginRegistryService implements IPluginEventSubscriber {
@@ -28,7 +29,8 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     private readonly securityService: PluginSecurityService,
     private readonly signatureService: PluginSignatureService,
     private readonly bundleOptimizationService: PluginBundleOptimizationService,
-    private readonly storageOrchestrator: PluginStorageOrchestratorService
+    private readonly storageOrchestrator: PluginStorageOrchestratorService,
+    private readonly versionManager: PluginVersionManager
   ) {
     this.eventEmitter = new PluginEventEmitter();
     this.subscribeToEvents(this.eventEmitter);
@@ -408,5 +410,331 @@ export class PluginRegistryService implements IPluginEventSubscriber {
 
   getEventEmitter(): PluginEventEmitter {
     return this.eventEmitter;
+  }
+
+  // ========================================
+  // Version Management Methods
+  // ========================================
+
+  /**
+   * Get all versions of a plugin
+   */
+  async getPluginVersions(pluginName: string) {
+    try {
+      return await this.versionManager.getPluginVersions(pluginName);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginVersions' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'getPluginVersions' });
+    }
+  }
+
+  /**
+   * Get the active version of a plugin
+   */
+  async getActivePluginVersion(pluginName: string) {
+    try {
+      return await this.versionManager.getActiveVersion(pluginName);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getActivePluginVersion' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'getActivePluginVersion' });
+    }
+  }
+
+  /**
+   * Get a specific version of a plugin
+   */
+  async getPluginVersion(pluginName: string, version: string) {
+    try {
+      return await this.versionManager.getPluginVersion(pluginName, version);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginVersion' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'getPluginVersion' });
+    }
+  }
+
+  /**
+   * Promote a specific version to be the active version
+   */
+  async promotePluginVersion(pluginName: string, version: string) {
+    try {
+      this.logger.log(`Promoting plugin ${pluginName} version ${version} to active`);
+      
+      // Emit version promotion started event
+      this.eventEmitter.emit('plugin-version-promotion-started', {
+        pluginName,
+        version,
+        timestamp: new Date()
+      });
+
+      const result = await this.versionManager.promoteVersion(pluginName, version);
+
+      // Emit version promotion completed event
+      this.eventEmitter.emit('plugin-version-promotion-completed', {
+        pluginName,
+        fromVersion: result.previousActiveVersion,
+        toVersion: result.newActiveVersion,
+        affectedDependents: result.affectedDependents,
+        warnings: result.warnings,
+        timestamp: new Date()
+      });
+
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'promotePluginVersion' });
+      }
+      
+      // Emit version promotion failed event
+      this.eventEmitter.emit('plugin-version-promotion-failed', {
+        pluginName,
+        version,
+        error: error as Error,
+        timestamp: new Date()
+      });
+      
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'promotePluginVersion' });
+    }
+  }
+
+  /**
+   * Rollback to a previous version of a plugin
+   */
+  async rollbackPluginVersion(pluginName: string, targetVersion: string, options?: any) {
+    try {
+      this.logger.log(`Rolling back plugin ${pluginName} to version ${targetVersion}`);
+      
+      // Emit rollback started event
+      this.eventEmitter.emit('plugin-version-rollback-started', {
+        pluginName,
+        targetVersion,
+        options,
+        timestamp: new Date()
+      });
+
+      const result = await this.versionManager.rollbackToVersion(pluginName, targetVersion, options);
+
+      // Emit rollback completed event
+      this.eventEmitter.emit('plugin-version-rollback-completed', {
+        pluginName,
+        fromVersion: result.previousActiveVersion,
+        toVersion: result.newActiveVersion,
+        rollbackReason: options?.rollbackReason,
+        timestamp: new Date()
+      });
+
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'rollbackPluginVersion' });
+      }
+      
+      // Emit rollback failed event
+      this.eventEmitter.emit('plugin-version-rollback-failed', {
+        pluginName,
+        targetVersion,
+        error: error as Error,
+        timestamp: new Date()
+      });
+      
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'rollbackPluginVersion' });
+    }
+  }
+
+  /**
+   * Archive old versions of a plugin
+   */
+  async archiveOldPluginVersions(pluginName: string, keepLatest = 5) {
+    try {
+      this.logger.log(`Archiving old versions for plugin ${pluginName}, keeping latest ${keepLatest}`);
+      
+      const archivedVersions = await this.versionManager.archiveOldVersions(pluginName, keepLatest);
+
+      // Emit versions archived event
+      this.eventEmitter.emit('plugin-versions-archived', {
+        pluginName,
+        archivedVersions,
+        keepLatest,
+        timestamp: new Date()
+      });
+
+      return archivedVersions;
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'archiveOldPluginVersions' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'archiveOldPluginVersions' });
+    }
+  }
+
+  /**
+   * Delete a specific version of a plugin
+   */
+  async deletePluginVersion(pluginName: string, version: string, force = false) {
+    try {
+      this.logger.log(`Deleting version ${version} for plugin ${pluginName}${force ? ' (forced)' : ''}`);
+      
+      // Emit version deletion started event
+      this.eventEmitter.emit('plugin-version-deletion-started', {
+        pluginName,
+        version,
+        force,
+        timestamp: new Date()
+      });
+
+      await this.versionManager.deleteVersion(pluginName, version, force);
+
+      // Emit version deletion completed event
+      this.eventEmitter.emit('plugin-version-deletion-completed', {
+        pluginName,
+        version,
+        force,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'deletePluginVersion' });
+      }
+      
+      // Emit version deletion failed event
+      this.eventEmitter.emit('plugin-version-deletion-failed', {
+        pluginName,
+        version,
+        error: error as Error,
+        timestamp: new Date()
+      });
+      
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'deletePluginVersion' });
+    }
+  }
+
+  /**
+   * Check compatibility between two versions of a plugin
+   */
+  async checkVersionCompatibility(pluginName: string, fromVersion: string, toVersion: string) {
+    try {
+      return await this.versionManager.checkVersionCompatibility(pluginName, fromVersion, toVersion);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'checkVersionCompatibility' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'checkVersionCompatibility' });
+    }
+  }
+
+  /**
+   * Get version statistics for a plugin
+   */
+  async getPluginVersionStatistics(pluginName: string) {
+    try {
+      return await this.versionManager.getVersionStatistics(pluginName);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginVersionStatistics' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
+      handlePluginError(error, { pluginName, operation: 'getPluginVersionStatistics' });
+    }
+  }
+
+  /**
+   * Upload a new version of an existing plugin
+   */
+  async uploadPluginVersion(pluginBuffer: Buffer, makeActive = true): Promise<PluginMetadata> {
+    let pluginName = 'unknown';
+    let version = 'unknown';
+
+    try {
+      // Follow similar validation process as uploadPlugin
+      this.securityService.validateFileSize(pluginBuffer);
+      
+      const extractedManifest = await this.validationService.extractAndValidateManifest(pluginBuffer);
+      pluginName = extractedManifest.name;
+      version = extractedManifest.version;
+
+      // Check if this is a version update (plugin exists but this version doesn't)
+      const existingActive = await this.versionManager.getActiveVersion(pluginName);
+      const existingVersion = await this.versionManager.getPluginVersion(pluginName, version);
+      
+      if (existingVersion) {
+        throw new Error(`Version ${version} already exists for plugin ${pluginName}`);
+      }
+
+      // Create metadata
+      let metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, pluginBuffer);
+
+      // Emit upload started event
+      this.eventEmitter.emitPluginUploadStarted(pluginName, pluginBuffer.length, metadata.checksum);
+
+      // Full validation pipeline
+      const manifestValidationResult = await this.validationService.validateManifestWithCache(
+        extractedManifest,
+        metadata.checksum
+      );
+
+      if (!manifestValidationResult.isValid) {
+        throw new PluginManifestError(
+          `Plugin manifest validation failed: ${manifestValidationResult.errors.join(', ')}`,
+          manifestValidationResult.errors
+        );
+      }
+
+      // Security validation
+      await this.securityService.validatePlugin(pluginBuffer, extractedManifest, metadata.checksum);
+
+      // Signature verification
+      await this.signatureService.verifyPluginSignature(pluginBuffer, extractedManifest);
+
+      // Bundle optimization if enabled
+      const optimizeBundle = process.env.ENABLE_BUNDLE_OPTIMIZATION?.toLowerCase() === 'true';
+      if (optimizeBundle) {
+        const optimizationResult = await this.bundleOptimizationService.optimizeBundle(
+          pluginBuffer,
+          extractedManifest
+        );
+        if (optimizationResult.optimized && optimizationResult.optimizedBuffer) {
+          metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, optimizationResult.optimizedBuffer);
+        }
+      }
+
+      // Save to file system first
+      const savedPlugin = await this.storageOrchestrator.savePlugin(metadata, pluginBuffer);
+
+      // Add to version management system
+      await this.versionManager.addPluginVersion(savedPlugin, makeActive);
+
+      // Emit success events
+      this.eventEmitter.emitPluginUploaded(
+        pluginName,
+        version,
+        savedPlugin.fileSize,
+        metadata.checksum
+      );
+
+      this.logger.log(`Successfully uploaded new version ${version} for plugin: ${pluginName}`);
+      return metadata;
+
+    } catch (error) {
+      if (error instanceof Error) {
+        this.errorMetrics.recordError(error as any, { pluginName, operation: 'uploadPluginVersion' });
+      }
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'upload', false);
+      handlePluginError(error, { pluginName, version, operation: 'uploadPluginVersion' });
+      throw error; // Re-throw to maintain API contract
+    }
   }
 }

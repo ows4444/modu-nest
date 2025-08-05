@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { PluginDownloadEntity } from './plugin-download.entity';
+import { PluginVersionEntity } from './plugin-version.entity';
 
 @Entity('plugins')
 @Index(['name'])
@@ -10,7 +11,7 @@ export class PluginEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column()
   name: string;
 
   @Column()
@@ -67,4 +68,7 @@ export class PluginEntity {
 
   @OneToMany(() => PluginDownloadEntity, download => download.plugin, { cascade: true })
   downloads: PluginDownloadEntity[];
+
+  @OneToMany(() => PluginVersionEntity, version => version.plugin, { cascade: false })
+  versions: PluginVersionEntity[];
 }

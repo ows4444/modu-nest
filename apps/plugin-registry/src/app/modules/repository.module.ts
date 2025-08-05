@@ -1,7 +1,7 @@
 import { Module, DynamicModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { PluginEntity, PluginDownloadEntity } from '../entities';
+import { PluginEntity, PluginDownloadEntity, PluginVersionEntity } from '../entities';
 import { 
   IPluginRepository, 
   TypeORMSQLiteRepository, 
@@ -46,7 +46,7 @@ export class RepositoryModule {
       ? {
           type: 'sqlite' as const,
           database: config?.database || process.env.DATABASE_PATH || 'data/plugins.db',
-          entities: [PluginEntity, PluginDownloadEntity],
+          entities: [PluginEntity, PluginDownloadEntity, PluginVersionEntity],
           synchronize: config?.synchronize ?? (process.env.NODE_ENV === 'development'),
           logging: process.env.DATABASE_LOGGING === 'true',
         }
@@ -57,7 +57,7 @@ export class RepositoryModule {
           username: config?.username || process.env.DATABASE_USERNAME || 'postgres',
           password: config?.password || process.env.DATABASE_PASSWORD || '',
           database: config?.database || process.env.DATABASE_NAME || 'plugin_registry',
-          entities: [PluginEntity, PluginDownloadEntity],
+          entities: [PluginEntity, PluginDownloadEntity, PluginVersionEntity],
           synchronize: config?.synchronize ?? (process.env.NODE_ENV === 'development'),
           logging: process.env.DATABASE_LOGGING === 'true',
           ssl: process.env.DATABASE_SSL === 'true',
@@ -67,7 +67,7 @@ export class RepositoryModule {
       module: RepositoryModule,
       imports: [
         TypeOrmModule.forRoot(typeOrmConfig),
-        TypeOrmModule.forFeature([PluginEntity, PluginDownloadEntity]),
+        TypeOrmModule.forFeature([PluginEntity, PluginDownloadEntity, PluginVersionEntity]),
       ],
       providers: [
         TypeORMSQLiteRepository,
