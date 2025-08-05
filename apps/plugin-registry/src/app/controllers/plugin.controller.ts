@@ -6,6 +6,7 @@ import {
   Param,
   UploadedFile,
   UseInterceptors,
+  UseGuards,
   BadRequestException,
   Res,
   Header,
@@ -20,15 +21,29 @@ import type { Response, Request } from 'express';
 import type { Express } from 'express';
 import 'multer';
 import { PluginRegistryService } from '../services/plugin-registry.service';
+import { PluginRateLimitingService } from '../services/plugin-rate-limiting.service';
 import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { 
+  RateLimitingGuard, 
+  UploadRateLimit, 
+  DownloadRateLimit, 
+  ApiRateLimit, 
+  SearchRateLimit, 
+  AdminRateLimit 
+} from '../guards/rate-limiting.guard';
 
 @Controller('plugins')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class PluginController {
-  constructor(private readonly pluginRegistryService: PluginRegistryService) {}
+  constructor(
+    private readonly pluginRegistryService: PluginRegistryService,
+    private readonly rateLimitingService: PluginRateLimitingService,
+  ) {}
 
   @Post()
+  @UseGuards(RateLimitingGuard)
+  @UploadRateLimit()
   @UseInterceptors(FileInterceptor('plugin'))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -52,6 +67,8 @@ export class PluginController {
   }
 
   @Get()
+  @UseGuards(RateLimitingGuard)
+  @ApiRateLimit()
   async listPlugins(
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number
@@ -68,11 +85,15 @@ export class PluginController {
   }
 
   @Get(':name')
+  @UseGuards(RateLimitingGuard)
+  @ApiRateLimit()
   async getPlugin(@Param('name') name: string): Promise<PluginResponseDto> {
     return this.pluginRegistryService.getPlugin(name);
   }
 
   @Get(':name/download')
+  @UseGuards(RateLimitingGuard)
+  @DownloadRateLimit()
   @Header('Content-Type', 'application/zip')
   async downloadPlugin(@Param('name') name: string, @Req() req: Request, @Res() res: Response): Promise<void> {
     const userAgent = req.get('User-Agent');
@@ -88,6 +109,8 @@ export class PluginController {
   }
 
   @Delete(':name')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
   async deletePlugin(@Param('name') name: string): Promise<PluginDeleteResponseDto> {
     await this.pluginRegistryService.deletePlugin(name);
     return {
@@ -105,6 +128,8 @@ export class PluginController {
   }
 
   @Delete('cache/clear')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
   async clearValidationCache() {
     this.pluginRegistryService.clearValidationCache();
     return {
@@ -113,6 +138,8 @@ export class PluginController {
   }
 
   @Get('search')
+  @UseGuards(RateLimitingGuard)
+  @SearchRateLimit()
   async searchPlugins(@Query('q') query: string): Promise<PluginResponseDto[]> {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query is required');
@@ -132,6 +159,8 @@ export class PluginController {
   }
 
   @Post('database/backup')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
   async createDatabaseBackup(@Query('type') type: 'full' | 'incremental' = 'full') {
     const dbService = this.pluginRegistryService.getDatabaseService();
     const backup = await dbService.createBackup(type);
@@ -148,11 +177,107 @@ export class PluginController {
   }
 
   @Post('database/restore/:filename')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
   async restoreDatabaseBackup(@Param('filename') filename: string) {
     const dbService = this.pluginRegistryService.getDatabaseService();
     await dbService.restoreBackup(filename);
     return {
       message: `Database restored from backup: ${filename}`,
     };
+  }
+
+  @Get('rate-limit/stats')
+  @UseGuards(RateLimitingGuard)
+  @ApiRateLimit()
+  async getRateLimitStats() {
+    const stats = this.rateLimitingService.getRateLimitStats();
+    return {
+      message: 'Rate limiting statistics retrieved successfully',
+      stats,
+    };
+  }
+
+  @Get('rate-limit/status/:rule')
+  @UseGuards(RateLimitingGuard)
+  @ApiRateLimit()
+  async getRateLimitStatus(
+    @Param('rule') ruleName: string, 
+    @Req() req: Request
+  ) {
+    const identifier = req.ip || req.connection?.remoteAddress || 'unknown';
+    const status = this.rateLimitingService.getRateLimitStatus(ruleName, identifier);
+    
+    if (!status) {
+      throw new BadRequestException(`Rate limiting rule '${ruleName}' not found`);
+    }
+
+    return {
+      message: `Rate limit status for rule '${ruleName}'`,
+      status,
+    };
+  }
+
+  @Delete('rate-limit/reset/:rule')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
+  async resetRateLimit(
+    @Param('rule') ruleName: string,
+    @Query('identifier') identifier?: string,
+    @Req() req: Request
+  ) {
+    const targetIdentifier = identifier || req.ip || req.connection?.remoteAddress || 'unknown';
+    const reset = this.rateLimitingService.resetRateLimit(ruleName, targetIdentifier);
+    
+    if (!reset) {
+      throw new BadRequestException(`Could not reset rate limit for rule '${ruleName}' and identifier '${targetIdentifier}'`);
+    }
+
+    return {
+      message: `Rate limit reset successfully for rule '${ruleName}'`,
+      rule: ruleName,
+      identifier: this.sanitizeIdentifier(targetIdentifier),
+    };
+  }
+
+  @Delete('rate-limit/clear')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
+  async clearAllRateLimits() {
+    this.rateLimitingService.clearAllRateLimits();
+    return {
+      message: 'All rate limiting data cleared successfully',
+    };
+  }
+
+  @Get('rate-limit/rules')
+  @UseGuards(RateLimitingGuard)
+  @ApiRateLimit()
+  async getRateLimitRules() {
+    const ruleNames = this.rateLimitingService.getRuleNames();
+    const rules = ruleNames.map(name => ({
+      name,
+      config: this.rateLimitingService.getRule(name),
+    }));
+
+    return {
+      message: 'Rate limiting rules retrieved successfully',
+      rules,
+    };
+  }
+
+  /**
+   * Sanitize identifier for response (remove sensitive information)
+   */
+  private sanitizeIdentifier(identifier: string): string {
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(identifier)) {
+      return identifier.replace(/\.\d{1,3}$/, '.xxx');
+    }
+    
+    if (identifier.length > 8) {
+      return identifier.substring(0, 4) + '****' + identifier.substring(identifier.length - 2);
+    }
+    
+    return '****';
   }
 }
