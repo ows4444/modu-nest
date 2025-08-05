@@ -21,6 +21,7 @@ import {
 } from '@modu-nest/plugin-types';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { PluginMetricsService } from './plugin-metrics.service';
+import { PluginDependencyResolver } from './plugin-dependency-resolver';
 import {
   IPluginLoadingStrategy,
   PluginLoaderContext,
@@ -49,6 +50,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private cacheService = new PluginCacheService();
   private loadingStrategy: IPluginLoadingStrategy;
   private eventEmitter: PluginEventEmitter;
+  private dependencyResolver: PluginDependencyResolver;
 
   // Memory management for plugin cleanup
   private readonly pluginWeakRefs = new Map<string, WeakRef<any>>();
@@ -85,6 +87,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
         event.transition
       );
     });
+    
+    // Initialize dependency resolver
+    this.dependencyResolver = new PluginDependencyResolver(this.eventEmitter, this.stateMachine);
   }
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
@@ -602,7 +607,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       this.eventEmitter.emitPluginLoadingProgress(pluginName, 'dependency-resolution', 10);
       
       // Wait for all dependencies to be loaded
-      await this.waitForDependencies(discovery.dependencies);
+      await this.dependencyResolver.waitForDependencies(pluginName, discovery.dependencies);
       
       // Emit loading progress - validation phase
       this.eventEmitter.emitPluginLoadingProgress(pluginName, 'validation', 30);
@@ -694,80 +699,6 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     }
   }
 
-  private async waitForDependencies(dependencies: string[]): Promise<void> {
-    if (dependencies.length === 0) {
-      return;
-    }
-
-    const maxWaitTime = 30000; // 30 seconds
-    const pollInterval = 50; // 50ms (reduced for better responsiveness in parallel loading)
-    const startTime = Date.now();
-
-    this.logger.debug(`Waiting for dependencies: [${dependencies.join(', ')}]`);
-
-    while (Date.now() - startTime < maxWaitTime) {
-      const dependencyStates = dependencies.map((dep) => ({
-        name: dep,
-        state: this.stateMachine.getCurrentState(dep) as any,
-      }));
-
-      const allLoaded = dependencyStates.every((dep) => dep.state === PluginState.LOADED);
-      if (allLoaded) {
-        // Emit dependency resolved events for all dependencies
-        const resolveTime = Date.now() - startTime;
-        dependencies.forEach((dep) => {
-          this.eventEmitter.emitPluginDependencyResolved('dependency-waiter', dep, resolveTime);
-        });
-        
-        this.logger.debug(`All dependencies loaded: [${dependencies.join(', ')}]`);
-        return;
-      }
-
-      // Check for failed dependencies
-      const failedDeps = dependencyStates.filter((dep) => dep.state === PluginState.FAILED);
-      if (failedDeps.length > 0) {
-        const failedNames = failedDeps.map((dep) => dep.name);
-        
-        // Emit dependency failed events
-        failedNames.forEach((dep) => {
-          this.eventEmitter.emitPluginDependencyFailed(
-            'dependency-waiter',
-            dep,
-            new Error(`Dependency ${dep} failed to load`),
-            false
-          );
-        });
-        
-        throw new Error(`Dependencies failed to load: [${failedNames.join(', ')}]`);
-      }
-
-      // Log current dependency states for debugging
-      const pendingDeps = dependencyStates.filter(
-        (dep) => dep.state !== PluginState.LOADED && dep.state !== PluginState.FAILED
-      );
-
-      if (pendingDeps.length > 0) {
-        const stateInfo = pendingDeps.map((dep) => `${dep.name}:${dep.state || 'unknown'}`);
-        this.logger.debug(`Still waiting for dependencies: [${stateInfo.join(', ')}]`);
-      }
-
-      await this.sleep(pollInterval);
-    }
-
-    const pendingDeps = dependencies.filter((dep) => this.stateMachine.getCurrentState(dep) !== PluginState.LOADED);
-    
-    // Emit timeout events for pending dependencies
-    pendingDeps.forEach((dep) => {
-      this.eventEmitter.emitPluginDependencyFailed(
-        'dependency-waiter',
-        dep,
-        new Error(`Timeout waiting for dependency: ${dep}`),
-        true
-      );
-    });
-    
-    throw new Error(`Timeout waiting for dependencies: [${pendingDeps.join(', ')}]`);
-  }
 
   private async processPluginGuards(
     pluginName: string,
@@ -848,9 +779,6 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     return discovery?.manifest.critical === true;
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
 
   private async createDynamicModuleFromPlugin(
     manifest: PluginManifest,
@@ -1261,6 +1189,24 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    */
   getGlobalCrossPluginServices(): string[] {
     return this.crossPluginServiceManager.getGlobalServices();
+  }
+
+  /**
+   * Get dependency resolution metrics for monitoring and debugging
+   */
+  getDependencyResolutionMetrics(): Map<string, {
+    resolveTime: number;
+    dependencyCount: number;
+    timestamp: Date;
+  }> {
+    return this.dependencyResolver.getResolutionMetrics();
+  }
+
+  /**
+   * Get pending dependency waiters (for debugging)
+   */
+  getPendingDependencyWaiters(): Map<string, any> {
+    return this.dependencyResolver.getPendingWaiters();
   }
 
   /**
