@@ -1,8 +1,8 @@
-# Deployment Patterns - Single Instance Architecture
+# Deployment Patterns - Enterprise Production Ready
 
 ## Docker Deployment
 
-### Recommended Single-Instance Setup:
+### Enterprise Production Setup with Security Headers:
 
 ```yaml
 # Simple Docker Compose for production
@@ -16,6 +16,9 @@ services:
       - NODE_ENV=production
       - PORT=4001
       - PLUGINS_DIR=/app/plugins
+      - ENABLE_SECURITY_HEADERS=true
+      - ALLOW_UNSIGNED_PLUGINS=false
+      - PLUGIN_SIGNATURE_REQUIRED=true
     volumes:
       - ./plugins:/app/plugins
       - ./data:/app/data
@@ -33,6 +36,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=6001
+      - ENABLE_RATE_LIMITING=true
+      - ENABLE_BUNDLE_OPTIMIZATION=true
+      - PLUGIN_TRUST_ENFORCEMENT=true
     volumes:
       - registry-data:/app/data
     restart: unless-stopped

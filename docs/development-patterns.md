@@ -1,8 +1,140 @@
-# Advanced Development Patterns
+# Enterprise Development Patterns
 
-## 1. Plugin Development with Custom Decorators
+## 1. Event-Driven Plugin Development
 
-The system provides plugin-specific decorators for enhanced development:
+The framework now supports comprehensive event-driven development with 40+ event types:
+
+```typescript
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { PluginEventEmitter, IPluginEventSubscriber } from '@modu-nest/plugin-types';
+
+@Injectable()
+export class EventDrivenPluginService implements OnModuleInit, IPluginEventSubscriber {
+  constructor(private eventEmitter: PluginEventEmitter) {}
+
+  onModuleInit() {
+    this.subscribeToEvents(this.eventEmitter);
+  }
+
+  subscribeToEvents(eventEmitter: PluginEventEmitter): void {
+    // Subscribe to plugin lifecycle events
+    eventEmitter.onPluginLoaded((pluginName, loadedPlugin, loadTime, memoryUsage) => {
+      console.log(`Plugin ${pluginName} loaded in ${loadTime}ms`);
+    });
+
+    // Subscribe to performance events
+    eventEmitter.onPluginPerformance((pluginName, metric, value, unit, threshold) => {
+      if (value > threshold) {
+        console.warn(`Performance threshold exceeded for ${pluginName}`);
+      }
+    });
+
+    // Subscribe to security events
+    eventEmitter.onPluginTrustViolation((pluginName, violation, severity, evidence) => {
+      console.error(`Trust violation detected: ${pluginName} - ${violation}`);
+    });
+  }
+
+  // Emit custom plugin events
+  async processData(data: any) {
+    // Emit custom business event
+    this.eventEmitter.emit('plugin:data-processed', {
+      pluginName: 'my-plugin',
+      dataSize: data.length,
+      timestamp: new Date()
+    });
+  }
+}
+```
+
+## 2. State Machine Integration
+
+Plugins can now integrate with the formal state machine for lifecycle management:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PluginStateMachine, PluginState, PluginTransition } from '@modu-nest/plugin-types';
+
+@Injectable()
+export class StateManagedPluginService {
+  constructor(private stateMachine: PluginStateMachine) {}
+
+  async performManagedOperation(pluginName: string) {
+    // Check current state before operation
+    const currentState = this.stateMachine.getState(pluginName);
+    
+    if (currentState !== PluginState.LOADED) {
+      throw new Error(`Plugin ${pluginName} not in LOADED state`);
+    }
+
+    try {
+      // Transition to BUSY state during operation
+      this.stateMachine.transition(pluginName, PluginTransition.START_OPERATION);
+      
+      // Perform operation
+      await this.doWork();
+      
+      // Transition back to LOADED
+      this.stateMachine.transition(pluginName, PluginTransition.COMPLETE_OPERATION);
+    } catch (error) {
+      // Transition to ERROR state on failure
+      this.stateMachine.transition(pluginName, PluginTransition.ERROR);
+      throw error;
+    }
+  }
+
+  private async doWork() {
+    // Actual plugin work
+  }
+}
+```
+
+## 3. Trust Level and Security Integration
+
+Enterprise plugins can integrate with the trust level system:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PluginTrustManager, PluginTrustLevel, TrustPolicyValidationGuard } from '@modu-nest/plugin-types';
+
+@Injectable()
+export class SecurePluginService {
+  constructor(
+    private trustManager: PluginTrustManager,
+    private trustGuard: TrustPolicyValidationGuard
+  ) {}
+
+  async performSecureOperation(pluginName: string, operation: string) {
+    // Check plugin trust level
+    const trustLevel = await this.trustManager.getPluginTrustLevel(pluginName);
+    
+    if (trustLevel === PluginTrustLevel.QUARANTINED) {
+      throw new Error('Plugin is quarantined');
+    }
+
+    // Validate capabilities for the operation
+    const hasCapability = await this.trustGuard.validateCapability(
+      pluginName, 
+      'network:http-client'
+    );
+
+    if (!hasCapability) {
+      throw new Error('Insufficient capabilities for network operations');
+    }
+
+    // Perform operation within trust constraints
+    return await this.executeWithTrustPolicy(operation);
+  }
+
+  private async executeWithTrustPolicy(operation: string) {
+    // Execute operation with enforced trust policies
+  }
+}
+```
+
+## 4. Plugin Development with Custom Decorators
+
+Enhanced decorators with enterprise features:
 
 ```typescript
 import {
@@ -11,41 +143,169 @@ import {
   PluginMetadataDecorator,
   PluginPermissions,
   PluginRoutePrefix,
+  PluginTrustLevel,
+  PluginCapabilities,
+  PluginCircuitBreaker,
 } from '@modu-nest/plugin-types';
 
-@PluginRoutePrefix('api/advanced')
-@PluginMetadataDecorator({ version: '1.0.0', features: ['caching'] })
-export class AdvancedController {
+@PluginRoutePrefix('api/enterprise')
+@PluginMetadataDecorator({ 
+  version: '2.0.0', 
+  features: ['caching', 'optimization', 'security'] 
+})
+@PluginTrustLevel(PluginTrustLevel.VERIFIED)
+@PluginCapabilities(['network:http-client', 'database:read-write'])
+export class EnterpriseController {
   @PluginGet('data')
   @PluginPermissions(['read:data'])
+  @PluginCircuitBreaker({ threshold: 5, timeout: 60000 })
   async getData() {
-    return { data: 'Advanced plugin data' };
+    return { data: 'Enterprise plugin data' };
   }
 
   @PluginPost('process')
   @PluginPermissions(['write:data'])
+  @PluginCapabilities(['database:read-write'])
   async processData(@Body() data: any) {
-    return await this.advancedService.process(data);
+    return await this.enterpriseService.process(data);
   }
 }
 ```
 
-## 2. Cross-Plugin Service Injection
+## 5. Cross-Plugin Service Injection with Security
+
+Enhanced cross-plugin communication with trust validation:
 
 ```typescript
 // In dependent plugin
 import { Inject, Injectable } from '@nestjs/common';
+import { PluginTrustManager, CrossPluginServiceManager } from '@modu-nest/plugin-types';
 
 @Injectable()
-export class DependentService {
+export class SecureDependentService {
   constructor(
     @Inject('USER_PLUGIN_SERVICE') private userService: any,
-    @Inject('ADVANCED_SERVICE') private advancedService: any
+    @Inject('ENTERPRISE_SERVICE') private enterpriseService: any,
+    private trustManager: PluginTrustManager,
+    private crossPluginManager: CrossPluginServiceManager
   ) {}
 
   async processWithDependencies(data: any) {
-    const user = await this.userService.getCurrentUser();
-    return await this.advancedService.process(data, user);
+    // Validate trust levels before cross-plugin calls
+    const userPluginTrust = await this.trustManager.getPluginTrustLevel('user-plugin');
+    const enterpriseTrust = await this.trustManager.getPluginTrustLevel('enterprise-plugin');
+
+    if (userPluginTrust === 'quarantined' || enterpriseTrust === 'quarantined') {
+      throw new Error('Cannot communicate with quarantined plugins');
+    }
+
+    // Secure cross-plugin service calls
+    const user = await this.crossPluginManager.secureCall(
+      'user-plugin',
+      'getCurrentUser',
+      []
+    );
+
+    return await this.crossPluginManager.secureCall(
+      'enterprise-plugin',
+      'process',
+      [data, user]
+    );
+  }
+}
+```
+
+## 6. Bundle Optimization Integration
+
+Plugins can configure their own optimization settings:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PluginBundleOptimizationService, OptimizationOptions } from '@modu-nest/plugin-types';
+
+@Injectable()
+export class OptimizedPluginService {
+  constructor(private bundleOptimizer: PluginBundleOptimizationService) {}
+
+  async optimizeForProduction() {
+    const optimizationOptions: OptimizationOptions = {
+      treeShaking: {
+        enabled: true,
+        removeUnusedExports: true,
+        removeDeadCode: true
+      },
+      minification: {
+        enabled: true,
+        removeComments: true,
+        compressWhitespace: true,
+        mangleNames: false // Keep readable for debugging
+      },
+      compression: {
+        algorithm: 'brotli',
+        level: 9
+      },
+      bundleAnalysis: {
+        generateReport: true,
+        checkCircularDependencies: true
+      }
+    };
+
+    const result = await this.bundleOptimizer.optimizePlugin(
+      'my-plugin',
+      optimizationOptions
+    );
+
+    console.log(`Bundle optimized: ${result.compressionRatio}% reduction`);
+    return result;
+  }
+}
+```
+
+## 7. Circuit Breaker Pattern Implementation
+
+Plugins can implement circuit breakers for resilient operations:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PluginCircuitBreaker, CircuitBreakerState } from '@modu-nest/plugin-types';
+
+@Injectable()
+export class ResilientPluginService {
+  private circuitBreaker: PluginCircuitBreaker;
+
+  constructor() {
+    this.circuitBreaker = new PluginCircuitBreaker({
+      failureThreshold: 5,
+      recoveryTimeout: 60000,
+      halfOpenMaxCalls: 3
+    });
+  }
+
+  async performResilientOperation(data: any) {
+    const state = this.circuitBreaker.getState();
+    
+    if (state === CircuitBreakerState.OPEN) {
+      throw new Error('Circuit breaker is OPEN - operation blocked');
+    }
+
+    try {
+      const result = await this.circuitBreaker.execute(async () => {
+        return await this.riskyOperation(data);
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Circuit breaker operation failed:', error);
+      throw error;
+    }
+  }
+
+  private async riskyOperation(data: any) {
+    // Potentially failing operation
+    if (Math.random() < 0.3) {
+      throw new Error('Simulated failure');
+    }
+    return { processed: data };
   }
 }
 ```
@@ -126,28 +386,99 @@ my-plugin/
 └── README.md
 ```
 
-### Manifest Configuration
+### Enterprise Plugin Manifest Configuration
 
 ```json
 {
-  "name": "my-plugin",
-  "version": "1.0.0",
-  "description": "Description of my plugin",
-  "author": "Your Name",
+  "name": "my-enterprise-plugin",
+  "version": "2.1.0",
+  "description": "Enterprise plugin with comprehensive security and optimization",
+  "author": "Enterprise Developer",
   "license": "MIT",
-  "dependencies": [],
-  "loadOrder": 100,
+  "dependencies": ["user-plugin", "security-plugin"],
+  "loadOrder": 150,
   "critical": false,
+
+  "security": {
+    "trustLevel": "verified",
+    "capabilities": [
+      "network:http-client",
+      "database:read-write",
+      "api:internal-calls"
+    ],
+    "signature": {
+      "algorithm": "RS256",
+      "keyId": "enterprise-2024",
+      "signature": "eyJhbGciOiJSUzI1NiIsInR5cCI6..."
+    },
+    "sandbox": {
+      "enabled": true,
+      "isolationLevel": "vm",
+      "resourceLimits": {
+        "maxMemory": 268435456,
+        "maxCPU": 75,
+        "maxExecutionTime": 30000
+      }
+    }
+  },
+
+  "optimization": {
+    "bundleOptimization": {
+      "enabled": true,
+      "treeShaking": true,
+      "minification": true,
+      "compression": "brotli"
+    },
+    "caching": {
+      "manifestCache": true,
+      "validationCache": true,
+      "ttl": 3600000
+    }
+  },
+
+  "monitoring": {
+    "circuitBreaker": {
+      "enabled": true,
+      "failureThreshold": 5,
+      "recoveryTimeout": 60000
+    },
+    "performance": {
+      "enableMetrics": true,
+      "maxStartupTime": 5000
+    }
+  },
+
+  "events": {
+    "lifecycle": {
+      "beforeLoad": true,
+      "afterLoad": true,
+      "onError": true
+    },
+    "custom": [
+      "plugin:data-processed",
+      "plugin:status-changed"
+    ]
+  },
+
   "module": {
-    "controllers": ["MyPluginController"],
-    "providers": ["MyPluginService"],
-    "exports": ["MyPluginService"],
+    "controllers": ["EnterpriseController"],
+    "providers": ["EnterpriseService", "OptimizationService"],
+    "exports": ["EnterpriseService"],
     "guards": [
       {
-        "name": "my-plugin-guard",
-        "class": "MyPluginGuard",
+        "name": "enterprise-guard",
+        "class": "EnterpriseGuard",
         "scope": "local",
-        "exported": true
+        "exported": true,
+        "dependencies": ["security-auth"]
+      }
+    ],
+    "crossPluginServices": [
+      {
+        "serviceName": "EnterpriseService",
+        "token": "ENTERPRISE_SERVICE",
+        "global": true,
+        "capabilities": ["data-processing"]
       }
     ]
   }
@@ -444,4 +775,200 @@ describe('MyPluginController', () => {
 });
 ```
 
-This development patterns guide provides comprehensive examples for building sophisticated plugins within the modu-nest architecture.
+## 8. Recent Refactoring Patterns Applied
+
+The framework has undergone significant refactoring following enterprise design patterns:
+
+### Strategy Pattern for Plugin Loading
+
+```typescript
+// Loading strategy abstraction
+interface IPluginLoadingStrategy {
+  name: string;
+  description: string;
+  canHandle(pluginCount: number, dependencies: Map<string, string[]>): boolean;
+  loadPlugins(plugins: PluginDiscovery[]): Promise<DynamicModule[]>;
+}
+
+// Concrete strategies
+class SequentialLoadingStrategy implements IPluginLoadingStrategy {
+  name = 'Sequential';
+  description = 'Loads plugins one by one in dependency order';
+  
+  canHandle(pluginCount: number): boolean {
+    return pluginCount <= 10; // Suitable for small plugin sets
+  }
+  
+  async loadPlugins(plugins: PluginDiscovery[]): Promise<DynamicModule[]> {
+    // Sequential loading implementation
+  }
+}
+
+class ParallelLoadingStrategy implements IPluginLoadingStrategy {
+  name = 'Parallel';
+  description = 'Loads independent plugins in parallel';
+  
+  canHandle(pluginCount: number, dependencies: Map<string, string[]>): boolean {
+    return pluginCount > 10 && this.hasIndependentPlugins(dependencies);
+  }
+  
+  async loadPlugins(plugins: PluginDiscovery[]): Promise<DynamicModule[]> {
+    // Parallel loading implementation
+  }
+}
+
+// Strategy factory with automatic optimization
+class PluginLoadingStrategyFactory {
+  static createOptimalStrategy(context: PluginLoaderContext): IPluginLoadingStrategy {
+    const pluginCount = context.getDiscoveredPluginCount();
+    const dependencies = context.getDependencyGraph();
+    
+    if (pluginCount <= 5) return new SequentialLoadingStrategy();
+    if (pluginCount <= 20) return new ParallelLoadingStrategy();
+    return new BatchLoadingStrategy();
+  }
+}
+```
+
+### Repository Pattern for Data Access
+
+```typescript
+// Repository abstraction
+interface IPluginRepository {
+  create(plugin: PluginMetadata): Promise<PluginEntity>;
+  findByName(name: string): Promise<PluginEntity | null>;
+  findAll(options?: FindOptions): Promise<PluginEntity[]>;
+  update(id: string, updates: Partial<PluginMetadata>): Promise<PluginEntity>;
+  delete(id: string): Promise<void>;
+}
+
+// TypeORM implementation
+@Injectable()
+class TypeOrmPluginRepository implements IPluginRepository {
+  constructor(
+    @InjectRepository(PluginEntity) private repository: Repository<PluginEntity>
+  ) {}
+  
+  async create(plugin: PluginMetadata): Promise<PluginEntity> {
+    return await this.repository.save(plugin);
+  }
+  
+  async findByName(name: string): Promise<PluginEntity | null> {
+    return await this.repository.findOne({ where: { name } });
+  }
+}
+
+// In-memory implementation for testing
+@Injectable()
+class InMemoryPluginRepository implements IPluginRepository {
+  private plugins = new Map<string, PluginEntity>();
+  
+  async create(plugin: PluginMetadata): Promise<PluginEntity> {
+    const entity = { ...plugin, id: generateId() };
+    this.plugins.set(entity.id, entity);
+    return entity;
+  }
+}
+```
+
+### Method Decomposition Pattern
+
+Applied systematic method refactoring for maintainability:
+
+```typescript
+// Before: Large monolithic method
+async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
+  // 50+ lines of mixed responsibilities
+}
+
+// After: Decomposed into focused methods
+async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
+  const discoveryResult = await this.performPluginDiscovery();
+  const loadOrder = await this.performDependencyAnalysis(discoveryResult.plugins);
+  await this.optimizeLoadingStrategy();
+  const modules = await this.performPluginLoading(loadOrder);
+  
+  this.logLoadingResults(startTime, discoveryResult, modules, loadOrder);
+  await this.performSecurityVerification(modules.length);
+  
+  return modules;
+}
+
+// Each method has single responsibility
+private async performPluginDiscovery(): Promise<{ plugins: PluginDiscovery[]; discoveryTime: number }> {
+  // Focused on plugin discovery only
+}
+
+private async performDependencyAnalysis(plugins: PluginDiscovery[]): Promise<string[]> {
+  // Focused on dependency resolution only
+}
+```
+
+### Observer Pattern for Event System
+
+```typescript
+// Event-driven architecture implementation
+class PluginEventEmitter extends EventEmitter {
+  // Type-safe event emission
+  emitPluginLoaded(pluginName: string, plugin: LoadedPlugin, loadTime: number, memoryUsage: number): void {
+    this.emit('plugin:loaded', { pluginName, plugin, loadTime, memoryUsage });
+  }
+  
+  emitPluginError(pluginName: string, error: Error, severity: ErrorSeverity): void {
+    this.emit('plugin:error', { pluginName, error, severity, timestamp: new Date() });
+  }
+  
+  // Type-safe event subscription
+  onPluginLoaded(callback: (event: PluginLoadedEvent) => void): void {
+    this.on('plugin:loaded', callback);
+  }
+}
+
+// Subscribers implement standard interface
+interface IPluginEventSubscriber {
+  subscribeToEvents(eventEmitter: PluginEventEmitter): void;
+}
+```
+
+### Error Handling Standardization
+
+```typescript
+// Comprehensive error hierarchy
+abstract class PluginError extends Error {
+  abstract readonly code: string;
+  abstract readonly severity: ErrorSeverity;
+  
+  constructor(
+    message: string,
+    public readonly context?: Record<string, any>,
+    public readonly suggestions?: string[]
+  ) {
+    super(message);
+  }
+}
+
+class PluginLoadError extends PluginError {
+  readonly code = 'PLUGIN-2001';
+  readonly severity = ErrorSeverity.HIGH;
+}
+
+class PluginDependencyError extends PluginError {
+  readonly code = 'PLUGIN-2002';
+  readonly severity = ErrorSeverity.CRITICAL;
+}
+
+// Standardized error handling
+class PluginErrorHandler {
+  handleError(error: Error, context: ErrorContext): void {
+    if (error instanceof PluginError) {
+      this.logStructuredError(error, context);
+      this.collectErrorMetrics(error);
+      this.suggestRecovery(error);
+    } else {
+      this.handleUnknownError(error, context);
+    }
+  }
+}
+```
+
+This comprehensive development patterns guide demonstrates the enterprise-grade architecture and refactoring patterns implemented in the modu-nest plugin framework.
