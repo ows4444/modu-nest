@@ -4,19 +4,15 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Environment, ENVIRONMENT_ENV } from '@modu-nest/config';
 import { EnvironmentType } from '@modu-nest/const';
-// import { LOGGER_SERVICE, LoggerService } from '@modu-nest/logger';
-// import { GrpcToHttpInterceptor } from '@modu-nest/shared-infrastructure';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
+import helmet from 'helmet';
 
 async function Bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
   const logger = new Logger(Bootstrap.name);
-  // const loggerService: LoggerService = app.get(LOGGER_SERVICE);
-
-  // app.useLogger(loggerService);
 
   app.useGlobalPipes(new ValidationPipe());
 
@@ -25,6 +21,36 @@ async function Bootstrap() {
   const { port, host, corsOrigins = ['*'] } = configService.getOrThrow<Environment>(ENVIRONMENT_ENV);
 
   const globalPrefix = configService.get<string>('API_PREFIX') || 'api';
+  const isProduction = configService.getOrThrow<string>('NODE_ENV') === EnvironmentType.Production;
+
+  // Security headers configuration
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
+      crossOriginEmbedderPolicy: false, // Allows plugin downloads/uploads
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      noSniff: true,
+      frameguard: { action: 'deny' },
+      permittedCrossDomainPolicies: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    })
+  );
 
   app.enableCors({
     origin: corsOrigins,
@@ -35,10 +61,6 @@ async function Bootstrap() {
   app.setGlobalPrefix(globalPrefix, {
     exclude: [{ method: RequestMethod.GET, path: '/health/*path' }],
   });
-
-  // app.useGlobalInterceptors(new GrpcToHttpInterceptor());
-
-  const isProduction = configService.getOrThrow<string>('NODE_ENV') === EnvironmentType.Production;
 
   if (isProduction) {
     app.enableShutdownHooks();

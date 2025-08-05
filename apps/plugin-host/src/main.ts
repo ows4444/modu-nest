@@ -7,6 +7,7 @@ import { EnvironmentType } from '@modu-nest/const';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
 import { PluginGuardInterceptor } from '@modu-nest/plugin-types';
+import helmet from 'helmet';
 
 async function Bootstrap() {
   const dynamicAppModule = await AppModule.register();
@@ -22,6 +23,36 @@ async function Bootstrap() {
   const { port, host, corsOrigins = ['*'] } = configService.getOrThrow<Environment>(ENVIRONMENT_ENV);
 
   const globalPrefix = configService.get<string>('API_PREFIX') || 'api';
+  const isProduction = configService.getOrThrow<string>('NODE_ENV') === EnvironmentType.Production;
+
+  // Security headers configuration
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
+      crossOriginEmbedderPolicy: false, // Allows plugin loading
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      noSniff: true,
+      frameguard: { action: 'deny' },
+      permittedCrossDomainPolicies: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    })
+  );
 
   app.enableCors({
     origin: corsOrigins,
@@ -32,8 +63,6 @@ async function Bootstrap() {
   app.setGlobalPrefix(globalPrefix, {
     exclude: [{ method: RequestMethod.GET, path: '/health/*path' }],
   });
-
-  const isProduction = configService.getOrThrow<string>('NODE_ENV') === EnvironmentType.Production;
 
   if (isProduction) {
     app.enableShutdownHooks();
