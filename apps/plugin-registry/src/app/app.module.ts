@@ -11,6 +11,7 @@ import { PluginValidationService } from './services/plugin-validation.service';
 import { PluginSecurityService } from './services/plugin-security.service';
 import { PluginSignatureService } from './services/plugin-signature.service';
 import { PluginRateLimitingService } from './services/plugin-rate-limiting.service';
+import { PluginBundleOptimizationService } from './services/plugin-bundle-optimization.service';
 import { PluginStorageOrchestratorService } from './services/plugin-storage-orchestrator.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { SharedConfigModule } from '@modu-nest/config';
@@ -51,6 +52,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginSecurityService,
     PluginSignatureService,
     PluginRateLimitingService,
+    PluginBundleOptimizationService,
     PluginStorageOrchestratorService,
     PluginRegistryService,
     {
@@ -66,6 +68,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginSecurityService,
     PluginSignatureService,
     PluginRateLimitingService,
+    PluginBundleOptimizationService,
     PluginStorageOrchestratorService,
   ],
 })

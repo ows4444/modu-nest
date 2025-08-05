@@ -14,6 +14,7 @@ import {
 import { PluginValidationService } from './plugin-validation.service';
 import { PluginSecurityService } from './plugin-security.service';
 import { PluginSignatureService } from './plugin-signature.service';
+import { PluginBundleOptimizationService } from './plugin-bundle-optimization.service';
 import { PluginStorageOrchestratorService } from './plugin-storage-orchestrator.service';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     private readonly validationService: PluginValidationService,
     private readonly securityService: PluginSecurityService,
     private readonly signatureService: PluginSignatureService,
+    private readonly bundleOptimizationService: PluginBundleOptimizationService,
     private readonly storageOrchestrator: PluginStorageOrchestratorService
   ) {
     this.eventEmitter = new PluginEventEmitter();
@@ -45,8 +47,8 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       const extractedManifest: CreatePluginDto = await this.validationService.extractAndValidateManifest(pluginBuffer);
       pluginName = extractedManifest.name;
 
-      // Create metadata early to get checksum
-      const metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, pluginBuffer);
+      // Create temporary metadata for initial processing
+      let metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, pluginBuffer);
       checksum = metadata.checksum;
 
       // Emit upload started event
@@ -140,8 +142,51 @@ export class PluginRegistryService implements IPluginEventSubscriber {
 
       this.logger.log(`Plugin signature verified successfully: ${pluginName} (trustLevel: ${signatureResult.trustLevel})`);
 
-      // Store plugin
-      await this.storageOrchestrator.storePlugin(metadata, pluginBuffer);
+      // Bundle optimization (if enabled)
+      let finalPluginBuffer = pluginBuffer;
+      const enableOptimization = process.env.ENABLE_BUNDLE_OPTIMIZATION !== 'false'; // enabled by default
+      
+      if (enableOptimization) {
+        this.logger.debug(`Starting bundle optimization for plugin: ${pluginName}`);
+        
+        try {
+          const optimizationResult = await this.bundleOptimizationService.optimizeBundle(
+            pluginBuffer,
+            pluginName
+          );
+
+          if (optimizationResult.compressionRatio > 0.05) { // Only use if we save more than 5%
+            finalPluginBuffer = optimizationResult.optimizedBuffer;
+            
+            this.logger.log(
+              `Bundle optimization completed for ${pluginName}: ` +
+              `${optimizationResult.originalSize} → ${optimizationResult.optimizedSize} bytes ` +
+              `(${(optimizationResult.compressionRatio * 100).toFixed(1)}% reduction)`
+            );
+
+            // Emit bundle optimization event
+            this.eventEmitter.emitPluginSecurityScanCompleted(
+              pluginName,
+              'bundle-optimization',
+              [],
+              'low'
+            );
+          } else {
+            this.logger.debug(`Bundle optimization for ${pluginName} did not provide significant savings, using original`);
+          }
+        } catch (error) {
+          this.logger.warn(`Bundle optimization failed for ${pluginName}, using original bundle: ${error.message}`);
+          // Continue with original buffer - optimization failure shouldn't block upload
+        }
+      }
+
+      // Update metadata with final buffer if optimization was applied
+      if (finalPluginBuffer !== pluginBuffer) {
+        metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, finalPluginBuffer);
+      }
+
+      // Store plugin (using optimized buffer if available)
+      await this.storageOrchestrator.storePlugin(metadata, finalPluginBuffer);
 
       // Emit plugin stored event
       this.eventEmitter.emitPluginStored(pluginName, metadata, 'database');
@@ -235,6 +280,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       validation: this.getValidationCacheStats(),
       security: this.getSecurityStats(),
       signature: this.getSignatureStats(),
+      bundleOptimization: this.getBundleOptimizationStats(),
     };
   }
 
@@ -264,6 +310,13 @@ export class PluginRegistryService implements IPluginEventSubscriber {
    */
   getSignatureStats() {
     return this.signatureService.getSignatureStats();
+  }
+
+  /**
+   * Get bundle optimization statistics
+   */
+  getBundleOptimizationStats() {
+    return this.bundleOptimizationService.getOptimizationStats();
   }
 
   /**

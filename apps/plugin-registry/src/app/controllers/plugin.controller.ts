@@ -22,6 +22,7 @@ import type { Express } from 'express';
 import 'multer';
 import { PluginRegistryService } from '../services/plugin-registry.service';
 import { PluginRateLimitingService } from '../services/plugin-rate-limiting.service';
+import { PluginBundleOptimizationService } from '../services/plugin-bundle-optimization.service';
 import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { 
@@ -39,6 +40,7 @@ export class PluginController {
   constructor(
     private readonly pluginRegistryService: PluginRegistryService,
     private readonly rateLimitingService: PluginRateLimitingService,
+    private readonly bundleOptimizationService: PluginBundleOptimizationService,
   ) {}
 
   @Post()
@@ -264,6 +266,80 @@ export class PluginController {
       message: 'Rate limiting rules retrieved successfully',
       rules,
     };
+  }
+
+  @Get('optimization/stats')
+  @UseGuards(RateLimitingGuard)
+  @ApiRateLimit()
+  async getBundleOptimizationStats() {
+    const stats = this.bundleOptimizationService.getOptimizationStats();
+    return {
+      message: 'Bundle optimization statistics retrieved successfully',
+      stats,
+    };
+  }
+
+  @Post('optimization/preview')
+  @UseGuards(RateLimitingGuard)
+  @UploadRateLimit()
+  @UseInterceptors(FileInterceptor('plugin'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        plugin: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async previewBundleOptimization(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('enableTreeShaking') enableTreeShaking?: string,
+    @Query('enableMinification') enableMinification?: string,
+    @Query('compressionAlgorithm') compressionAlgorithm?: string,
+    @Query('compressionLevel') compressionLevel?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No plugin file provided');
+    }
+
+    const options = {
+      enableTreeShaking: enableTreeShaking === 'true',
+      enableMinification: enableMinification !== 'false', // default true
+      compressionAlgorithm: (compressionAlgorithm as any) || 'gzip',
+      compressionLevel: compressionLevel ? parseInt(compressionLevel, 10) : 6,
+      removeSourceMaps: true,
+      removeComments: true,
+      optimizeImages: false,
+      bundleAnalysis: true,
+    };
+
+    try {
+      const result = await this.bundleOptimizationService.optimizeBundle(
+        file.buffer,
+        file.originalname || 'preview',
+        options
+      );
+
+      // Don't return the actual optimized buffer in preview, just stats
+      return {
+        message: 'Bundle optimization preview completed',
+        preview: {
+          originalSize: result.originalSize,
+          optimizedSize: result.optimizedSize,
+          compressionRatio: result.compressionRatio,
+          sizeSavings: result.originalSize - result.optimizedSize,
+          optimizations: result.optimizations,
+          metadata: result.metadata,
+        },
+        options,
+      };
+    } catch (error) {
+      throw new BadRequestException(`Bundle optimization preview failed: ${error.message}`);
+    }
   }
 
   /**
