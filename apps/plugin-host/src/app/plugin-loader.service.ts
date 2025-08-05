@@ -16,22 +16,39 @@ import {
   CircuitBreakerState,
   PluginCacheService,
   PluginCacheKeyBuilder,
+  PluginEventEmitter,
+  IPluginEventSubscriber,
 } from '@modu-nest/plugin-types';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { PluginMetricsService } from './plugin-metrics.service';
+import {
+  IPluginLoadingStrategy,
+  PluginLoaderContext,
+  PluginDiscovery,
+  PluginLoadingState,
+  LoadingStrategyType,
+  PluginLoadingStrategyFactory,
+} from './strategies';
+import {
+  PluginStateMachine,
+  PluginState,
+  PluginTransition,
+} from './state-machine';
 
 @Injectable()
-export class PluginLoaderService {
-  private readonly logger = new Logger(PluginLoaderService.name);
+export class PluginLoaderService implements PluginLoaderContext, IPluginEventSubscriber {
+  readonly logger = new Logger(PluginLoaderService.name);
   private loadedPlugins = new Map<string, LoadedPlugin>();
   private guardManager = new PluginGuardManager();
   private guardRegistry?: PluginGuardRegistryService;
-  private loadingState = new Map<string, PluginLoadingState>();
+  private stateMachine = new PluginStateMachine();
   private discoveredPlugins = new Map<string, PluginDiscovery>();
   private crossPluginServiceManager = new CrossPluginServiceManager();
   private circuitBreaker = new PluginCircuitBreaker();
   private metricsService?: PluginMetricsService;
   private cacheService = new PluginCacheService();
+  private loadingStrategy: IPluginLoadingStrategy;
+  private eventEmitter: PluginEventEmitter;
 
   // Memory management for plugin cleanup
   private readonly pluginWeakRefs = new Map<string, WeakRef<any>>();
@@ -45,8 +62,158 @@ export class PluginLoaderService {
     this.pluginWeakRefs.delete(pluginName);
   });
 
+  constructor() {
+    // Initialize event emitter
+    this.eventEmitter = new PluginEventEmitter();
+    
+    // Initialize loading strategy from environment or use default
+    const strategyType = PluginLoadingStrategyFactory.getStrategyFromEnvironment();
+    const batchSize = process.env.PLUGIN_BATCH_SIZE ? parseInt(process.env.PLUGIN_BATCH_SIZE, 10) : undefined;
+    
+    this.loadingStrategy = PluginLoadingStrategyFactory.createStrategy(strategyType, { batchSize });
+    this.logger.log(`Initialized with ${this.loadingStrategy.name} loading strategy: ${this.loadingStrategy.description}`);
+    
+    // Subscribe to events
+    this.subscribeToEvents(this.eventEmitter);
+    
+    // Connect state machine to event emitter
+    this.stateMachine.addStateChangeListener((event) => {
+      this.eventEmitter.emitPluginStateChanged(
+        event.pluginName,
+        event.fromState,
+        event.toState,
+        event.transition
+      );
+    });
+  }
+
   getLoadedPlugins(): Map<string, LoadedPlugin> {
     return this.loadedPlugins;
+  }
+
+  // PluginLoaderContext interface methods
+  getLoadingState(): Map<string, PluginLoadingState> {
+    // Convert new state machine states back to old enum for compatibility
+    const compatibilityMap = new Map<string, PluginLoadingState>();
+    const states = this.stateMachine.getAllStates();
+    
+    for (const [pluginName, state] of states) {
+      compatibilityMap.set(pluginName, state as any);
+    }
+    
+    return compatibilityMap;
+  }
+
+  setLoadingState(pluginName: string, state: PluginLoadingState): void {
+    // Convert old enum to new state machine transitions
+    const currentState = this.stateMachine.getCurrentState(pluginName);
+    
+    if (!currentState && state === PluginLoadingState.DISCOVERED) {
+      this.stateMachine.transition(pluginName, PluginTransition.REDISCOVER);
+    } else if (currentState === PluginState.DISCOVERED && state === PluginLoadingState.LOADING) {
+      this.stateMachine.transition(pluginName, PluginTransition.START_LOADING);
+    } else if (currentState === PluginState.LOADING && state === PluginLoadingState.LOADED) {
+      this.stateMachine.transition(pluginName, PluginTransition.COMPLETE_LOADING);
+    } else if (currentState === PluginState.LOADING && state === PluginLoadingState.FAILED) {
+      this.stateMachine.transition(pluginName, PluginTransition.FAIL_LOADING);
+    } else if (state === PluginLoadingState.UNLOADED) {
+      this.stateMachine.transition(pluginName, PluginTransition.UNLOAD);
+    } else {
+      this.logger.warn(`Cannot transition plugin ${pluginName} from ${currentState} to ${state}`);
+    }
+  }
+
+  getStateMachine(): PluginStateMachine {
+    return this.stateMachine;
+  }
+
+  getLoadedPluginsMap(): Map<string, LoadedPlugin> {
+    return this.loadedPlugins;
+  }
+
+  setLoadedPlugin(pluginName: string, plugin: LoadedPlugin): void {
+    this.loadedPlugins.set(pluginName, plugin);
+  }
+
+  setLoadingStrategy(strategy: IPluginLoadingStrategy): void {
+    this.loadingStrategy = strategy;
+    this.logger.log(`Switched to ${strategy.name} loading strategy`);
+  }
+
+  getLoadingStrategyName(): string {
+    return this.loadingStrategy.name;
+  }
+
+  getAvailableLoadingStrategies(): LoadingStrategyType[] {
+    return PluginLoadingStrategyFactory.getAvailableStrategies();
+  }
+
+  // Event subscription methods
+  subscribeToEvents(eventEmitter: PluginEventEmitter): void {
+    // Subscribe to dependency resolution events for timeout handling
+    eventEmitter.on('plugin.dependency.resolved', (event) => {
+      this.logger.debug(`Dependency resolved: ${event.pluginName} -> ${event.dependency} (${event.resolutionTimeMs}ms)`);
+    });
+
+    eventEmitter.on('plugin.dependency.failed', (event) => {
+      this.logger.error(`Dependency failed: ${event.pluginName} -> ${event.dependency}: ${event.error.message}${event.timeout ? ' (timeout)' : ''}`);
+    });
+
+    // Subscribe to performance events for monitoring
+    eventEmitter.on('plugin.performance', (event) => {
+      if (event.exceeded) {
+        this.logger.warn(`Performance threshold exceeded for ${event.pluginName}: ${event.metric} = ${event.value}${event.unit} (threshold: ${event.threshold})`);
+      }
+    });
+
+    // Subscribe to circuit breaker events
+    eventEmitter.on('plugin.circuit-breaker', (event) => {
+      this.logger.warn(`Circuit breaker ${event.state} for ${event.pluginName}: ${event.reason}`);
+    });
+
+    // Subscribe to error events for centralized error handling
+    eventEmitter.on('plugin.error', (event) => {
+      if (event.severity === 'critical' || event.severity === 'high') {
+        this.logger.error(`${event.severity.toUpperCase()} plugin error in ${event.pluginName} (${event.category}): ${event.error.message}`, event.error.stack);
+      } else {
+        this.logger.warn(`Plugin ${event.severity} error in ${event.pluginName} (${event.category}): ${event.error.message}`);
+      }
+    });
+  }
+
+  unsubscribeFromEvents(eventEmitter: PluginEventEmitter): void {
+    eventEmitter.removeAllListeners('plugin.dependency.resolved');
+    eventEmitter.removeAllListeners('plugin.dependency.failed');
+    eventEmitter.removeAllListeners('plugin.performance');
+    eventEmitter.removeAllListeners('plugin.circuit-breaker');
+    eventEmitter.removeAllListeners('plugin.error');
+  }
+
+  getEventEmitter(): PluginEventEmitter {
+    return this.eventEmitter;
+  }
+
+  switchLoadingStrategy(strategyType: LoadingStrategyType, options?: { batchSize?: number }): void {
+    const oldStrategy = this.loadingStrategy.name;
+    this.loadingStrategy = PluginLoadingStrategyFactory.createStrategy(strategyType, options);
+    this.logger.log(`Switched from ${oldStrategy} to ${this.loadingStrategy.name} loading strategy: ${this.loadingStrategy.description}`);
+  }
+
+  /**
+   * Automatically select optimal loading strategy based on plugin count and dependencies
+   */
+  optimizeLoadingStrategy(): void {
+    const pluginCount = this.discoveredPlugins.size;
+    const recommendedStrategy = PluginLoadingStrategyFactory.getRecommendedStrategy(pluginCount);
+    
+    if (this.loadingStrategy.name !== recommendedStrategy) {
+      this.logger.log(
+        `Auto-optimizing loading strategy for ${pluginCount} plugins: ${this.loadingStrategy.name} → ${recommendedStrategy}`
+      );
+      this.switchLoadingStrategy(recommendedStrategy);
+    } else {
+      this.logger.debug(`Current loading strategy ${this.loadingStrategy.name} is optimal for ${pluginCount} plugins`);
+    }
   }
 
   setMetricsService(metricsService: PluginMetricsService): void {
@@ -71,6 +238,9 @@ export class PluginLoaderService {
       const loadOrder = this.calculateLoadOrder(discoveredPlugins);
       const dependencyAnalysisTime = Date.now() - dependencyAnalysisStartTime;
       this.logger.log(`Plugin load order calculated in ${dependencyAnalysisTime}ms: [${loadOrder.join(', ')}]`);
+
+      // Step 2.5: Optimize loading strategy based on discovered plugins
+      this.optimizeLoadingStrategy();
 
       // Step 3: Load plugins in dependency order with parallel batching
       const loadingStartTime = Date.now();
@@ -129,7 +299,15 @@ export class PluginLoaderService {
       if (result.status === 'fulfilled' && result.value) {
         discoveries.push(result.value);
         this.discoveredPlugins.set(result.value.name, result.value);
-        this.loadingState.set(result.value.name, PluginLoadingState.DISCOVERED);
+        this.stateMachine.transition(result.value.name, PluginTransition.REDISCOVER);
+        
+        // Emit plugin discovered event
+        this.eventEmitter.emitPluginDiscovered(
+          result.value.name,
+          result.value.path,
+          result.value.manifest
+        );
+        
         this.logger.debug(
           `Discovered plugin: ${result.value.name} (dependencies: [${result.value.dependencies.join(', ')}])`
         );
@@ -258,66 +436,27 @@ export class PluginLoaderService {
   }
 
   private async loadPluginsInOrder(loadOrder: string[]): Promise<DynamicModule[]> {
-    const dependencyGraph = this.buildDependencyGraph(loadOrder);
-    const batches = this.calculateLoadBatches(dependencyGraph);
-    const dynamicModules: DynamicModule[] = [];
-
-    this.logger.log(`Loading plugins in ${batches.length} parallel batches`);
-
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
-      this.logger.log(`Loading batch ${batchIndex + 1}/${batches.length}: [${batch.join(', ')}]`);
-
-      // Load plugins in current batch in parallel
-      const batchPromises = batch.map((pluginName) => this.loadPluginWithErrorHandling(pluginName));
-      const batchResults = await Promise.allSettled(batchPromises);
-
-      // Process results and handle failures
-      for (let i = 0; i < batchResults.length; i++) {
-        const result = batchResults[i];
-        const pluginName = batch[i];
-
-        if (result.status === 'fulfilled' && result.value) {
-          dynamicModules.push(result.value.module as DynamicModule);
-          this.loadedPlugins.set(pluginName, result.value);
-          this.loadingState.set(pluginName, PluginLoadingState.LOADED);
-          this.logger.log(`✓ Successfully loaded plugin: ${pluginName}`);
-        } else {
-          this.loadingState.set(pluginName, PluginLoadingState.FAILED);
-          const error = result.status === 'rejected' ? result.reason : 'Unknown error';
-          this.logger.error(`Failed to load plugin ${pluginName}:`, error);
-
-          // Check if any plugins in subsequent batches depend on this failed plugin
-          const affectedPlugins = this.getPluginsDependingOn(pluginName, loadOrder);
-          if (affectedPlugins.length > 0) {
-            this.logger.warn(`Plugin ${pluginName} failure affects: [${affectedPlugins.join(', ')}]`);
-            // Mark affected plugins as failed
-            affectedPlugins.forEach((affected) => {
-              this.loadingState.set(affected, PluginLoadingState.FAILED);
-            });
-          }
-
-          // Decide whether to continue or fail fast
-          if (this.isCriticalPlugin(pluginName)) {
-            throw error;
-          }
-        }
-      }
-
-      this.logger.log(
-        `Batch ${batchIndex + 1} completed: ${
-          batch.filter((name) => this.loadingState.get(name) === PluginLoadingState.LOADED).length
-        }/${batch.length} plugins loaded successfully`
-      );
+    const startTime = Date.now();
+    
+    try {
+      const modules = await this.loadingStrategy.loadPlugins(loadOrder, this.discoveredPlugins, this);
+      const loadTime = Date.now() - startTime;
+      
+      // Record performance for strategy optimization
+      PluginLoadingStrategyFactory.recordPerformance(this.loadingStrategy.name as LoadingStrategyType, loadTime);
+      
+      return modules;
+    } catch (error) {
+      const loadTime = Date.now() - startTime;
+      this.logger.error(`Plugin loading strategy ${this.loadingStrategy.name} failed after ${loadTime}ms:`, error as Error);
+      throw error;
     }
-
-    return dynamicModules;
   }
 
   /**
    * Build dependency graph from plugin load order
    */
-  private buildDependencyGraph(loadOrder: string[]): Map<string, string[]> {
+  buildDependencyGraph(loadOrder: string[]): Map<string, string[]> {
     const dependencyGraph = new Map<string, string[]>();
 
     for (const pluginName of loadOrder) {
@@ -338,7 +477,7 @@ export class PluginLoaderService {
    * Calculate load batches for parallel loading
    * Plugins in the same batch can be loaded in parallel as they don't depend on each other
    */
-  private calculateLoadBatches(dependencyGraph: Map<string, string[]>): string[][] {
+  calculateLoadBatches(dependencyGraph: Map<string, string[]>): string[][] {
     const batches: string[][] = [];
     const remaining = new Set(dependencyGraph.keys());
     const completed = new Set<string>();
@@ -377,10 +516,10 @@ export class PluginLoaderService {
   /**
    * Load a single plugin with comprehensive error handling and circuit breaker protection
    */
-  private async loadPluginWithErrorHandling(pluginName: string): Promise<LoadedPlugin | null> {
+  async loadPluginWithErrorHandling(pluginName: string): Promise<LoadedPlugin | null> {
     try {
       this.logger.debug(`Loading plugin: ${pluginName}`);
-      this.loadingState.set(pluginName, PluginLoadingState.LOADING);
+      this.stateMachine.transition(pluginName, PluginTransition.START_LOADING);
 
       // Configure circuit breaker for this plugin based on manifest settings
       const discovery = this.discoveredPlugins.get(pluginName);
@@ -402,7 +541,7 @@ export class PluginLoaderService {
     } catch (error) {
       if (error instanceof PluginCircuitOpenError) {
         this.logger.warn(`Plugin loading blocked by circuit breaker for ${pluginName}: ${error.message}`);
-        this.loadingState.set(pluginName, PluginLoadingState.FAILED);
+        this.stateMachine.transition(pluginName, PluginTransition.FAIL_LOADING);
         // Don't rethrow circuit breaker errors - they indicate the plugin should be skipped
         return null;
       }
@@ -415,7 +554,7 @@ export class PluginLoaderService {
   /**
    * Get all plugins that depend on a given plugin
    */
-  private getPluginsDependingOn(failedPlugin: string, loadOrder: string[]): string[] {
+  getPluginsDependingOn(failedPlugin: string, loadOrder: string[]): string[] {
     const dependents: string[] = [];
 
     for (const pluginName of loadOrder) {
@@ -437,32 +576,59 @@ export class PluginLoaderService {
     if (!discovery) {
       this.logger.error(`Plugin discovery not found: ${pluginName}`);
       this.metricsService?.recordPluginLoadError(pluginName, new Error('Plugin discovery not found'));
+      
+      // Emit load failed event
+      this.eventEmitter.emitPluginLoadFailed(
+        pluginName,
+        new Error('Plugin discovery not found'),
+        'discovery'
+      );
+      
       return null;
     }
+
+    // Emit loading started event
+    this.eventEmitter.emitPluginLoadingStarted(
+      pluginName,
+      this.loadingStrategy.name,
+      discovery.dependencies
+    );
 
     // Record plugin load start
     this.metricsService?.recordPluginLoadStart(pluginName);
 
-    // Wait for all dependencies to be loaded
-    await this.waitForDependencies(discovery.dependencies);
-
-    // Load and validate the plugin
-    const pluginModule = await this.importPluginModule(discovery.path);
-    const manifest = discovery.manifest;
-
-    // Create loaded plugin object for lifecycle hooks
-    const loadedPlugin: LoadedPlugin = {
-      manifest,
-      module: null as any, // Will be set after creating dynamic module
-      instance: pluginModule,
-    };
-
     try {
+      // Emit loading progress - dependency resolution phase
+      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'dependency-resolution', 10);
+      
+      // Wait for all dependencies to be loaded
+      await this.waitForDependencies(discovery.dependencies);
+      
+      // Emit loading progress - validation phase
+      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'validation', 30);
+
+      // Load and validate the plugin
+      const pluginModule = await this.importPluginModule(discovery.path);
+      const manifest = discovery.manifest;
+
+      // Emit loading progress - instantiation phase
+      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'instantiation', 50);
+
+      // Create loaded plugin object for lifecycle hooks
+      const loadedPlugin: LoadedPlugin = {
+        manifest,
+        module: null as any, // Will be set after creating dynamic module
+        instance: pluginModule,
+      };
+
       // Execute beforeLoad lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'beforeLoad');
 
       // Process guards synchronously
       await this.processPluginGuards(pluginName, manifest, pluginModule);
+
+      // Emit loading progress - initialization phase
+      this.eventEmitter.emitPluginLoadingProgress(pluginName, 'initialization', 80);
 
       // Create dynamic module using existing logic but with enhanced error handling
       const dynamicModule = await this.createDynamicModuleFromPlugin(manifest, pluginModule);
@@ -484,10 +650,43 @@ export class PluginLoaderService {
       const loadTime = Date.now() - loadStartTime;
       this.metricsService?.recordPluginLoad(manifest.name, loadTime, manifest.version);
 
+      // Emit plugin loaded event
+      this.eventEmitter.emitPluginLoaded(
+        pluginName,
+        loadedPlugin,
+        loadTime,
+        process.memoryUsage().heapUsed
+      );
+
+      // Emit performance event
+      this.eventEmitter.emitPluginPerformance(
+        pluginName,
+        'load-time',
+        loadTime,
+        'ms',
+        10000 // 10 second threshold
+      );
+
       return loadedPlugin;
     } catch (error) {
       // Record plugin load error
       this.metricsService?.recordPluginLoadError(pluginName, error as Error);
+
+      // Emit load failed event
+      this.eventEmitter.emitPluginLoadFailed(
+        pluginName,
+        error as Error,
+        'loading'
+      );
+
+      // Emit plugin error event
+      this.eventEmitter.emitPluginError(
+        pluginName,
+        error as Error,
+        'high',
+        'loading',
+        true
+      );
 
       // Execute onError lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'onError', error);
@@ -509,25 +708,42 @@ export class PluginLoaderService {
     while (Date.now() - startTime < maxWaitTime) {
       const dependencyStates = dependencies.map((dep) => ({
         name: dep,
-        state: this.loadingState.get(dep),
+        state: this.stateMachine.getCurrentState(dep) as any,
       }));
 
-      const allLoaded = dependencyStates.every((dep) => dep.state === PluginLoadingState.LOADED);
+      const allLoaded = dependencyStates.every((dep) => dep.state === PluginState.LOADED);
       if (allLoaded) {
+        // Emit dependency resolved events for all dependencies
+        const resolveTime = Date.now() - startTime;
+        dependencies.forEach((dep) => {
+          this.eventEmitter.emitPluginDependencyResolved('dependency-waiter', dep, resolveTime);
+        });
+        
         this.logger.debug(`All dependencies loaded: [${dependencies.join(', ')}]`);
         return;
       }
 
       // Check for failed dependencies
-      const failedDeps = dependencyStates.filter((dep) => dep.state === PluginLoadingState.FAILED);
+      const failedDeps = dependencyStates.filter((dep) => dep.state === PluginState.FAILED);
       if (failedDeps.length > 0) {
         const failedNames = failedDeps.map((dep) => dep.name);
+        
+        // Emit dependency failed events
+        failedNames.forEach((dep) => {
+          this.eventEmitter.emitPluginDependencyFailed(
+            'dependency-waiter',
+            dep,
+            new Error(`Dependency ${dep} failed to load`),
+            false
+          );
+        });
+        
         throw new Error(`Dependencies failed to load: [${failedNames.join(', ')}]`);
       }
 
       // Log current dependency states for debugging
       const pendingDeps = dependencyStates.filter(
-        (dep) => dep.state !== PluginLoadingState.LOADED && dep.state !== PluginLoadingState.FAILED
+        (dep) => dep.state !== PluginState.LOADED && dep.state !== PluginState.FAILED
       );
 
       if (pendingDeps.length > 0) {
@@ -538,7 +754,18 @@ export class PluginLoaderService {
       await this.sleep(pollInterval);
     }
 
-    const pendingDeps = dependencies.filter((dep) => this.loadingState.get(dep) !== PluginLoadingState.LOADED);
+    const pendingDeps = dependencies.filter((dep) => this.stateMachine.getCurrentState(dep) !== PluginState.LOADED);
+    
+    // Emit timeout events for pending dependencies
+    pendingDeps.forEach((dep) => {
+      this.eventEmitter.emitPluginDependencyFailed(
+        'dependency-waiter',
+        dep,
+        new Error(`Timeout waiting for dependency: ${dep}`),
+        true
+      );
+    });
+    
     throw new Error(`Timeout waiting for dependencies: [${pendingDeps.join(', ')}]`);
   }
 
@@ -616,7 +843,7 @@ export class PluginLoaderService {
     }
   }
 
-  private isCriticalPlugin(pluginName: string): boolean {
+  isCriticalPlugin(pluginName: string): boolean {
     const discovery = this.discoveredPlugins.get(pluginName);
     return discovery?.manifest.critical === true;
   }
@@ -863,6 +1090,17 @@ export class PluginLoaderService {
       totalDiscovered: this.discoveredPlugins.size,
       pluginNames: Array.from(this.loadedPlugins.keys()),
       loadingStates: stateDistribution,
+      loadingStrategy: {
+        current: {
+          name: this.loadingStrategy.name,
+          description: this.loadingStrategy.description,
+          metrics: this.loadingStrategy.getPerformanceMetrics?.() || null,
+        },
+        available: this.getAvailableLoadingStrategies(),
+        descriptions: Object.fromEntries(PluginLoadingStrategyFactory.getStrategyDescriptions()),
+        performanceHistory: Object.fromEntries(PluginLoadingStrategyFactory.getPerformanceMetrics()),
+        recommended: PluginLoadingStrategyFactory.getRecommendedStrategy(this.discoveredPlugins.size),
+      },
       byVersion: plugins.reduce((acc, plugin) => {
         const version = plugin.manifest.version || 'unknown';
         acc[version] = (acc[version] || 0) + 1;
@@ -993,7 +1231,8 @@ export class PluginLoaderService {
    * Get plugin loading state (for monitoring)
    */
   getPluginState(pluginName: string): PluginLoadingState | undefined {
-    return this.loadingState.get(pluginName);
+    const state = this.stateMachine.getCurrentState(pluginName);
+    return state as any; // Cast to maintain compatibility
   }
 
   /**
@@ -1556,7 +1795,7 @@ export class PluginLoaderService {
   /**
    * Unload a specific plugin
    */
-  async unloadPlugin(pluginName: string): Promise<void> {
+  async unloadPlugin(pluginName: string, reason: 'manual' | 'error' | 'shutdown' | 'dependency-conflict' = 'manual'): Promise<void> {
     const loadedPlugin = this.loadedPlugins.get(pluginName);
     if (!loadedPlugin) {
       this.logger.warn(`Plugin not loaded: ${pluginName}`);
@@ -1571,12 +1810,12 @@ export class PluginLoaderService {
       await this.guardManager.removePluginGuards(pluginName);
       await this.crossPluginServiceManager.removePluginServices(pluginName);
 
-      // Perform comprehensive memory cleanup
-      await this.performComprehensiveCleanup(pluginName);
+      // Perform comprehensive memory cleanup and track resources freed
+      const cleanupResult = await this.performComprehensiveCleanup(pluginName);
 
       // Remove from loaded plugins
       this.loadedPlugins.delete(pluginName);
-      this.loadingState.set(pluginName, PluginLoadingState.UNLOADED);
+      this.stateMachine.transition(pluginName, PluginTransition.UNLOAD);
 
       // Execute afterUnload lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'afterUnload');
@@ -1591,9 +1830,26 @@ export class PluginLoaderService {
       // Record plugin unload
       this.metricsService?.recordPluginUnload(pluginName);
 
+      // Emit plugin unloaded event
+      this.eventEmitter.emitPluginUnloaded(pluginName, reason, {
+        memory: cleanupResult?.memoryFreed || 0,
+        timers: cleanupResult?.timersCleared || 0,
+        listeners: cleanupResult?.listenersRemoved || 0,
+      });
+
       this.logger.log(`Plugin unloaded successfully: ${pluginName}`);
     } catch (error) {
       this.logger.error(`Failed to unload plugin ${pluginName}:`, error);
+      
+      // Emit plugin error event
+      this.eventEmitter.emitPluginError(
+        pluginName,
+        error as Error,
+        'high',
+        'runtime',
+        false
+      );
+      
       // Execute onError lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'onError', error);
       throw error;
@@ -1960,22 +2216,7 @@ export class PluginLoaderService {
   }
 }
 
-// Supporting types and enums for enhanced plugin loading
-enum PluginLoadingState {
-  DISCOVERED = 'discovered',
-  LOADING = 'loading',
-  LOADED = 'loaded',
-  FAILED = 'failed',
-  UNLOADED = 'unloaded',
-}
-
-interface PluginDiscovery {
-  name: string;
-  path: string;
-  manifest: PluginManifest;
-  dependencies: string[];
-  loadOrder: number;
-}
+// Supporting types for enhanced plugin loading
 
 // Priority Queue implementation for dependency-ordered loading
 class PriorityQueue<T> {

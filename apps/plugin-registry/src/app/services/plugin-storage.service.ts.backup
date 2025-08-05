@@ -1,12 +1,10 @@
-import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import fs from 'fs';
 import path from 'path';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import { StorageConfig } from '@modu-nest/plugin-types';
 import type { PluginMetadata, PluginPackage, StorageStats } from '@modu-nest/plugin-types';
-import type { IPluginRepository, PluginRecord } from '../repositories';
-
-export const PLUGIN_REPOSITORY_TOKEN = 'PLUGIN_REPOSITORY';
+import { PluginDatabaseService, DatabasePluginRecord } from './plugin-database.service';
 
 @Injectable()
 export class PluginStorageService implements OnModuleInit {
@@ -14,10 +12,7 @@ export class PluginStorageService implements OnModuleInit {
   private readonly config: StorageConfig;
   private plugins = new Map<string, PluginPackage>(); // Keep in-memory cache for performance
 
-  constructor(
-    @Inject(PLUGIN_REPOSITORY_TOKEN)
-    private readonly repository: IPluginRepository
-  ) {
+  constructor(private readonly databaseService: PluginDatabaseService) {
     const storageRoot = process.env.REGISTRY_STORAGE_PATH || path.join(process.cwd(), 'registry-storage');
 
     this.config = {
@@ -29,8 +24,7 @@ export class PluginStorageService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.initializeStorage();
-    await this.repository.initialize();
-    await this.loadFromRepository();
+    await this.loadFromDatabase();
   }
 
   private async initializeStorage(): Promise<void> {
@@ -44,35 +38,41 @@ export class PluginStorageService implements OnModuleInit {
     }
   }
 
-  private async loadFromRepository(): Promise<void> {
+  /**
+   * Load plugins from database into memory cache
+   */
+  private async loadFromDatabase(): Promise<void> {
     try {
-      const repositoryPlugins = await this.repository.getAllPlugins({ status: 'active' });
+      const dbPlugins = await this.databaseService.getAllPlugins('active');
       this.plugins.clear();
 
-      for (const repoPlugin of repositoryPlugins) {
-        const metadata = this.mapRepositoryRecordToMetadata(repoPlugin);
+      for (const dbPlugin of dbPlugins) {
+        const metadata = this.mapDatabaseToMetadata(dbPlugin);
         const pluginPackage: PluginPackage = {
           metadata,
-          filePath: path.basename(repoPlugin.filePath),
+          filePath: path.basename(dbPlugin.file_path),
         };
-        this.plugins.set(repoPlugin.name, pluginPackage);
+        this.plugins.set(dbPlugin.name, pluginPackage);
       }
 
-      this.logger.log(`Loaded ${this.plugins.size} plugins from repository`);
+      this.logger.log(`Loaded ${this.plugins.size} plugins from database`);
 
-      // Migrate from old metadata file if it exists and repository is empty
+      // Migrate from old metadata file if it exists and database is empty
       if (this.plugins.size === 0 && fs.existsSync(this.config.metadataFile)) {
         await this.migrateFromMetadataFile();
       }
     } catch (error) {
-      this.logger.error('Failed to load plugins from repository:', error);
-      throw new Error('Repository loading failed');
+      this.logger.error('Failed to load plugins from database:', error);
+      throw new Error('Database loading failed');
     }
   }
 
+  /**
+   * Migrate from old JSON metadata file to database
+   */
   private async migrateFromMetadataFile(): Promise<void> {
     try {
-      this.logger.log('Migrating plugins from metadata file to repository...');
+      this.logger.log('Migrating plugins from metadata file to database...');
       const data = await readFile(this.config.metadataFile, 'utf-8');
       const pluginsArray: PluginPackage[] = JSON.parse(data);
 
@@ -80,7 +80,7 @@ export class PluginStorageService implements OnModuleInit {
         const filePath = path.join(this.config.pluginsDir, plugin.filePath);
         if (fs.existsSync(filePath)) {
           const stats = fs.statSync(filePath);
-          await this.repository.savePlugin(plugin.metadata, filePath, stats.size, plugin.metadata.checksum);
+          await this.databaseService.savePlugin(plugin.metadata, filePath, stats.size, plugin.metadata.checksum);
           this.plugins.set(plugin.metadata.name, plugin);
         }
       }
@@ -89,20 +89,23 @@ export class PluginStorageService implements OnModuleInit {
       const backupPath = this.config.metadataFile + '.backup';
       fs.renameSync(this.config.metadataFile, backupPath);
 
-      this.logger.log(`Migrated ${pluginsArray.length} plugins to repository. Old metadata backed up to ${backupPath}`);
+      this.logger.log(`Migrated ${pluginsArray.length} plugins to database. Old metadata backed up to ${backupPath}`);
     } catch (error) {
       this.logger.error('Failed to migrate from metadata file:', error);
       // Don't throw - continue with empty registry
     }
   }
 
-  private mapRepositoryRecordToMetadata(record: PluginRecord): PluginMetadata {
-    const manifest = JSON.parse(record.manifest);
+  /**
+   * Map database record to plugin metadata
+   */
+  private mapDatabaseToMetadata(dbPlugin: DatabasePluginRecord): PluginMetadata {
+    const manifest = JSON.parse(dbPlugin.manifest);
     return {
       ...manifest,
-      uploadedAt: record.uploadDate.toISOString(),
-      fileSize: record.fileSize,
-      checksum: record.checksum,
+      uploadedAt: dbPlugin.upload_date.toISOString(),
+      fileSize: dbPlugin.file_size,
+      checksum: dbPlugin.checksum,
     };
   }
 
@@ -118,8 +121,8 @@ export class PluginStorageService implements OnModuleInit {
       // Store file to disk
       await writeFile(filePath, new Uint8Array(pluginBuffer));
 
-      // Save to repository
-      await this.repository.savePlugin(metadata, filePath, pluginBuffer.length, metadata.checksum);
+      // Save to database
+      await this.databaseService.savePlugin(metadata, filePath, pluginBuffer.length, metadata.checksum);
 
       // Update memory cache
       const pluginPackage: PluginPackage = {
@@ -128,14 +131,14 @@ export class PluginStorageService implements OnModuleInit {
       };
       this.plugins.set(metadata.name, pluginPackage);
 
-      this.logger.log(`Plugin ${metadata.name} v${metadata.version} stored successfully (Repository + File)`);
+      this.logger.log(`Plugin ${metadata.name} v${metadata.version} stored successfully (DB + File)`);
     } catch (error) {
-      // Cleanup file if repository save failed
+      // Cleanup file if database save failed
       if (fs.existsSync(filePath)) {
         try {
           await fs.promises.unlink(filePath);
         } catch (cleanupError) {
-          this.logger.error(`Failed to cleanup file after repository error: ${cleanupError}`);
+          this.logger.error(`Failed to cleanup file after database error: ${cleanupError}`);
         }
       }
 
@@ -151,24 +154,24 @@ export class PluginStorageService implements OnModuleInit {
       return cached;
     }
 
-    // Fallback to repository
+    // Fallback to database
     try {
-      const repoPlugin = await this.repository.getPluginByName(name);
-      if (!repoPlugin) {
+      const dbPlugin = await this.databaseService.getPluginByName(name);
+      if (!dbPlugin) {
         return null;
       }
 
       // Add to memory cache
-      const metadata = this.mapRepositoryRecordToMetadata(repoPlugin);
+      const metadata = this.mapDatabaseToMetadata(dbPlugin);
       const pluginPackage: PluginPackage = {
         metadata,
-        filePath: path.basename(repoPlugin.filePath),
+        filePath: path.basename(dbPlugin.file_path),
       };
       this.plugins.set(name, pluginPackage);
 
       return pluginPackage;
     } catch (error) {
-      this.logger.error(`Failed to get plugin ${name} from repository:`, error);
+      this.logger.error(`Failed to get plugin ${name} from database:`, error);
       return null;
     }
   }
@@ -178,15 +181,18 @@ export class PluginStorageService implements OnModuleInit {
     return Array.from(this.plugins.values());
   }
 
-  async getAllPluginsFromRepository(): Promise<PluginPackage[]> {
+  /**
+   * Get all plugins from database (bypasses cache)
+   */
+  async getAllPluginsFromDatabase(): Promise<PluginPackage[]> {
     try {
-      const repoPlugins = await this.repository.getAllPlugins({ status: 'active' });
-      return repoPlugins.map((repoPlugin) => ({
-        metadata: this.mapRepositoryRecordToMetadata(repoPlugin),
-        filePath: path.basename(repoPlugin.filePath),
+      const dbPlugins = await this.databaseService.getAllPlugins('active');
+      return dbPlugins.map((dbPlugin) => ({
+        metadata: this.mapDatabaseToMetadata(dbPlugin),
+        filePath: path.basename(dbPlugin.file_path),
       }));
     } catch (error) {
-      this.logger.error('Failed to get all plugins from repository:', error);
+      this.logger.error('Failed to get all plugins from database:', error);
       return [];
     }
   }
@@ -213,33 +219,24 @@ export class PluginStorageService implements OnModuleInit {
   async deletePlugin(name: string): Promise<void> {
     const plugin = this.plugins.get(name);
     if (!plugin) {
-      // Check repository in case cache is stale
-      const repoPlugin = await this.repository.getPluginByName(name);
-      if (!repoPlugin) {
+      // Check database in case cache is stale
+      const dbPlugin = await this.databaseService.getPluginByName(name);
+      if (!dbPlugin) {
         throw new Error(`Plugin ${name} not found`);
       }
     }
 
     try {
-      // Delete from repository
-      const deleted = await this.repository.deletePlugin(name);
+      // Delete from database (this also deletes the file)
+      const deleted = await this.databaseService.deletePlugin(name);
       if (!deleted) {
-        throw new Error(`Plugin ${name} not found in repository`);
-      }
-
-      // Delete file if it exists
-      if (plugin) {
-        const fullPath = path.join(this.config.pluginsDir, plugin.filePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
-          this.logger.log(`File deleted: ${fullPath}`);
-        }
+        throw new Error(`Plugin ${name} not found in database`);
       }
 
       // Remove from memory cache
       this.plugins.delete(name);
 
-      this.logger.log(`Plugin ${name} deleted successfully (Repository + File + Cache)`);
+      this.logger.log(`Plugin ${name} deleted successfully (DB + File + Cache)`);
     } catch (error) {
       this.logger.error(`Failed to delete plugin ${name}:`, error);
       throw new Error(`Plugin deletion failed: ${(error as Error).message}`);
@@ -254,9 +251,12 @@ export class PluginStorageService implements OnModuleInit {
       return true;
     }
 
-    // Fallback to repository
+    // Fallback to database
     try {
-      return await this.repository.pluginExists(name, version);
+      const dbPlugin = await this.databaseService.getPluginByName(name);
+      if (!dbPlugin) return false;
+      if (version) return dbPlugin.version === version;
+      return true;
     } catch (error) {
       this.logger.error(`Failed to check plugin existence for ${name}:`, error);
       return false;
@@ -276,47 +276,50 @@ export class PluginStorageService implements OnModuleInit {
     };
   }
 
+  /**
+   * Get comprehensive storage statistics from database
+   */
   async getDetailedStorageStats() {
     try {
-      const repositoryStats = await this.repository.getStats();
+      const dbStats = await this.databaseService.getDatabaseStats();
       const memoryStats = this.getStorageStats();
 
       return {
         memory: memoryStats,
-        repository: repositoryStats,
-        cacheHitRate: this.plugins.size > 0 ? (this.plugins.size / repositoryStats.totalPlugins) * 100 : 0,
+        database: dbStats,
+        cacheHitRate: this.plugins.size > 0 ? (this.plugins.size / dbStats.totalPlugins) * 100 : 0,
       };
     } catch (error) {
       this.logger.error('Failed to get detailed storage stats:', error);
       return {
         memory: this.getStorageStats(),
-        repository: null,
+        database: null,
         cacheHitRate: 0,
       };
     }
   }
 
+  /**
+   * Record a plugin download
+   */
   async recordDownload(name: string, userAgent?: string, ipAddress?: string): Promise<void> {
     try {
-      await this.repository.recordDownload(name, userAgent, ipAddress);
-
-      // Update memory cache if plugin exists
-      const plugin = this.plugins.get(name);
-      if (plugin) {
-        plugin.metadata.uploadedAt = new Date().toISOString(); // This represents last accessed for cache purposes
-      }
+      await this.databaseService.updateDownloadCount(name, userAgent, ipAddress);
     } catch (error) {
       this.logger.error(`Failed to record download for ${name}:`, error);
       // Don't throw - download should still succeed
     }
   }
 
+  /**
+   * Search plugins in database
+   */
   async searchPlugins(query: string): Promise<PluginPackage[]> {
     try {
-      const repoPlugins = await this.repository.searchPlugins(query);
-      return repoPlugins.map((repoPlugin) => ({
-        metadata: this.mapRepositoryRecordToMetadata(repoPlugin),
-        filePath: path.basename(repoPlugin.filePath),
+      const dbPlugins = await this.databaseService.searchPlugins(query);
+      return dbPlugins.map((dbPlugin) => ({
+        metadata: this.mapDatabaseToMetadata(dbPlugin),
+        filePath: path.basename(dbPlugin.file_path),
       }));
     } catch (error) {
       this.logger.error(`Failed to search plugins with query '${query}':`, error);
@@ -324,49 +327,10 @@ export class PluginStorageService implements OnModuleInit {
     }
   }
 
-  // Repository pass-through methods for advanced operations
-  async updatePluginStatus(name: string, status: 'active' | 'deprecated' | 'disabled'): Promise<boolean> {
-    try {
-      const updated = await this.repository.updatePluginStatus(name, status);
-
-      // Update memory cache
-      if (updated) {
-        const plugin = this.plugins.get(name);
-        if (plugin) {
-          // If status is not active, remove from cache
-          if (status !== 'active') {
-            this.plugins.delete(name);
-          }
-        }
-      }
-
-      return updated;
-    } catch (error) {
-      this.logger.error(`Failed to update plugin status for ${name}:`, error);
-      throw error;
-    }
-  }
-
-  async getDownloadHistory(pluginName: string, limit?: number) {
-    try {
-      return await this.repository.getDownloadHistory(pluginName, limit);
-    } catch (error) {
-      this.logger.error(`Failed to get download history for ${pluginName}:`, error);
-      return [];
-    }
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      return await this.repository.healthCheck();
-    } catch (error) {
-      this.logger.error('Repository health check failed:', error);
-      return false;
-    }
-  }
-
-  // Get the underlying repository for advanced operations
-  getRepository(): IPluginRepository {
-    return this.repository;
+  /**
+   * Get database service for advanced operations
+   */
+  getDatabaseService(): PluginDatabaseService {
+    return this.databaseService;
   }
 }

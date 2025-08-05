@@ -64,3 +64,8 @@ export * from './lib/plugin-cache.service';
 
 // Plugin version utilities
 export * from './lib/plugin-version-utils';
+
+// Plugin event system
+export * from './lib/plugin-events';
+export * from './lib/plugin-event-emitter';
+export * from './lib/plugin-event-monitor.service';

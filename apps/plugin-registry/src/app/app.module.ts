@@ -7,9 +7,12 @@ import { HealthController } from './controllers/health.controller';
 import { PluginRegistryService } from './services/plugin-registry.service';
 import { PluginStorageService } from './services/plugin-storage.service';
 import { PluginValidationCacheService } from './services/plugin-validation-cache.service';
-import { PluginDatabaseService } from './services/plugin-database.service';
+import { PluginValidationService } from './services/plugin-validation.service';
+import { PluginSecurityService } from './services/plugin-security.service';
+import { PluginStorageOrchestratorService } from './services/plugin-storage-orchestrator.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { SharedConfigModule } from '@modu-nest/config';
+import { RepositoryModule } from './modules/repository.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { SharedConfigModule } from '@modu-nest/config';
       envFilePath: [__dirname],
       load: [],
     }),
+
+    // Repository module with automatic database type detection
+    RepositoryModule.forRoot(),
 
     MulterModule.register({
       limits: {
@@ -37,15 +43,24 @@ import { SharedConfigModule } from '@modu-nest/config';
   ],
   controllers: [AppController, PluginController, HealthController],
   providers: [
-    PluginDatabaseService,
     PluginStorageService,
     PluginValidationCacheService,
+    PluginValidationService,
+    PluginSecurityService,
+    PluginStorageOrchestratorService,
     PluginRegistryService,
     {
       provide: APP_INTERCEPTOR,
       useClass: ErrorHandlingInterceptor,
     },
   ],
-  exports: [PluginRegistryService, PluginStorageService, PluginValidationCacheService, PluginDatabaseService],
+  exports: [
+    PluginRegistryService,
+    PluginStorageService,
+    PluginValidationCacheService,
+    PluginValidationService,
+    PluginSecurityService,
+    PluginStorageOrchestratorService,
+  ],
 })
 export class AppModule {}
