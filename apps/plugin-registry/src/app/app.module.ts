@@ -9,6 +9,7 @@ import { PluginStorageService } from './services/plugin-storage.service';
 import { PluginValidationCacheService } from './services/plugin-validation-cache.service';
 import { PluginValidationService } from './services/plugin-validation.service';
 import { PluginSecurityService } from './services/plugin-security.service';
+import { PluginSignatureService } from './services/plugin-signature.service';
 import { PluginStorageOrchestratorService } from './services/plugin-storage-orchestrator.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { SharedConfigModule } from '@modu-nest/config';
@@ -47,6 +48,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginValidationCacheService,
     PluginValidationService,
     PluginSecurityService,
+    PluginSignatureService,
     PluginStorageOrchestratorService,
     PluginRegistryService,
     {
@@ -60,6 +62,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginValidationCacheService,
     PluginValidationService,
     PluginSecurityService,
+    PluginSignatureService,
     PluginStorageOrchestratorService,
   ],
 })

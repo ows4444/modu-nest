@@ -13,6 +13,7 @@ import {
 } from '@modu-nest/plugin-types';
 import { PluginValidationService } from './plugin-validation.service';
 import { PluginSecurityService } from './plugin-security.service';
+import { PluginSignatureService } from './plugin-signature.service';
 import { PluginStorageOrchestratorService } from './plugin-storage-orchestrator.service';
 
 @Injectable()
@@ -24,6 +25,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   constructor(
     private readonly validationService: PluginValidationService,
     private readonly securityService: PluginSecurityService,
+    private readonly signatureService: PluginSignatureService,
     private readonly storageOrchestrator: PluginStorageOrchestratorService
   ) {
     this.eventEmitter = new PluginEventEmitter();
@@ -106,6 +108,37 @@ export class PluginRegistryService implements IPluginEventSubscriber {
 
       // Emit security scan completed event (assuming success if no exception)
       this.eventEmitter.emitPluginSecurityScanCompleted(pluginName, 'imports', [], 'low');
+
+      // Emit signature verification started event
+      this.eventEmitter.emitPluginSecurityScanStarted(pluginName, 'signature');
+
+      // Perform signature verification
+      const signatureResult = await this.signatureService.validatePluginSignature(pluginBuffer, extractedManifest);
+
+      // Emit signature verification completed event
+      this.eventEmitter.emitPluginSecurityScanCompleted(
+        pluginName,
+        'signature',
+        signatureResult.errors,
+        signatureResult.isValid ? 'low' : 'high'
+      );
+
+      if (!signatureResult.isValid) {
+        const error = new PluginManifestError(
+          pluginName,
+          signatureResult.errors,
+          signatureResult.warnings
+        );
+        this.errorMetrics.recordError(error, { pluginName, operation: 'signature-verification' });
+        handlePluginError(error, { pluginName, operation: 'uploadPlugin' });
+      }
+
+      // Log signature verification warnings if any
+      if (signatureResult.warnings.length > 0) {
+        this.logger.warn(`Plugin signature warnings: ${signatureResult.warnings.join(', ')}`);
+      }
+
+      this.logger.log(`Plugin signature verified successfully: ${pluginName} (trustLevel: ${signatureResult.trustLevel})`);
 
       // Store plugin
       await this.storageOrchestrator.storePlugin(metadata, pluginBuffer);
@@ -201,6 +234,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       ...detailedStats,
       validation: this.getValidationCacheStats(),
       security: this.getSecurityStats(),
+      signature: this.getSignatureStats(),
     };
   }
 
@@ -223,6 +257,13 @@ export class PluginRegistryService implements IPluginEventSubscriber {
    */
   getSecurityStats() {
     return this.securityService.getSecurityStats();
+  }
+
+  /**
+   * Get signature verification statistics
+   */
+  getSignatureStats() {
+    return this.signatureService.getSignatureStats();
   }
 
   /**
