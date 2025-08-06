@@ -1,20 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Type, ClassProvider, ValueProvider, FactoryProvider } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Mutex } from 'async-mutex';
 import { CrossPluginServiceConfig, PluginManifest } from '@modu-nest/plugin-types';
 
-// Type definitions for NestJS-compatible providers
-type ClassProvider = new (...args: unknown[]) => unknown;
-type FactoryProvider = (...args: unknown[]) => unknown;
-type InjectionToken = string | symbol | Function;
-
-export interface CrossPluginServiceProvider {
-  provide: string;
-  useClass?: ClassProvider;
-  useValue?: unknown;
-  useFactory?: FactoryProvider;
-  inject?: InjectionToken[];
-}
+// Cross-plugin service provider - a union of NestJS Provider types
+export type CrossPluginServiceProvider = ClassProvider<any> | ValueProvider<any> | FactoryProvider<any> | Type<any>;
 
 /**
  * Thread-safe Cross-Plugin Service Manager
@@ -74,7 +64,9 @@ export class CrossPluginServiceManager {
         if (provider) {
           const finalToken = this.registerService(serviceConfig.token, provider);
           // Update provider with final token in case of collision
-          provider.provide = finalToken;
+          if (typeof provider === 'object' && 'provide' in provider) {
+            provider.provide = finalToken;
+          }
           providers.push(provider);
 
           if (serviceConfig.global) {
@@ -127,9 +119,9 @@ export class CrossPluginServiceManager {
         // Create a global token for this service
         const globalToken = this.createGlobalToken(pluginName, serviceName);
 
-        const provider: CrossPluginServiceProvider = {
+        const provider: ClassProvider<any> = {
           provide: globalToken,
-          useClass: serviceClass as ClassProvider,
+          useClass: serviceClass as Type<any>,
         };
 
         const finalToken = this.registerService(globalToken, provider);
@@ -395,8 +387,8 @@ export class CrossPluginServiceManager {
 
     return {
       provide: config.token,
-      useClass: serviceClass as ClassProvider,
-    };
+      useClass: serviceClass as Type<any>,
+    } as ClassProvider<any>;
   }
 
   /**

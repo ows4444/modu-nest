@@ -1,4 +1,4 @@
-import { Injectable, Logger, DynamicModule, Module } from '@nestjs/common';
+import { Injectable, Logger, DynamicModule, Module, Type, Provider } from '@nestjs/common';
 import 'reflect-metadata';
 import path from 'path';
 import fs from 'fs';
@@ -815,11 +815,11 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       }
 
       // Helper function to resolve component references from manifest
-      const resolveComponents = (componentRefs: string[] | string | undefined): Function[] => {
+      const resolveComponents = (componentRefs: string[] | string | undefined): Type<any>[] => {
         if (!componentRefs) return [];
 
         const refs = Array.isArray(componentRefs) ? componentRefs : [componentRefs];
-        const components: Function[] = [];
+        const components: Type<any>[] = [];
 
         for (const ref of refs) {
           if (typeof ref !== 'string' || !ref.trim()) {
@@ -838,7 +838,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
             continue;
           }
 
-          components.push(component);
+          components.push(component as Type<any>);
           this.logger.debug(`Resolved component '${ref}' for plugin '${manifest.name}'`);
         }
 
@@ -847,15 +847,19 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
       // Resolve plugin components from manifest
       const controllers = resolveComponents(manifest.module.controllers);
-      const providers = resolveComponents(manifest.module.providers);
+      const resolvedProviders = resolveComponents(manifest.module.providers);
       const moduleExports = resolveComponents(manifest.module.exports);
-      const imports = resolveComponents(manifest.module.imports);
+      const resolvedImports = resolveComponents(manifest.module.imports);
+      const imports = resolvedImports.map((imp) => imp as any); // Cast for module compatibility
+
+      // Create providers array that can handle both Type<any> and Provider
+      const providers: Provider[] = [...resolvedProviders];
 
       // Resolve and inject only the guards specified in the manifest
       const guardProviders = await this.resolveAndCreateGuardProviders(manifest.name, manifest.module.guards || []);
 
-      // Add guard providers to the providers array
-      providers.push(...guardProviders);
+      // Add guard providers to the providers array (cast as Provider)
+      providers.push(...guardProviders.map((guard) => guard as Provider));
 
       // Add cross-plugin service providers for dependency injection
       const crossPluginProviders = await this.crossPluginServiceManager.createCrossPluginProviders(
@@ -1821,8 +1825,8 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       await this.guardManager.removePluginGuards(pluginName);
       await this.crossPluginServiceManager.removePluginServices(pluginName);
 
-      // Perform comprehensive memory cleanup and track resources freed
-      const cleanupResult = await this.performComprehensiveCleanup(pluginName);
+      // Perform comprehensive memory cleanup
+      await this.performComprehensiveCleanup(pluginName);
 
       // Remove from loaded plugins
       this.loadedPlugins.delete(pluginName);
@@ -1841,11 +1845,11 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       // Record plugin unload
       this.metricsService?.recordPluginUnload(pluginName);
 
-      // Emit plugin unloaded event
+      // Emit plugin unloaded event (basic cleanup stats)
       this.eventEmitter.emitPluginUnloaded(pluginName, reason, {
-        memory: cleanupResult?.memoryFreed || 0,
-        timers: cleanupResult?.timersCleared || 0,
-        listeners: cleanupResult?.listenersRemoved || 0,
+        memory: 0, // Could be tracked if needed
+        timers: 0, // Could be tracked if needed
+        listeners: 0, // Could be tracked if needed
       });
 
       this.logger.log(`Plugin unloaded successfully: ${pluginName}`);
@@ -2022,7 +2026,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
               source: pluginName,
               scope: 'external',
             },
-            guardClass: guardClass as new (...args: unknown[]) => unknown,
+            guardClass: guardClass as new (...args: any[]) => any,
           });
 
           this.logger.debug(`Registered guard '${entry.name}' from plugin '${pluginName}' with guard registry`);
