@@ -18,13 +18,13 @@ export interface StateTransition {
   from: PluginState;
   to: PluginState;
   transition: PluginTransition;
-  condition?: (context?: any) => boolean;
+  condition?: (context?: unknown) => boolean;
 }
 
 export interface IPluginStateMachine {
   getCurrentState(pluginName: string): PluginState | undefined;
   canTransition(pluginName: string, transition: PluginTransition): boolean;
-  transition(pluginName: string, transition: PluginTransition, context?: any): boolean;
+  transition(pluginName: string, transition: PluginTransition, context?: unknown): boolean;
   getAllStates(): Map<string, PluginState>;
   getValidTransitions(pluginName: string): PluginTransition[];
   reset(pluginName: string): void;
@@ -37,7 +37,7 @@ export interface PluginStateChangeEvent {
   toState: PluginState;
   transition: PluginTransition;
   timestamp: Date;
-  context?: any;
+  context?: unknown;
 }
 
 export type StateChangeListener = (event: PluginStateChangeEvent) => void;

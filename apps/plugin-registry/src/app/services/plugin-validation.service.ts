@@ -11,6 +11,7 @@ export interface ValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
+  cacheHit?: boolean;
 }
 
 @Injectable()
@@ -24,7 +25,7 @@ export class PluginValidationService {
    */
   async extractAndValidateManifest(pluginBuffer: Buffer): Promise<CreatePluginDto> {
     const manifest = await this.extractManifestFromZip(pluginBuffer);
-    
+
     // Validate manifest with class-validator
     const validationErrors = await validate(plainToInstance(CreatePluginValidationDto, manifest));
     if (validationErrors.length > 0) {

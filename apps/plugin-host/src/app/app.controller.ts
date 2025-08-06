@@ -2,7 +2,11 @@ import { Controller, Get, Post, Param, Query, Body, Delete } from '@nestjs/commo
 import { PluginLoaderService } from './plugin-loader.service';
 import { RegistryClientService, RegistryPluginMetadata } from './registry-client.service';
 import { PluginUpdateInfo } from '@modu-nest/plugin-types';
-import { PluginMetricsService, MetricsExportOptions } from './plugin-metrics.service';
+import {
+  PluginMetricsService,
+  type MetricsExportOptions,
+  type MetricsServiceConfiguration,
+} from './plugin-metrics.service';
 
 @Controller()
 export class AppController {
@@ -188,7 +192,7 @@ export class AppController {
   }
 
   @Post('plugins/metrics/config')
-  updateMetricsConfiguration(@Body() config: any) {
+  updateMetricsConfiguration(@Body() config: Partial<MetricsServiceConfiguration>) {
     try {
       this.metricsService.updateConfiguration(config);
       return {

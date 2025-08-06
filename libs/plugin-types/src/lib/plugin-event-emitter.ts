@@ -1,6 +1,6 @@
 /**
  * Plugin Event Emitter Implementation
- * 
+ *
  * A robust event emitter specifically designed for the plugin system.
  * Provides type-safe event emission and subscription with error handling,
  * middleware support, and performance monitoring.
@@ -23,7 +23,10 @@ import {
 } from './plugin-events';
 
 @Injectable()
-export class PluginEventEmitter extends EventEmitter implements IPluginEventEmitter, IPluginEventBus, IPluginEventMiddleware {
+export class PluginEventEmitter
+  extends EventEmitter
+  implements IPluginEventEmitter, IPluginEventBus, IPluginEventMiddleware
+{
   private readonly logger = new Logger(PluginEventEmitter.name);
   private readonly middlewares: EventMiddleware[] = [];
   private readonly eventStats = new Map<string, { count: number; lastEmitted: Date }>();
@@ -31,55 +34,77 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
   constructor() {
     super();
     this.setMaxListeners(100); // Allow up to 100 listeners per event
-    
+
     // Log event statistics periodically
     setInterval(() => this.logEventStats(), 300000); // Every 5 minutes
   }
 
-  // Core event emitter methods
-  emit<T extends PluginEvent>(event: T): boolean {
+  // Core event emitter methods (overloaded for compatibility)
+  override emit(eventName: string | symbol, ...args: any[]): boolean;
+  override emit<T extends PluginEvent>(event: T): boolean;
+  override emit<T extends PluginEvent>(eventNameOrEvent: string | symbol | T, ...args: any[]): boolean {
     try {
+      // Handle different overload signatures
+      if (typeof eventNameOrEvent === 'string' || typeof eventNameOrEvent === 'symbol') {
+        // Traditional EventEmitter signature
+        return super.emit(eventNameOrEvent, ...args);
+      }
+
+      // Plugin event object signature
+      const event = eventNameOrEvent;
+
       // Process through middleware
       const processedEvent = this.process(event);
-      
+
       // Update statistics
       this.updateEventStats(processedEvent.type);
-      
+
       // Log event emission
       this.logger.debug(`Emitting event: ${processedEvent.type} for plugin: ${processedEvent.pluginName}`);
-      
+
       // Emit the event
       return super.emit(processedEvent.type, processedEvent);
     } catch (error) {
-      this.logger.error(`Error emitting event ${event.type}: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      if (typeof eventNameOrEvent === 'object' && eventNameOrEvent && 'type' in eventNameOrEvent) {
+        this.logger.error(`Error emitting event ${eventNameOrEvent.type}: ${errorMessage}`, errorStack);
+      } else {
+        this.logger.error(`Error emitting event ${String(eventNameOrEvent)}: ${errorMessage}`, errorStack);
+      }
       return false;
     }
   }
 
-  on<T extends PluginEvent>(eventType: T['type'], listener: PluginEventListener<T>): void {
+  override on<T extends PluginEvent>(eventType: T['type'], listener: PluginEventListener<T>): this {
     const wrappedListener = this.wrapListener(eventType, listener);
     super.on(eventType, wrappedListener);
     this.logger.debug(`Added listener for event: ${eventType}`);
+    return this;
   }
 
-  off<T extends PluginEvent>(eventType: T['type'], listener: PluginEventListener<T>): void {
+  override off<T extends PluginEvent>(eventType: T['type'], listener: PluginEventListener<T>): this {
     super.off(eventType, listener);
     this.logger.debug(`Removed listener for event: ${eventType}`);
+    return this;
   }
 
-  once<T extends PluginEvent>(eventType: T['type'], listener: PluginEventListener<T>): void {
+  override once<T extends PluginEvent>(eventType: T['type'], listener: PluginEventListener<T>): this {
     const wrappedListener = this.wrapListener(eventType, listener);
     super.once(eventType, wrappedListener);
     this.logger.debug(`Added one-time listener for event: ${eventType}`);
+    return this;
   }
 
-  removeAllListeners(eventType?: string): void {
+  override removeAllListeners(eventType?: string): this {
     super.removeAllListeners(eventType);
     if (eventType) {
       this.logger.debug(`Removed all listeners for event: ${eventType}`);
     } else {
       this.logger.debug('Removed all event listeners');
     }
+    return this;
   }
 
   getListenerCount(eventType: string): number {
@@ -94,7 +119,7 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
 
   process<T extends PluginEvent>(event: T): T {
     let processedEvent = event;
-    
+
     for (const middleware of this.middlewares) {
       try {
         let nextCalled = false;
@@ -102,16 +127,19 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
           processedEvent = e;
           nextCalled = true;
         });
-        
+
         if (!nextCalled) {
           this.logger.warn('Middleware did not call next(), event processing stopped');
           break;
         }
       } catch (error) {
-        this.logger.error(`Error in event middleware: ${error.message}`, error.stack);
+        this.logger.error(
+          `Error in event middleware: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined
+        );
       }
     }
-    
+
     return processedEvent;
   }
 
@@ -138,7 +166,12 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginLoadingProgress(pluginName: string, phase: 'validation' | 'dependency-resolution' | 'instantiation' | 'initialization', progress: number, details?: string): void {
+  emitPluginLoadingProgress(
+    pluginName: string,
+    phase: 'validation' | 'dependency-resolution' | 'instantiation' | 'initialization',
+    progress: number,
+    details?: string
+  ): void {
     this.emit({
       type: 'plugin.loading.progress',
       pluginName,
@@ -174,7 +207,11 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginUnloaded(pluginName: string, reason: 'manual' | 'error' | 'shutdown' | 'dependency-conflict', resourcesFreed?: any): void {
+  emitPluginUnloaded(
+    pluginName: string,
+    reason: 'manual' | 'error' | 'shutdown' | 'dependency-conflict',
+    resourcesFreed?: any
+  ): void {
     this.emit({
       type: 'plugin.unloaded',
       pluginName,
@@ -185,7 +222,12 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginStateChanged(pluginName: string, fromState: PluginState | undefined, toState: PluginState, transition: PluginTransition): void {
+  emitPluginStateChanged(
+    pluginName: string,
+    fromState: PluginState | undefined,
+    toState: PluginState,
+    transition: PluginTransition
+  ): void {
     this.emit({
       type: 'plugin.state.changed',
       pluginName,
@@ -220,7 +262,7 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginReloaded(pluginName: string, previousVersion?: string, newVersion?: string, hotReload: boolean = false): void {
+  emitPluginReloaded(pluginName: string, previousVersion?: string, newVersion?: string, hotReload = false): void {
     this.emit({
       type: 'plugin.reloaded',
       pluginName,
@@ -254,7 +296,14 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginValidationCompleted(pluginName: string, type: 'manifest' | 'structure' | 'security', isValid: boolean, warnings: string[], errors: string[], cacheHit?: boolean): void {
+  emitPluginValidationCompleted(
+    pluginName: string,
+    type: 'manifest' | 'structure' | 'security',
+    isValid: boolean,
+    warnings: string[],
+    errors: string[],
+    cacheHit?: boolean
+  ): void {
     this.emit({
       type: 'plugin.validation.completed',
       pluginName,
@@ -312,7 +361,13 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginSecurityScanCompleted(pluginName: string, scanType: 'imports' | 'structure' | 'manifest', threats: string[], riskLevel: 'low' | 'medium' | 'high' | 'critical', cacheHit?: boolean): void {
+  emitPluginSecurityScanCompleted(
+    pluginName: string,
+    scanType: 'imports' | 'structure' | 'manifest',
+    threats: string[],
+    riskLevel: 'low' | 'medium' | 'high' | 'critical',
+    cacheHit?: boolean
+  ): void {
     this.emit({
       type: 'plugin.security.scan.completed',
       pluginName,
@@ -325,7 +380,12 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
     });
   }
 
-  emitPluginSecurityViolation(pluginName: string, violationType: string, severity: 'low' | 'medium' | 'high' | 'critical', blocked: boolean): void {
+  emitPluginSecurityViolation(
+    pluginName: string,
+    violationType: string,
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    blocked: boolean
+  ): void {
     this.emit({
       type: 'plugin.security.violation',
       pluginName,
@@ -338,7 +398,13 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
   }
 
   // Performance event helpers
-  emitPluginPerformance(pluginName: string, metric: 'load-time' | 'memory-usage' | 'cpu-usage' | 'response-time', value: number, unit: 'ms' | 'bytes' | 'percent', threshold?: number): void {
+  emitPluginPerformance(
+    pluginName: string,
+    metric: 'load-time' | 'memory-usage' | 'cpu-usage' | 'response-time',
+    value: number,
+    unit: 'ms' | 'bytes' | 'percent',
+    threshold?: number
+  ): void {
     this.emit({
       type: 'plugin.performance',
       pluginName,
@@ -353,7 +419,13 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
   }
 
   // Circuit breaker event helpers
-  emitPluginCircuitBreakerEvent(pluginName: string, state: 'open' | 'half-open' | 'closed', reason: string, errorCount?: number, resetTimeMs?: number): void {
+  emitPluginCircuitBreakerEvent(
+    pluginName: string,
+    state: 'open' | 'half-open' | 'closed',
+    reason: string,
+    errorCount?: number,
+    resetTimeMs?: number
+  ): void {
     this.emit({
       type: 'plugin.circuit-breaker',
       pluginName,
@@ -367,7 +439,12 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
   }
 
   // Cache event helpers
-  emitPluginCacheEvent(pluginName: string, operation: 'hit' | 'miss' | 'eviction' | 'clear', cacheType: 'validation' | 'security' | 'manifest', key?: string): void {
+  emitPluginCacheEvent(
+    pluginName: string,
+    operation: 'hit' | 'miss' | 'eviction' | 'clear',
+    cacheType: 'validation' | 'security' | 'manifest',
+    key?: string
+  ): void {
     this.emit({
       type: 'plugin.cache',
       pluginName,
@@ -380,7 +457,13 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
   }
 
   // Error event helpers
-  emitPluginError(pluginName: string, error: Error, severity: 'low' | 'medium' | 'high' | 'critical', category: 'validation' | 'loading' | 'runtime' | 'security' | 'network', recoverable: boolean = true): void {
+  emitPluginError(
+    pluginName: string,
+    error: Error,
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    category: 'validation' | 'loading' | 'runtime' | 'security' | 'network',
+    recoverable = true
+  ): void {
     this.emit({
       type: 'plugin.error',
       pluginName,
@@ -399,16 +482,13 @@ export class PluginEventEmitter extends EventEmitter implements IPluginEventEmit
       try {
         await listener(event);
       } catch (error) {
-        this.logger.error(`Error in event listener for ${eventType}: ${error.message}`, error.stack);
-        
-        // Emit error event for listener failures
-        this.emitPluginError(
-          event.pluginName,
-          error as Error,
-          'medium',
-          'runtime',
-          true
+        this.logger.error(
+          `Error in event listener for ${eventType}: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined
         );
+
+        // Emit error event for listener failures
+        this.emitPluginError(event.pluginName, error as Error, 'medium', 'runtime', true);
       }
     };
   }

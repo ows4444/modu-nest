@@ -18,6 +18,12 @@
     "name": "config"
   },
   "dependencies": {
-    "tslib": "^2.3.0"
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
+    "tslib": "^2.3.0",
+    "@nestjs/config": "^4.0.2",
+    "@modu-nest/const": "0.0.1",
+    "@modu-nest/utils": "0.0.1",
+    "@nestjs/common": "^11.0.0"
   }
 }

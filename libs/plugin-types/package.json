@@ -17,7 +17,10 @@
   "dependencies": {
     "tslib": "^2.3.0",
     "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
     "reflect-metadata": "^0.1.13",
-    "semver": "^7.7.2"
+    "semver": "^7.7.2",
+    "async-mutex": "^0.5.0",
+    "rxjs": "^7.8.0"
   }
 }

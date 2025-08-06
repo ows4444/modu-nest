@@ -36,9 +36,7 @@ export class ParallelLoadingStrategy implements IPluginLoadingStrategy {
       context.logger.log(`Loading batch ${batchIndex + 1}/${batches.length}: [${batch.join(', ')}]`);
 
       // Load plugins in current batch in parallel
-      const batchPromises = batch.map((pluginName) => 
-        context.loadPluginWithErrorHandling(pluginName)
-      );
+      const batchPromises = batch.map((pluginName) => context.loadPluginWithErrorHandling(pluginName));
       const batchResults = await Promise.allSettled(batchPromises);
 
       // Process results and handle failures
@@ -73,8 +71,8 @@ export class ParallelLoadingStrategy implements IPluginLoadingStrategy {
         }
       }
 
-      const successCount = batch.filter((name) => 
-        context.getLoadingState().get(name) === PluginLoadingState.LOADED
+      const successCount = batch.filter(
+        (name) => context.getLoadingState().get(name) === PluginLoadingState.LOADED
       ).length;
 
       context.logger.log(
@@ -96,14 +94,17 @@ export class ParallelLoadingStrategy implements IPluginLoadingStrategy {
 
   getPerformanceMetrics() {
     return {
-      averageLoadTime: this.performanceMetrics.totalExecutions > 0 
-        ? this.performanceMetrics.totalLoadTime / this.performanceMetrics.totalExecutions 
-        : 0,
+      averageLoadTime:
+        this.performanceMetrics.totalExecutions > 0
+          ? this.performanceMetrics.totalLoadTime / this.performanceMetrics.totalExecutions
+          : 0,
       totalPluginsLoaded: this.performanceMetrics.pluginsLoaded,
       concurrencyLevel: -1, // Dynamic based on dependency batches
-      failureRate: this.performanceMetrics.pluginsLoaded > 0 
-        ? (this.performanceMetrics.pluginsLoaded - this.performanceMetrics.successfulLoads) / this.performanceMetrics.pluginsLoaded 
-        : 0,
+      failureRate:
+        this.performanceMetrics.pluginsLoaded > 0
+          ? (this.performanceMetrics.pluginsLoaded - this.performanceMetrics.successfulLoads) /
+            this.performanceMetrics.pluginsLoaded
+          : 0,
     };
   }
 

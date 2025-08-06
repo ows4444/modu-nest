@@ -218,7 +218,7 @@ async function listZipContents(zipPath: string): Promise<string[]> {
     }
 
     return contents.filter((f) => f.length > 0);
-  } catch (error) {
+  } catch {
     return ['(unable to list contents)'];
   }
 }

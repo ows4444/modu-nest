@@ -39,20 +39,16 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
       context.logger.log(`Loading batch ${batchIndex + 1}/${batches.length}: [${batch.join(', ')}]`);
 
       // Check dependencies for each plugin in the batch
-      const validPluginsInBatch = await this.filterPluginsByDependencyAvailability(
-        batch,
-        discoveredPlugins,
-        context
-      );
+      const validPluginsInBatch = await this.filterPluginsByDependencyAvailability(batch, discoveredPlugins, context);
 
       if (validPluginsInBatch.length < batch.length) {
-        const skippedPlugins = batch.filter(p => !validPluginsInBatch.includes(p));
+        const skippedPlugins = batch.filter((p) => !validPluginsInBatch.includes(p));
         context.logger.warn(
           `Skipping plugins with unmet dependencies in batch ${batchIndex + 1}: [${skippedPlugins.join(', ')}]`
         );
-        
+
         // Mark skipped plugins as failed due to dependency issues
-        skippedPlugins.forEach(pluginName => {
+        skippedPlugins.forEach((pluginName) => {
           context.setLoadingState(pluginName, PluginLoadingState.FAILED);
         });
       }
@@ -63,9 +59,7 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
       }
 
       // Load valid plugins in current batch in parallel
-      const batchPromises = validPluginsInBatch.map((pluginName) => 
-        context.loadPluginWithErrorHandling(pluginName)
-      );
+      const batchPromises = validPluginsInBatch.map((pluginName) => context.loadPluginWithErrorHandling(pluginName));
       const batchResults = await Promise.allSettled(batchPromises);
 
       // Process results and handle failures
@@ -101,8 +95,8 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
         }
       }
 
-      const successCount = validPluginsInBatch.filter((name) => 
-        context.getLoadingState().get(name) === PluginLoadingState.LOADED
+      const successCount = validPluginsInBatch.filter(
+        (name) => context.getLoadingState().get(name) === PluginLoadingState.LOADED
       ).length;
 
       context.logger.log(
@@ -129,14 +123,17 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
 
   getPerformanceMetrics() {
     return {
-      averageLoadTime: this.performanceMetrics.totalExecutions > 0 
-        ? this.performanceMetrics.totalLoadTime / this.performanceMetrics.totalExecutions 
-        : 0,
+      averageLoadTime:
+        this.performanceMetrics.totalExecutions > 0
+          ? this.performanceMetrics.totalLoadTime / this.performanceMetrics.totalExecutions
+          : 0,
       totalPluginsLoaded: this.performanceMetrics.pluginsLoaded,
       concurrencyLevel: this.batchSize,
-      failureRate: this.performanceMetrics.pluginsLoaded > 0 
-        ? (this.performanceMetrics.pluginsLoaded - this.performanceMetrics.successfulLoads) / this.performanceMetrics.pluginsLoaded 
-        : 0,
+      failureRate:
+        this.performanceMetrics.pluginsLoaded > 0
+          ? (this.performanceMetrics.pluginsLoaded - this.performanceMetrics.successfulLoads) /
+            this.performanceMetrics.pluginsLoaded
+          : 0,
     };
   }
 
@@ -149,11 +146,11 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
 
   private createFixedSizeBatches(loadOrder: string[], batchSize: number): string[][] {
     const batches: string[][] = [];
-    
+
     for (let i = 0; i < loadOrder.length; i += batchSize) {
       batches.push(loadOrder.slice(i, i + batchSize));
     }
-    
+
     return batches;
   }
 
@@ -173,12 +170,12 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
       }
 
       // Check if all dependencies are already loaded
-      const dependencyStates = discovery.dependencies.map(dep => loadingState.get(dep));
-      const allDependenciesLoaded = dependencyStates.every(state => state === PluginLoadingState.LOADED);
-      const anyDependencyFailed = dependencyStates.some(state => state === PluginLoadingState.FAILED);
+      const dependencyStates = discovery.dependencies.map((dep) => loadingState.get(dep));
+      const allDependenciesLoaded = dependencyStates.every((state) => state === PluginLoadingState.LOADED);
+      const anyDependencyFailed = dependencyStates.some((state) => state === PluginLoadingState.FAILED);
 
       if (anyDependencyFailed) {
-        const failedDeps = discovery.dependencies.filter(dep => loadingState.get(dep) === PluginLoadingState.FAILED);
+        const failedDeps = discovery.dependencies.filter((dep) => loadingState.get(dep) === PluginLoadingState.FAILED);
         context.logger.warn(`Plugin ${pluginName} has failed dependencies: [${failedDeps.join(', ')}]`);
         continue;
       }
@@ -186,7 +183,7 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
       if (allDependenciesLoaded) {
         validPlugins.push(pluginName);
       } else {
-        const pendingDeps = discovery.dependencies.filter(dep => loadingState.get(dep) !== PluginLoadingState.LOADED);
+        const pendingDeps = discovery.dependencies.filter((dep) => loadingState.get(dep) !== PluginLoadingState.LOADED);
         context.logger.debug(`Plugin ${pluginName} has pending dependencies: [${pendingDeps.join(', ')}]`);
       }
     }
@@ -195,6 +192,6 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

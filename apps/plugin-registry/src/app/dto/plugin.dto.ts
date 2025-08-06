@@ -1,6 +1,17 @@
-import { IsString, IsOptional, IsArray, IsNumber, Matches, MinLength, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsNumber,
+  Matches,
+  MinLength,
+  MaxLength,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { CREATE_PLUGIN_VALIDATION } from '@modu-nest/plugin-types';
-import type { CreatePluginDto } from '@modu-nest/plugin-types';
+import type { CreatePluginDto, PluginModuleMeta } from '@modu-nest/plugin-types';
 
 export class CreatePluginValidationDto implements CreatePluginDto {
   @IsString()
@@ -40,4 +51,9 @@ export class CreatePluginValidationDto implements CreatePluginDto {
   @IsOptional()
   @IsNumber()
   loadOrder?: number;
+
+  @IsObject()
+  @ValidateNested()
+  @Type(() => Object)
+  module!: PluginModuleMeta;
 }

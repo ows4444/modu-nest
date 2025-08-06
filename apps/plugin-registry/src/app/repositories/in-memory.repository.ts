@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PluginMetadata } from '@modu-nest/plugin-types';
-import { 
-  IPluginRepository, 
-  PluginRecord, 
-  PluginDownloadRecord, 
-  PluginSearchOptions, 
-  RepositoryStats 
+import {
+  IPluginRepository,
+  PluginRecord,
+  PluginDownloadRecord,
+  PluginSearchOptions,
+  RepositoryStats,
 } from './plugin-repository.interface';
 
 @Injectable()
@@ -30,7 +30,12 @@ export class InMemoryRepository implements IPluginRepository {
     this.logger.log('In-memory repository closed');
   }
 
-  async savePlugin(metadata: PluginMetadata, filePath: string, fileSize: number, checksum: string): Promise<PluginRecord> {
+  async savePlugin(
+    metadata: PluginMetadata,
+    filePath: string,
+    fileSize: number,
+    checksum: string
+  ): Promise<PluginRecord> {
     try {
       const now = new Date();
       const manifestJson = JSON.stringify(metadata);
@@ -58,7 +63,7 @@ export class InMemoryRepository implements IPluginRepository {
         tags,
         dependencies,
         createdAt: existingPlugin ? existingPlugin.createdAt : now,
-        updatedAt: now
+        updatedAt: now,
       };
 
       this.plugins.set(metadata.name, plugin);
@@ -96,26 +101,20 @@ export class InMemoryRepository implements IPluginRepository {
 
   async getAllPlugins(options: PluginSearchOptions = {}): Promise<PluginRecord[]> {
     try {
-      const {
-        status = 'active',
-        limit = 100,
-        offset = 0,
-        sortBy = 'uploadDate',
-        sortOrder = 'desc'
-      } = options;
+      const { status = 'active', limit = 100, offset = 0, sortBy = 'uploadDate', sortOrder = 'desc' } = options;
 
       let plugins = Array.from(this.plugins.values());
 
       // Filter by status
       if (status !== 'all') {
-        plugins = plugins.filter(plugin => plugin.status === status);
+        plugins = plugins.filter((plugin) => plugin.status === status);
       }
 
       // Sort
       plugins.sort((a, b) => {
         const aValue = a[sortBy as keyof PluginRecord] as any;
         const bValue = b[sortBy as keyof PluginRecord] as any;
-        
+
         if (sortOrder === 'desc') {
           return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
         } else {
@@ -134,9 +133,9 @@ export class InMemoryRepository implements IPluginRepository {
   async searchPlugins(query: string): Promise<PluginRecord[]> {
     try {
       const lowerQuery = query.toLowerCase();
-      const plugins = Array.from(this.plugins.values()).filter(plugin => {
+      const plugins = Array.from(this.plugins.values()).filter((plugin) => {
         if (plugin.status !== 'active') return false;
-        
+
         return (
           plugin.name.toLowerCase().includes(lowerQuery) ||
           plugin.description.toLowerCase().includes(lowerQuery) ||
@@ -155,17 +154,17 @@ export class InMemoryRepository implements IPluginRepository {
   async deletePlugin(name: string): Promise<boolean> {
     try {
       const deleted = this.plugins.delete(name);
-      
+
       if (deleted) {
         // Remove related downloads
-        this.downloads = this.downloads.filter(download => {
-          const plugin = Array.from(this.plugins.values()).find(p => p.id === download.pluginId);
+        this.downloads = this.downloads.filter((download) => {
+          const plugin = Array.from(this.plugins.values()).find((p) => p.id === download.pluginId);
           return plugin !== undefined;
         });
-        
+
         this.logger.log(`Plugin deleted: ${name}`);
       }
-      
+
       return deleted;
     } catch (error) {
       this.logger.error(`Failed to delete plugin ${name}:`, error);
@@ -176,7 +175,7 @@ export class InMemoryRepository implements IPluginRepository {
   async recordDownload(name: string, userAgent?: string, ipAddress?: string): Promise<void> {
     try {
       const plugin = this.plugins.get(name);
-      
+
       if (!plugin || plugin.status !== 'active') {
         throw new Error(`Plugin not found: ${name}`);
       }
@@ -192,7 +191,7 @@ export class InMemoryRepository implements IPluginRepository {
         version: plugin.version,
         downloadDate: new Date(),
         userAgent,
-        ipAddress
+        ipAddress,
       };
 
       this.downloads.push(downloadRecord);
@@ -205,8 +204,8 @@ export class InMemoryRepository implements IPluginRepository {
 
   async getStats(): Promise<RepositoryStats> {
     try {
-      const activePlugins = Array.from(this.plugins.values()).filter(p => p.status === 'active');
-      
+      const activePlugins = Array.from(this.plugins.values()).filter((p) => p.status === 'active');
+
       if (activePlugins.length === 0) {
         return {
           totalPlugins: 0,
@@ -215,7 +214,7 @@ export class InMemoryRepository implements IPluginRepository {
           mostPopularPlugin: 'None',
           oldestPlugin: 'None',
           newestPlugin: 'None',
-          totalDownloads: 0
+          totalDownloads: 0,
         };
       }
 
@@ -223,15 +222,15 @@ export class InMemoryRepository implements IPluginRepository {
       const totalDownloads = activePlugins.reduce((sum, plugin) => sum + plugin.downloadCount, 0);
       const averagePluginSize = Math.round(totalStorage / activePlugins.length);
 
-      const mostPopular = activePlugins.reduce((max, plugin) => 
+      const mostPopular = activePlugins.reduce((max, plugin) =>
         plugin.downloadCount > max.downloadCount ? plugin : max
       );
 
-      const oldest = activePlugins.reduce((oldest, plugin) => 
+      const oldest = activePlugins.reduce((oldest, plugin) =>
         plugin.uploadDate < oldest.uploadDate ? plugin : oldest
       );
 
-      const newest = activePlugins.reduce((newest, plugin) => 
+      const newest = activePlugins.reduce((newest, plugin) =>
         plugin.uploadDate > newest.uploadDate ? plugin : newest
       );
 
@@ -242,7 +241,7 @@ export class InMemoryRepository implements IPluginRepository {
         mostPopularPlugin: mostPopular.name,
         oldestPlugin: oldest.name,
         newestPlugin: newest.name,
-        totalDownloads
+        totalDownloads,
       };
     } catch (error) {
       this.logger.error('Failed to get repository stats:', error);
@@ -256,11 +255,11 @@ export class InMemoryRepository implements IPluginRepository {
       if (!plugin || plugin.status !== 'active') {
         return false;
       }
-      
+
       if (version) {
         return plugin.version === version;
       }
-      
+
       return true;
     } catch (error) {
       this.logger.error(`Failed to check plugin existence for ${name}:`, error);
@@ -271,13 +270,13 @@ export class InMemoryRepository implements IPluginRepository {
   async getDownloadHistory(pluginName: string, limit = 100): Promise<PluginDownloadRecord[]> {
     try {
       const plugin = this.plugins.get(pluginName);
-      
+
       if (!plugin || plugin.status !== 'active') {
         return [];
       }
 
       const pluginDownloads = this.downloads
-        .filter(download => download.pluginId === plugin.id)
+        .filter((download) => download.pluginId === plugin.id)
         .sort((a, b) => b.downloadDate.getTime() - a.downloadDate.getTime())
         .slice(0, limit);
 
@@ -291,14 +290,14 @@ export class InMemoryRepository implements IPluginRepository {
   async updatePluginStatus(name: string, status: 'active' | 'deprecated' | 'disabled'): Promise<boolean> {
     try {
       const plugin = this.plugins.get(name);
-      
+
       if (!plugin) {
         return false;
       }
 
       plugin.status = status;
       plugin.updatedAt = new Date();
-      
+
       this.logger.log(`Plugin status updated: ${name} -> ${status}`);
       return true;
     } catch (error) {
@@ -307,12 +306,14 @@ export class InMemoryRepository implements IPluginRepository {
     }
   }
 
-  async bulkInsert(plugins: Array<{ metadata: PluginMetadata; filePath: string; fileSize: number; checksum: string }>): Promise<void> {
+  async bulkInsert(
+    plugins: Array<{ metadata: PluginMetadata; filePath: string; fileSize: number; checksum: string }>
+  ): Promise<void> {
     try {
       for (const { metadata, filePath, fileSize, checksum } of plugins) {
         await this.savePlugin(metadata, filePath, fileSize, checksum);
       }
-      
+
       this.logger.log(`Bulk inserted ${plugins.length} plugins`);
     } catch (error) {
       this.logger.error('Failed to bulk insert plugins:', error);

@@ -6,24 +6,24 @@ import { PluginEntity } from './plugin.entity';
 @Index(['downloadDate'])
 export class PluginDownloadEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  pluginId: number;
+  pluginId!: number;
 
   @Column({ nullable: true })
-  version: string;
+  version!: string | null;
 
   @CreateDateColumn()
-  downloadDate: Date;
+  downloadDate!: Date;
 
   @Column({ nullable: true })
-  userAgent: string;
+  userAgent!: string | null;
 
   @Column({ nullable: true })
-  ipAddress: string;
+  ipAddress!: string | null;
 
-  @ManyToOne(() => PluginEntity, plugin => plugin.downloads, { onDelete: 'CASCADE' })
+  @ManyToOne(() => PluginEntity, (plugin) => plugin.downloads, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'pluginId' })
-  plugin: PluginEntity;
+  plugin!: PluginEntity;
 }

@@ -9,6 +9,7 @@ import {
 } from '@modu-nest/plugin-types';
 import { Body, Param, Query, ValidationPipe, UsePipes } from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
+import type { CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
 
 @PluginRoute('users')
 export class UserPluginController {
@@ -46,7 +47,7 @@ export class UserPluginController {
   @PluginUseGuards('user-auth', 'admin-role')
   @PluginPermissions(['users:write', 'admin:access'])
   @UsePipes(new ValidationPipe())
-  createUser(@Body() createUserDto: any) {
+  createUser(@Body() createUserDto: CreateUserDto) {
     return this.userPluginService.createUser(createUserDto);
   }
 
@@ -54,7 +55,7 @@ export class UserPluginController {
   @PluginUseGuards('user-auth', 'user-ownership')
   @PluginPermissions(['users:write:own'])
   @UsePipes(new ValidationPipe())
-  updateUser(@Param('id') id: string, @Body() updateUserDto: any) {
+  updateUser(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userPluginService.updateUser(id, updateUserDto);
   }
 
@@ -123,7 +124,7 @@ export class UserPluginController {
   @PluginPost('create-with-product')
   @PluginUseGuards('user-auth', 'admin-role')
   @UsePipes(new ValidationPipe())
-  async createUserWithProduct(@Body() data: any) {
+  async createUserWithProduct(@Body() data: { user: CreateUserDto }) {
     const { user: userData } = data;
 
     try {
@@ -133,10 +134,10 @@ export class UserPluginController {
         user: newUser,
         message: 'User and product created via cross-plugin integration',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         error: 'Failed to create user and product',
-        details: error?.message || 'Unknown error',
+        details: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }

@@ -1,6 +1,12 @@
 import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import crypto from 'crypto';
-import { PluginMetadata, CreatePluginDto, RegistryStats, PluginListResponseDto, PluginResponseDto } from '@modu-nest/plugin-types';
+import {
+  PluginMetadata,
+  CreatePluginDto,
+  RegistryStats,
+  PluginListResponseDto,
+  PluginResponseDto,
+} from '@modu-nest/plugin-types';
 import { PluginStorageService } from './plugin-storage.service';
 
 @Injectable()
@@ -23,7 +29,7 @@ export class PluginStorageOrchestratorService {
    */
   createPluginMetadata(manifest: CreatePluginDto, pluginBuffer: Buffer): PluginMetadata {
     const checksum = crypto.createHash('sha256').update(new Uint8Array(pluginBuffer)).digest('hex');
-    
+
     return {
       ...manifest,
       uploadedAt: new Date().toISOString(),
@@ -38,7 +44,10 @@ export class PluginStorageOrchestratorService {
   async storePlugin(metadata: PluginMetadata, pluginBuffer: Buffer): Promise<void> {
     await this.storageService.storePlugin(metadata, pluginBuffer);
     this.logger.log(
-      `Plugin ${metadata.name} v${metadata.version} stored successfully (checksum: ${metadata.checksum.substring(0, 8)}...)`
+      `Plugin ${metadata.name} v${metadata.version} stored successfully (checksum: ${metadata.checksum.substring(
+        0,
+        8
+      )}...)`
     );
   }
 
@@ -148,9 +157,11 @@ export class PluginStorageOrchestratorService {
 
   /**
    * Get database service for advanced operations
+   * Note: Direct database access - consider using repository methods instead
    */
   getDatabaseService() {
-    return this.storageService.getDatabaseService();
+    // TODO: Implement proper database service access or remove this method
+    throw new Error('Direct database access not implemented. Use repository methods instead.');
   }
 
   private mapToResponseDto(metadata: PluginMetadata): PluginResponseDto {

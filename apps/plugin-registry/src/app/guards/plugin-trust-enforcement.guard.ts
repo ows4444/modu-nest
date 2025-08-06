@@ -1,6 +1,6 @@
 /**
  * Plugin Trust Enforcement Guard
- * 
+ *
  * Enforces trust level policies and capabilities for plugin operations.
  * Can be used as a method decorator or guard to restrict access based on trust levels.
  */
@@ -32,25 +32,20 @@ export const RequireInternalTrust = () => RequireTrust({ minimumTrustLevel: Trus
 export const RequireVerifiedTrust = () => RequireTrust({ minimumTrustLevel: TrustLevel.VERIFIED });
 export const RequireCommunityTrust = () => RequireTrust({ minimumTrustLevel: TrustLevel.COMMUNITY });
 
-export const RequireCapability = (capabilities: string[]) => 
-  RequireTrust({ requiredCapabilities: capabilities });
+export const RequireCapability = (capabilities: string[]) => RequireTrust({ requiredCapabilities: capabilities });
 
-export const RequireCapabilities = (...capabilities: string[]) => 
-  RequireTrust({ requiredCapabilities: capabilities });
+export const RequireCapabilities = (...capabilities: string[]) => RequireTrust({ requiredCapabilities: capabilities });
 
 @Injectable()
 export class PluginTrustEnforcementGuard implements CanActivate {
-  constructor(
-    private readonly reflector: Reflector,
-    private readonly trustManager: PluginTrustManager
-  ) {}
+  constructor(private readonly reflector: Reflector, private readonly trustManager: PluginTrustManager) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Get trust requirements from metadata
-    const requirements = this.reflector.getAllAndOverride<TrustRequirement>(
-      TRUST_REQUIREMENT_KEY,
-      [context.getHandler(), context.getClass()]
-    );
+    const requirements = this.reflector.getAllAndOverride<TrustRequirement>(TRUST_REQUIREMENT_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!requirements) {
       // No trust requirements specified, allow access
@@ -70,13 +65,13 @@ export class PluginTrustEnforcementGuard implements CanActivate {
     try {
       // Get plugin trust level
       const trustLevel = await this.trustManager.getTrustLevel(pluginName, version);
-      
+
       // Check minimum trust level requirement
       if (requirements.minimumTrustLevel) {
         if (!this.meetsMinimumTrustLevel(trustLevel, requirements.minimumTrustLevel)) {
           this.logTrustViolation(pluginName, version, 'insufficient_trust_level', {
             required: requirements.minimumTrustLevel,
-            actual: trustLevel
+            actual: trustLevel,
           });
           return false;
         }
@@ -87,7 +82,7 @@ export class PluginTrustEnforcementGuard implements CanActivate {
         if (!requirements.allowedTrustLevels.includes(trustLevel)) {
           this.logTrustViolation(pluginName, version, 'trust_level_not_allowed', {
             allowed: requirements.allowedTrustLevels,
-            actual: trustLevel
+            actual: trustLevel,
           });
           return false;
         }
@@ -100,7 +95,7 @@ export class PluginTrustEnforcementGuard implements CanActivate {
           if (!canPerform) {
             this.logTrustViolation(pluginName, version, 'capability_denied', {
               capability,
-              trustLevel
+              trustLevel,
             });
             return false;
           }
@@ -123,7 +118,6 @@ export class PluginTrustEnforcementGuard implements CanActivate {
       }
 
       return true;
-
     } catch (error) {
       console.error(`Trust enforcement error for plugin ${pluginName}:`, error);
       return false;
@@ -135,23 +129,27 @@ export class PluginTrustEnforcementGuard implements CanActivate {
    */
   private extractPluginName(request: any): string | null {
     // Try different common parameter names
-    return request.params?.name || 
-           request.params?.pluginName || 
-           request.body?.pluginName ||
-           request.query?.pluginName ||
-           request.headers['x-plugin-name'] ||
-           null;
+    return (
+      request.params?.name ||
+      request.params?.pluginName ||
+      request.body?.pluginName ||
+      request.query?.pluginName ||
+      request.headers['x-plugin-name'] ||
+      null
+    );
   }
 
   /**
    * Extract version from request context
    */
   private extractVersion(request: any): string | undefined {
-    return request.params?.version || 
-           request.body?.version ||
-           request.query?.version ||
-           request.headers['x-plugin-version'] ||
-           undefined;
+    return (
+      request.params?.version ||
+      request.body?.version ||
+      request.query?.version ||
+      request.headers['x-plugin-version'] ||
+      undefined
+    );
   }
 
   /**
@@ -163,7 +161,7 @@ export class PluginTrustEnforcementGuard implements CanActivate {
       [TrustLevel.UNTRUSTED]: 1,
       [TrustLevel.COMMUNITY]: 2,
       [TrustLevel.VERIFIED]: 3,
-      [TrustLevel.INTERNAL]: 4
+      [TrustLevel.INTERNAL]: 4,
     };
 
     return trustHierarchy[current] >= trustHierarchy[minimum];
@@ -173,41 +171,45 @@ export class PluginTrustEnforcementGuard implements CanActivate {
    * Log trust violation for monitoring and auditing
    */
   private logTrustViolation(
-    pluginName: string, 
-    version: string | undefined, 
-    violationType: string, 
+    pluginName: string,
+    version: string | undefined,
+    violationType: string,
     details: any
   ): void {
     console.warn(`Trust violation: ${pluginName}${version ? `:${version}` : ''} - ${violationType}`, details);
-    
+
     // This would integrate with the trust manager's violation recording
-    this.trustManager.recordTrustViolation({
-      pluginName,
-      version: version || 'latest',
-      violationType: 'security',
-      description: `Trust enforcement violation: ${violationType}`,
-      severity: 'medium',
-      detectedAt: new Date(),
-      details,
-      action: 'warn'
-    }).catch(err => {
-      console.error('Failed to record trust violation:', err);
-    });
+    this.trustManager
+      .recordTrustViolation({
+        pluginName,
+        version: version || 'latest',
+        violationType: 'security',
+        description: `Trust enforcement violation: ${violationType}`,
+        severity: 'medium',
+        detectedAt: new Date(),
+        details,
+        action: 'warn',
+      })
+      .catch((err) => {
+        console.error('Failed to record trust violation:', err);
+      });
   }
 
   /**
    * Log successful trust access for auditing
    */
   private logTrustAccess(
-    pluginName: string, 
-    version: string | undefined, 
-    trustLevel: TrustLevel, 
+    pluginName: string,
+    version: string | undefined,
+    trustLevel: TrustLevel,
     context: ExecutionContext
   ): void {
     const request = context.switchToHttp().getRequest();
     const method = request.method;
     const url = request.url;
-    
-    console.log(`Trust access granted: ${pluginName}${version ? `:${version}` : ''} (${trustLevel}) - ${method} ${url}`);
+
+    console.log(
+      `Trust access granted: ${pluginName}${version ? `:${version}` : ''} (${trustLevel}) - ${method} ${url}`
+    );
   }
 }

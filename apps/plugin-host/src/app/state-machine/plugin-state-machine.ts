@@ -82,7 +82,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
   canTransition(pluginName: string, transition: PluginTransition): boolean {
     const currentState = this.pluginStates.get(pluginName);
-    
+
     // If plugin doesn't exist and we're trying to discover it, allow it
     if (!currentState && transition === PluginTransition.REDISCOVER) {
       return true;
@@ -93,16 +93,13 @@ export class PluginStateMachine implements IPluginStateMachine {
     }
 
     return this.stateTransitions.some(
-      (t) =>
-        t.from === currentState &&
-        t.transition === transition &&
-        (!t.condition || t.condition())
+      (t) => t.from === currentState && t.transition === transition && (!t.condition || t.condition())
     );
   }
 
-  transition(pluginName: string, transition: PluginTransition, context?: any): boolean {
+  transition(pluginName: string, transition: PluginTransition, context?: unknown): boolean {
     const currentState = this.pluginStates.get(pluginName);
-    
+
     // Handle initial discovery
     if (!currentState && transition === PluginTransition.REDISCOVER) {
       const newState = PluginState.DISCOVERED;
@@ -120,23 +117,16 @@ export class PluginStateMachine implements IPluginStateMachine {
     }
 
     if (!this.canTransition(pluginName, transition)) {
-      this.logger.warn(
-        `Invalid transition for plugin ${pluginName}: ${currentState} -[${transition}]-> ?`
-      );
+      this.logger.warn(`Invalid transition for plugin ${pluginName}: ${currentState} -[${transition}]-> ?`);
       return false;
     }
 
     const targetTransition = this.stateTransitions.find(
-      (t) =>
-        t.from === currentState &&
-        t.transition === transition &&
-        (!t.condition || t.condition(context))
+      (t) => t.from === currentState && t.transition === transition && (!t.condition || t.condition(context))
     );
 
     if (!targetTransition) {
-      this.logger.warn(
-        `No valid transition found for plugin ${pluginName}: ${currentState} -[${transition}]-> ?`
-      );
+      this.logger.warn(`No valid transition found for plugin ${pluginName}: ${currentState} -[${transition}]-> ?`);
       return false;
     }
 
@@ -153,9 +143,7 @@ export class PluginStateMachine implements IPluginStateMachine {
     };
 
     this.notifyListeners(event);
-    this.logger.debug(
-      `Plugin ${pluginName}: ${currentState} -[${transition}]-> ${newState}`
-    );
+    this.logger.debug(`Plugin ${pluginName}: ${currentState} -[${transition}]-> ${newState}`);
 
     return true;
   }
@@ -166,7 +154,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
   getValidTransitions(pluginName: string): PluginTransition[] {
     const currentState = this.pluginStates.get(pluginName);
-    
+
     if (!currentState) {
       return [PluginTransition.REDISCOVER];
     }
@@ -206,18 +194,18 @@ export class PluginStateMachine implements IPluginStateMachine {
       try {
         listener(event);
       } catch (error) {
-        this.logger.error(`Error in state change listener: ${error.message}`, error.stack);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        this.logger.error(`Error in state change listener: ${errorMessage}`, errorStack);
       }
     });
   }
 
   getStateTransitionMatrix(): Record<PluginState, PluginTransition[]> {
     const matrix: Record<PluginState, PluginTransition[]> = {} as any;
-    
+
     Object.values(PluginState).forEach((state) => {
-      matrix[state] = this.stateTransitions
-        .filter((t) => t.from === state)
-        .map((t) => t.transition);
+      matrix[state] = this.stateTransitions.filter((t) => t.from === state).map((t) => t.transition);
     });
 
     return matrix;
@@ -226,10 +214,10 @@ export class PluginStateMachine implements IPluginStateMachine {
   validateStateIntegrity(): boolean {
     const allStates = Object.values(PluginState);
     const allTransitions = Object.values(PluginTransition);
-    
+
     // Check if all states have at least one outgoing transition
     for (const state of allStates) {
-      const hasOutgoingTransitions = this.stateTransitions.some(t => t.from === state);
+      const hasOutgoingTransitions = this.stateTransitions.some((t) => t.from === state);
       if (!hasOutgoingTransitions && state !== PluginState.FAILED) {
         this.logger.warn(`State ${state} has no outgoing transitions`);
         return false;
@@ -238,7 +226,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     // Check if all transitions are used
     for (const transition of allTransitions) {
-      const isUsed = this.stateTransitions.some(t => t.transition === transition);
+      const isUsed = this.stateTransitions.some((t) => t.transition === transition);
       if (!isUsed) {
         this.logger.warn(`Transition ${transition} is not used in any state transition`);
       }

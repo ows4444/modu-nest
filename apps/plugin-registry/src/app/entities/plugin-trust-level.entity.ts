@@ -1,11 +1,4 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  Index, 
-  CreateDateColumn, 
-  UpdateDateColumn 
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('plugin_trust_levels')
 @Index(['pluginName'])
@@ -15,53 +8,53 @@ import {
 @Index(['validUntil'])
 export class PluginTrustLevelEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  pluginName: string;
+  pluginName!: string;
 
   @Column({ nullable: true })
-  version: string;
+  version!: string | null;
 
-  @Column({ 
+  @Column({
     type: 'varchar',
-    enum: ['internal', 'verified', 'community', 'untrusted', 'quarantined']
+    enum: ['internal', 'verified', 'community', 'untrusted', 'quarantined'],
   })
-  trustLevel: 'internal' | 'verified' | 'community' | 'untrusted' | 'quarantined';
+  trustLevel!: 'internal' | 'verified' | 'community' | 'untrusted' | 'quarantined';
 
   @Column()
-  assignedBy: string;
+  assignedBy!: string;
 
   @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  assignedAt: Date;
+  assignedAt!: Date;
 
   @Column({ type: 'text' })
-  reason: string;
+  reason!: string;
 
   @Column({ type: 'text', nullable: true })
-  evidence: string; // JSON string of TrustEvidence[]
+  evidence!: string | null; // JSON string of TrustEvidence[]
 
   @Column({ nullable: true })
-  validUntil: Date;
+  validUntil!: Date | null;
 
   @Column({ default: false })
-  reviewRequired: boolean;
+  reviewRequired!: boolean;
 
   @Column({ nullable: true })
-  reviewedBy: string;
+  reviewedBy!: string | null;
 
   @Column({ nullable: true })
-  reviewedAt: Date;
+  reviewedAt!: Date | null;
 
   @Column({ type: 'text', nullable: true })
-  reviewNotes: string;
+  reviewNotes!: string | null;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

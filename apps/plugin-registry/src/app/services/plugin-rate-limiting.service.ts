@@ -1,9 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  PluginSecurityError,
-  handlePluginError,
-  PluginErrorMetrics,
-} from '@modu-nest/plugin-types';
+import { PluginSecurityError, PluginErrorMetrics } from '@modu-nest/plugin-types';
 
 export interface RateLimitRule {
   name: string;
@@ -226,17 +222,13 @@ export class PluginRateLimitingService {
   /**
    * Record a request attempt and enforce rate limiting
    */
-  async enforceRateLimit(
-    ruleName: string,
-    identifier: string,
-    operation: string
-  ): Promise<RateLimitResult> {
+  async enforceRateLimit(ruleName: string, identifier: string, operation: string): Promise<RateLimitResult> {
     const result = this.checkRateLimit(ruleName, identifier);
 
     if (!result.allowed) {
       const rule = this.rules.get(ruleName);
       const message = rule?.message || `Rate limit exceeded for ${ruleName}`;
-      
+
       const error = new PluginSecurityError(
         'rate-limit',
         [
@@ -249,8 +241,7 @@ export class PluginRateLimitingService {
 
       this.errorMetrics.recordError(error, {
         operation,
-        ruleName,
-        identifier: this.sanitizeIdentifier(identifier),
+        userAgent: this.sanitizeIdentifier(identifier),
         retryAfter: result.retryAfter,
       });
 
@@ -395,12 +386,12 @@ export class PluginRateLimitingService {
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(identifier)) {
       return identifier.replace(/\.\d{1,3}$/, '.xxx');
     }
-    
+
     // For other identifiers, show only first few characters
     if (identifier.length > 8) {
       return identifier.substring(0, 4) + '****' + identifier.substring(identifier.length - 2);
     }
-    
+
     return '****';
   }
 
@@ -409,7 +400,7 @@ export class PluginRateLimitingService {
    */
   private startCleanupTimer(): void {
     const cleanupInterval = parseInt(process.env.RATE_LIMIT_CLEANUP_INTERVAL_MS || '300000', 10); // 5 minutes
-    
+
     setInterval(() => {
       this.cleanup();
     }, cleanupInterval);
@@ -426,16 +417,16 @@ export class PluginRateLimitingService {
 
     for (const [ruleName, ruleData] of this.rateLimitData) {
       let cleaned = 0;
-      
+
       for (const [key, entry] of ruleData) {
         if (now >= entry.resetTime) {
           ruleData.delete(key);
           cleaned++;
         }
       }
-      
+
       totalCleaned += cleaned;
-      
+
       if (cleaned > 0) {
         this.logger.debug(`Cleaned ${cleaned} expired entries for rule: ${ruleName}`);
       }

@@ -14,14 +14,14 @@ export interface PluginConfigSchema {
   type: 'object' | 'string' | 'number' | 'boolean' | 'array';
   properties?: Record<string, PluginConfigSchema>;
   required?: string[];
-  default?: any;
+  default?: unknown;
   description?: string;
   sensitive?: boolean; // Mark as sensitive data
 }
 
 export interface PluginConfigValue {
   key: string;
-  value: any;
+  value: unknown;
   type: string;
   encrypted: boolean;
   updatedAt: string;
@@ -34,12 +34,12 @@ export class PluginConfigManager {
   /**
    * Set configuration value for a plugin
    */
-  setConfig(pluginName: string, key: string, value: any, options?: { encrypt?: boolean }): void {
+  setConfig(pluginName: string, key: string, value: unknown, options?: { encrypt?: boolean }): void {
     if (!this.configurations.has(pluginName)) {
       this.configurations.set(pluginName, new Map());
     }
 
-    const pluginConfig = this.configurations.get(pluginName)!;
+    const pluginConfig = this.configurations.get(pluginName) as Map<string, PluginConfigValue>;
     pluginConfig.set(key, {
       key,
       value: options?.encrypt ? this.encrypt(value) : value,
@@ -52,26 +52,26 @@ export class PluginConfigManager {
   /**
    * Get configuration value for a plugin
    */
-  getConfig<T = any>(pluginName: string, key: string, defaultValue?: T): T | undefined {
+  getConfig<T = unknown>(pluginName: string, key: string, defaultValue?: T): T | undefined {
     const pluginConfig = this.configurations.get(pluginName);
     if (!pluginConfig) return defaultValue;
 
     const configValue = pluginConfig.get(key);
     if (!configValue) return defaultValue;
 
-    return configValue.encrypted ? this.decrypt(configValue.value) : configValue.value;
+    return (configValue.encrypted ? this.decrypt(configValue.value as string) : configValue.value) as T;
   }
 
   /**
    * Get all configurations for a plugin
    */
-  getAllConfig(pluginName: string): Record<string, any> {
+  getAllConfig(pluginName: string): Record<string, unknown> {
     const pluginConfig = this.configurations.get(pluginName);
     if (!pluginConfig) return {};
 
-    const result: Record<string, any> = {};
+    const result: Record<string, unknown> = {};
     for (const [key, configValue] of pluginConfig) {
-      result[key] = configValue.encrypted ? this.decrypt(configValue.value) : configValue.value;
+      result[key] = configValue.encrypted ? this.decrypt(configValue.value as string) : configValue.value;
     }
     return result;
   }

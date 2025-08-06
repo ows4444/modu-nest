@@ -3,12 +3,17 @@ import { randomBytes } from 'crypto';
 import { Mutex } from 'async-mutex';
 import { CrossPluginServiceConfig, PluginManifest } from '@modu-nest/plugin-types';
 
+// Type definitions for NestJS-compatible providers
+type ClassProvider = new (...args: unknown[]) => unknown;
+type FactoryProvider = (...args: unknown[]) => unknown;
+type InjectionToken = string | symbol | Function;
+
 export interface CrossPluginServiceProvider {
   provide: string;
-  useClass?: any;
-  useValue?: any;
-  useFactory?: (...args: any[]) => any;
-  inject?: any[];
+  useClass?: ClassProvider;
+  useValue?: unknown;
+  useFactory?: FactoryProvider;
+  inject?: InjectionToken[];
 }
 
 /**
@@ -124,7 +129,7 @@ export class CrossPluginServiceManager {
 
         const provider: CrossPluginServiceProvider = {
           provide: globalToken,
-          useClass: serviceClass,
+          useClass: serviceClass as ClassProvider,
         };
 
         const finalToken = this.registerService(globalToken, provider);
@@ -390,7 +395,7 @@ export class CrossPluginServiceManager {
 
     return {
       provide: config.token,
-      useClass: serviceClass,
+      useClass: serviceClass as ClassProvider,
     };
   }
 

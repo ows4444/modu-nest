@@ -84,9 +84,7 @@ export class SequentialLoadingStrategy implements IPluginLoadingStrategy {
     const successCount = dynamicModules.length;
     const failureCount = loadOrder.length - successCount;
 
-    context.logger.log(
-      `Sequential loading completed: ${successCount} loaded, ${failureCount} failed`
-    );
+    context.logger.log(`Sequential loading completed: ${successCount} loaded, ${failureCount} failed`);
 
     const loadTime = Date.now() - startTime;
     this.performanceMetrics.totalLoadTime += loadTime;
@@ -102,14 +100,17 @@ export class SequentialLoadingStrategy implements IPluginLoadingStrategy {
 
   getPerformanceMetrics() {
     return {
-      averageLoadTime: this.performanceMetrics.totalExecutions > 0 
-        ? this.performanceMetrics.totalLoadTime / this.performanceMetrics.totalExecutions 
-        : 0,
+      averageLoadTime:
+        this.performanceMetrics.totalExecutions > 0
+          ? this.performanceMetrics.totalLoadTime / this.performanceMetrics.totalExecutions
+          : 0,
       totalPluginsLoaded: this.performanceMetrics.pluginsLoaded,
       concurrencyLevel: 1, // Always sequential (concurrency = 1)
-      failureRate: this.performanceMetrics.pluginsLoaded > 0 
-        ? (this.performanceMetrics.pluginsLoaded - this.performanceMetrics.successfulLoads) / this.performanceMetrics.pluginsLoaded 
-        : 0,
+      failureRate:
+        this.performanceMetrics.pluginsLoaded > 0
+          ? (this.performanceMetrics.pluginsLoaded - this.performanceMetrics.successfulLoads) /
+            this.performanceMetrics.pluginsLoaded
+          : 0,
     };
   }
 

@@ -255,7 +255,7 @@ The workspace uses TypeScript project references for optimal compilation perform
 
 - **Incremental Compilation**: ~80% faster rebuilds after initial build
 - **Named Input Caching**: High cache hit rate through proper input tracking
-- **Parallel Processing**: Independent project builds run simultaneously 
+- **Parallel Processing**: Independent project builds run simultaneously
 - **Tree Shaking**: Unused exports eliminated from final bundles
 
 ## Custom Executors
@@ -402,7 +402,7 @@ export interface PluginGeneratorSchema {
 
 export default async function (tree: Tree, options: PluginGeneratorSchema) {
   const normalizedOptions = normalizeOptions(tree, options);
-  
+
   // Generate plugin structure
   addProjectConfiguration(tree, normalizedOptions.projectName, {
     root: normalizedOptions.projectRoot,
@@ -427,7 +427,7 @@ export default async function (tree: Tree, options: PluginGeneratorSchema) {
 
   // Generate files from templates
   generateFiles(tree, path.join(__dirname, 'files'), normalizedOptions.projectRoot, normalizedOptions);
-  
+
   await formatFiles(tree);
 }
 ```

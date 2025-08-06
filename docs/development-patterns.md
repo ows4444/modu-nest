@@ -41,7 +41,7 @@ export class EventDrivenPluginService implements OnModuleInit, IPluginEventSubsc
     this.eventEmitter.emit('plugin:data-processed', {
       pluginName: 'my-plugin',
       dataSize: data.length,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
   }
 }
@@ -62,7 +62,7 @@ export class StateManagedPluginService {
   async performManagedOperation(pluginName: string) {
     // Check current state before operation
     const currentState = this.stateMachine.getState(pluginName);
-    
+
     if (currentState !== PluginState.LOADED) {
       throw new Error(`Plugin ${pluginName} not in LOADED state`);
     }
@@ -70,10 +70,10 @@ export class StateManagedPluginService {
     try {
       // Transition to BUSY state during operation
       this.stateMachine.transition(pluginName, PluginTransition.START_OPERATION);
-      
+
       // Perform operation
       await this.doWork();
-      
+
       // Transition back to LOADED
       this.stateMachine.transition(pluginName, PluginTransition.COMPLETE_OPERATION);
     } catch (error) {
@@ -99,24 +99,18 @@ import { PluginTrustManager, PluginTrustLevel, TrustPolicyValidationGuard } from
 
 @Injectable()
 export class SecurePluginService {
-  constructor(
-    private trustManager: PluginTrustManager,
-    private trustGuard: TrustPolicyValidationGuard
-  ) {}
+  constructor(private trustManager: PluginTrustManager, private trustGuard: TrustPolicyValidationGuard) {}
 
   async performSecureOperation(pluginName: string, operation: string) {
     // Check plugin trust level
     const trustLevel = await this.trustManager.getPluginTrustLevel(pluginName);
-    
+
     if (trustLevel === PluginTrustLevel.QUARANTINED) {
       throw new Error('Plugin is quarantined');
     }
 
     // Validate capabilities for the operation
-    const hasCapability = await this.trustGuard.validateCapability(
-      pluginName, 
-      'network:http-client'
-    );
+    const hasCapability = await this.trustGuard.validateCapability(pluginName, 'network:http-client');
 
     if (!hasCapability) {
       throw new Error('Insufficient capabilities for network operations');
@@ -149,9 +143,9 @@ import {
 } from '@modu-nest/plugin-types';
 
 @PluginRoutePrefix('api/enterprise')
-@PluginMetadataDecorator({ 
-  version: '2.0.0', 
-  features: ['caching', 'optimization', 'security'] 
+@PluginMetadataDecorator({
+  version: '2.0.0',
+  features: ['caching', 'optimization', 'security'],
 })
 @PluginTrustLevel(PluginTrustLevel.VERIFIED)
 @PluginCapabilities(['network:http-client', 'database:read-write'])
@@ -200,17 +194,9 @@ export class SecureDependentService {
     }
 
     // Secure cross-plugin service calls
-    const user = await this.crossPluginManager.secureCall(
-      'user-plugin',
-      'getCurrentUser',
-      []
-    );
+    const user = await this.crossPluginManager.secureCall('user-plugin', 'getCurrentUser', []);
 
-    return await this.crossPluginManager.secureCall(
-      'enterprise-plugin',
-      'process',
-      [data, user]
-    );
+    return await this.crossPluginManager.secureCall('enterprise-plugin', 'process', [data, user]);
   }
 }
 ```
@@ -232,28 +218,25 @@ export class OptimizedPluginService {
       treeShaking: {
         enabled: true,
         removeUnusedExports: true,
-        removeDeadCode: true
+        removeDeadCode: true,
       },
       minification: {
         enabled: true,
         removeComments: true,
         compressWhitespace: true,
-        mangleNames: false // Keep readable for debugging
+        mangleNames: false, // Keep readable for debugging
       },
       compression: {
         algorithm: 'brotli',
-        level: 9
+        level: 9,
       },
       bundleAnalysis: {
         generateReport: true,
-        checkCircularDependencies: true
-      }
+        checkCircularDependencies: true,
+      },
     };
 
-    const result = await this.bundleOptimizer.optimizePlugin(
-      'my-plugin',
-      optimizationOptions
-    );
+    const result = await this.bundleOptimizer.optimizePlugin('my-plugin', optimizationOptions);
 
     console.log(`Bundle optimized: ${result.compressionRatio}% reduction`);
     return result;
@@ -277,13 +260,13 @@ export class ResilientPluginService {
     this.circuitBreaker = new PluginCircuitBreaker({
       failureThreshold: 5,
       recoveryTimeout: 60000,
-      halfOpenMaxCalls: 3
+      halfOpenMaxCalls: 3,
     });
   }
 
   async performResilientOperation(data: any) {
     const state = this.circuitBreaker.getState();
-    
+
     if (state === CircuitBreakerState.OPEN) {
       throw new Error('Circuit breaker is OPEN - operation blocked');
     }
@@ -401,11 +384,7 @@ my-plugin/
 
   "security": {
     "trustLevel": "verified",
-    "capabilities": [
-      "network:http-client",
-      "database:read-write",
-      "api:internal-calls"
-    ],
+    "capabilities": ["network:http-client", "database:read-write", "api:internal-calls"],
     "signature": {
       "algorithm": "RS256",
       "keyId": "enterprise-2024",
@@ -454,10 +433,7 @@ my-plugin/
       "afterLoad": true,
       "onError": true
     },
-    "custom": [
-      "plugin:data-processed",
-      "plugin:status-changed"
-    ]
+    "custom": ["plugin:data-processed", "plugin:status-changed"]
   },
 
   "module": {
@@ -580,7 +556,7 @@ export class MyPluginGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const permissions = this.reflector.get('plugin:permissions', context.getHandler());
-    
+
     if (!permissions) {
       return true; // No permissions required
     }
@@ -588,9 +564,7 @@ export class MyPluginGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const userPermissions = request.user?.permissions || [];
 
-    return permissions.every(permission => 
-      userPermissions.includes(permission)
-    );
+    return permissions.every((permission) => userPermissions.includes(permission));
   }
 }
 ```
@@ -794,11 +768,11 @@ interface IPluginLoadingStrategy {
 class SequentialLoadingStrategy implements IPluginLoadingStrategy {
   name = 'Sequential';
   description = 'Loads plugins one by one in dependency order';
-  
+
   canHandle(pluginCount: number): boolean {
     return pluginCount <= 10; // Suitable for small plugin sets
   }
-  
+
   async loadPlugins(plugins: PluginDiscovery[]): Promise<DynamicModule[]> {
     // Sequential loading implementation
   }
@@ -807,11 +781,11 @@ class SequentialLoadingStrategy implements IPluginLoadingStrategy {
 class ParallelLoadingStrategy implements IPluginLoadingStrategy {
   name = 'Parallel';
   description = 'Loads independent plugins in parallel';
-  
+
   canHandle(pluginCount: number, dependencies: Map<string, string[]>): boolean {
     return pluginCount > 10 && this.hasIndependentPlugins(dependencies);
   }
-  
+
   async loadPlugins(plugins: PluginDiscovery[]): Promise<DynamicModule[]> {
     // Parallel loading implementation
   }
@@ -822,7 +796,7 @@ class PluginLoadingStrategyFactory {
   static createOptimalStrategy(context: PluginLoaderContext): IPluginLoadingStrategy {
     const pluginCount = context.getDiscoveredPluginCount();
     const dependencies = context.getDependencyGraph();
-    
+
     if (pluginCount <= 5) return new SequentialLoadingStrategy();
     if (pluginCount <= 20) return new ParallelLoadingStrategy();
     return new BatchLoadingStrategy();
@@ -845,14 +819,12 @@ interface IPluginRepository {
 // TypeORM implementation
 @Injectable()
 class TypeOrmPluginRepository implements IPluginRepository {
-  constructor(
-    @InjectRepository(PluginEntity) private repository: Repository<PluginEntity>
-  ) {}
-  
+  constructor(@InjectRepository(PluginEntity) private repository: Repository<PluginEntity>) {}
+
   async create(plugin: PluginMetadata): Promise<PluginEntity> {
     return await this.repository.save(plugin);
   }
-  
+
   async findByName(name: string): Promise<PluginEntity | null> {
     return await this.repository.findOne({ where: { name } });
   }
@@ -862,7 +834,7 @@ class TypeOrmPluginRepository implements IPluginRepository {
 @Injectable()
 class InMemoryPluginRepository implements IPluginRepository {
   private plugins = new Map<string, PluginEntity>();
-  
+
   async create(plugin: PluginMetadata): Promise<PluginEntity> {
     const entity = { ...plugin, id: generateId() };
     this.plugins.set(entity.id, entity);
@@ -887,10 +859,10 @@ async scanAndLoadAllPlugins(): Promise<DynamicModule[]> {
   const loadOrder = await this.performDependencyAnalysis(discoveryResult.plugins);
   await this.optimizeLoadingStrategy();
   const modules = await this.performPluginLoading(loadOrder);
-  
+
   this.logLoadingResults(startTime, discoveryResult, modules, loadOrder);
   await this.performSecurityVerification(modules.length);
-  
+
   return modules;
 }
 
@@ -913,11 +885,11 @@ class PluginEventEmitter extends EventEmitter {
   emitPluginLoaded(pluginName: string, plugin: LoadedPlugin, loadTime: number, memoryUsage: number): void {
     this.emit('plugin:loaded', { pluginName, plugin, loadTime, memoryUsage });
   }
-  
+
   emitPluginError(pluginName: string, error: Error, severity: ErrorSeverity): void {
     this.emit('plugin:error', { pluginName, error, severity, timestamp: new Date() });
   }
-  
+
   // Type-safe event subscription
   onPluginLoaded(callback: (event: PluginLoadedEvent) => void): void {
     this.on('plugin:loaded', callback);
@@ -937,12 +909,8 @@ interface IPluginEventSubscriber {
 abstract class PluginError extends Error {
   abstract readonly code: string;
   abstract readonly severity: ErrorSeverity;
-  
-  constructor(
-    message: string,
-    public readonly context?: Record<string, any>,
-    public readonly suggestions?: string[]
-  ) {
+
+  constructor(message: string, public readonly context?: Record<string, any>, public readonly suggestions?: string[]) {
     super(message);
   }
 }

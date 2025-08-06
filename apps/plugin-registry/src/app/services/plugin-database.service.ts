@@ -251,7 +251,7 @@ export class PluginDatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       const now = new Date();
       const manifestJson = JSON.stringify(manifest);
-      const tags = JSON.stringify(manifest.tags || []);
+      const tags = JSON.stringify([]);
       const dependencies = JSON.stringify(manifest.dependencies || []);
 
       await this.executeQuery(

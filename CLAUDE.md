@@ -27,6 +27,7 @@ nx run my-plugin:plugin-validate
 ## Common Commands
 
 ### Building and Testing
+
 ```bash
 # Build specific project
 nx build <project-name>
@@ -41,6 +42,7 @@ nx typecheck <project-name>
 ```
 
 ### Plugin Development
+
 ```bash
 # Generate plugin with complete structure
 nx g @modu-nest/plugin:plugin <plugin-name>
@@ -80,6 +82,7 @@ ENABLE_HOT_RELOAD=true  # Development only
 ## API Endpoints
 
 ### Plugin Host (Port 4001)
+
 ```bash
 GET    /                          # Application health and status
 GET    /health                    # Detailed health check
@@ -90,6 +93,7 @@ GET    /api/:plugin-name/*        # Plugin-defined routes
 ```
 
 ### Plugin Registry (Port 6001)
+
 ```bash
 POST   /plugins                   # Upload plugin package with validation
 GET    /plugins                   # List all plugins (paginated)
@@ -101,12 +105,14 @@ GET    /health                    # Health check with registry stats
 ## Current Architecture Capabilities
 
 **Scale:** Excellent for development and prototyping
+
 - 🔧 **10-50 plugin developers** with development workflow support
-- 🔧 **1,000-5,000 plugins** with SQLite database architecture
+- 🔧 **1,000-5,000 plugins** with PostgreSQL database architecture
 - 🔧 **10-20 downloads/second** with single-instance architecture
 - 🔧 **5-50 concurrent plugin loading** with polling-based dependency resolution
 
 **Key Strengths:**
+
 - **Type Safety**: Exceptional TypeScript implementation with 142+ interface definitions
 - **Plugin System**: Sophisticated 5-phase loading with dependency resolution
 - **Security**: Import scanning and guard isolation between plugins
@@ -127,20 +133,23 @@ For detailed information, see the `/docs` folder:
 ## Performance Benchmarks
 
 **Current Performance:**
+
 - Plugin loading time: ~5-10 seconds for complex plugins with dependencies
 - Memory usage: ~200-500MB steady state with 50 plugins
-- Database operations: SQLite with ~50ms average query time
+- Database operations: PostgreSQL with ~50ms average query time
 - API response time: ~200-500ms (95th percentile)
 
 ## Security Model
 
 **Current Implementation:**
+
 - Import scanning for dangerous Node.js modules
 - Guard isolation between plugins
 - Plugin manifest validation
 - Development-focused security (not production-hardened)
 
 **Recommendations:**
+
 - Deploy behind secure infrastructure (reverse proxy, API gateway)
 - Use container isolation for plugin execution
 - Implement custom security policies based on deployment requirements
@@ -148,7 +157,7 @@ For detailed information, see the `/docs` folder:
 ## Important Notes
 
 - **Authentication**: Not currently implemented - suitable for development environments
-- **Database**: Uses SQLite (excellent for current scale, PostgreSQL recommended for 10K+ plugins)
+- **Database**: Uses PostgreSQL for scalable production deployments
 - **Deployment**: Single-instance architecture (perfect for development/prototyping)
 - **Monitoring**: Basic health checks (comprehensive monitoring available in roadmap)
 

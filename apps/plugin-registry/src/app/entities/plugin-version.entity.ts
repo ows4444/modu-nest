@@ -1,12 +1,12 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  Index, 
-  CreateDateColumn, 
-  UpdateDateColumn, 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  Index,
+  CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
-  JoinColumn
+  JoinColumn,
 } from 'typeorm';
 import { PluginEntity } from './plugin.entity';
 
@@ -19,79 +19,79 @@ import { PluginEntity } from './plugin.entity';
 @Index(['uploadDate'])
 export class PluginVersionEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  pluginName: string;
+  pluginName!: string;
 
   @Column()
-  version: string;
+  version!: string;
 
   @Column({ nullable: true })
-  description: string;
+  description!: string | null;
 
   @Column({ nullable: true })
-  author: string;
+  author!: string | null;
 
   @Column({ nullable: true })
-  license: string;
+  license!: string | null;
 
   @Column('text')
-  manifest: string; // JSON string
+  manifest!: string; // JSON string
 
   @Column()
-  filePath: string;
+  filePath!: string;
 
   @Column('integer')
-  fileSize: number;
+  fileSize!: number;
 
   @Column({ unique: true })
-  checksum: string;
+  checksum!: string;
 
   @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  uploadDate: Date;
+  uploadDate!: Date;
 
   @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  lastAccessed: Date;
+  lastAccessed!: Date;
 
   @Column('integer', { default: 0 })
-  downloadCount: number;
+  downloadCount!: number;
 
-  @Column({ 
+  @Column({
     type: 'varchar',
     default: 'active',
-    enum: ['active', 'deprecated', 'disabled', 'archived', 'rollback_target']
+    enum: ['active', 'deprecated', 'disabled', 'archived', 'rollback_target'],
   })
-  status: 'active' | 'deprecated' | 'disabled' | 'archived' | 'rollback_target';
+  status!: 'active' | 'deprecated' | 'disabled' | 'archived' | 'rollback_target';
 
   @Column('text', { default: '[]' })
-  tags: string; // JSON array string
+  tags!: string; // JSON array string
 
   @Column('text', { default: '[]' })
-  dependencies: string; // JSON array string
+  dependencies!: string; // JSON array string
 
   @Column({ default: false })
-  isActive: boolean; // Only one version per plugin can be active
+  isActive!: boolean; // Only one version per plugin can be active
 
   @Column({ nullable: true })
-  rollbackReason: string; // Reason for rollback if this version is a rollback target
+  rollbackReason!: string | null; // Reason for rollback if this version is a rollback target
 
   @Column({ nullable: true })
-  promotionDate: Date; // When this version became active
+  promotionDate!: Date | null; // When this version became active
 
   @Column({ nullable: true })
-  deprecationDate: Date; // When this version was deprecated
+  deprecationDate!: Date | null; // When this version was deprecated
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Optional relation to main plugin entity (for backward compatibility)
-  @ManyToOne(() => PluginEntity, plugin => plugin.name, { 
+  @ManyToOne(() => PluginEntity, (plugin) => plugin.name, {
     createForeignKeyConstraints: false,
-    nullable: true 
+    nullable: true,
   })
   @JoinColumn({ name: 'pluginName', referencedColumnName: 'name' })
   plugin?: PluginEntity;

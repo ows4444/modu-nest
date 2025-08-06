@@ -9,6 +9,7 @@ import {
 } from '@modu-nest/plugin-types';
 import { Body, Param, Query, Request, ValidationPipe, UsePipes } from '@nestjs/common';
 import { ProductPluginService } from '../services/product-plugin.service';
+import type { CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
 
 @PluginRoute('products')
 export class ProductPluginController {
@@ -59,7 +60,7 @@ export class ProductPluginController {
   @PluginUseGuards('user-auth', 'product-access')
   @PluginPermissions(['products:write:own'])
   @UsePipes(new ValidationPipe())
-  createProduct(@Body() createProductDto: any, @Request() req: any) {
+  createProduct(@Body() createProductDto: CreateProductDto, @Request() req: { user?: { id: string } }) {
     const userId = req.user?.id;
     return this.productPluginService.createProduct(createProductDto, userId);
   }
@@ -68,7 +69,7 @@ export class ProductPluginController {
   @PluginUseGuards('user-auth', 'product-access', 'product-ownership')
   @PluginPermissions(['products:write:own'])
   @UsePipes(new ValidationPipe())
-  updateProduct(@Param('id') id: string, @Body() updateProductDto: any) {
+  updateProduct(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
     return this.productPluginService.updateProduct(id, updateProductDto);
   }
 
@@ -153,10 +154,10 @@ export class ProductPluginController {
         product: updatedProduct,
         message: 'Product ownership transferred via cross-plugin integration',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         error: 'Failed to transfer product ownership',
-        details: error?.message || 'Unknown error',
+        details: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }

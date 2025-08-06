@@ -1,12 +1,15 @@
 /**
  * Plugin Event System
- * 
+ *
  * This module defines a comprehensive event-driven architecture for the plugin system.
- * It enables loose coupling between plugin management components by replacing direct 
+ * It enables loose coupling between plugin management components by replacing direct
  * method calls with events for plugin state changes and lifecycle operations.
  */
 
 import { PluginMetadata, PluginManifest, LoadedPlugin } from './plugin-interfaces';
+
+// Re-export required types for loose coupling
+export type { PluginMetadata, PluginManifest, LoadedPlugin } from './plugin-interfaces';
 
 // Plugin state types (re-exported for loose coupling)
 export enum PluginState {
@@ -201,7 +204,7 @@ export interface PluginErrorEvent extends BasePluginEvent {
 }
 
 // Union type of all plugin events
-export type PluginEvent = 
+export type PluginEvent =
   | PluginDiscoveredEvent
   | PluginLoadingStartedEvent
   | PluginLoadingProgressEvent
@@ -253,21 +256,32 @@ export interface IPluginEventBus extends IPluginEventEmitter {
   emitPluginLoaded(pluginName: string, plugin: LoadedPlugin, loadTimeMs: number): void;
   emitPluginLoadFailed(pluginName: string, error: Error, phase: string): void;
   emitPluginUnloaded(pluginName: string, reason: string): void;
-  emitPluginStateChanged(pluginName: string, fromState: PluginState | undefined, toState: PluginState, transition: PluginTransition): void;
-  
+  emitPluginStateChanged(
+    pluginName: string,
+    fromState: PluginState | undefined,
+    toState: PluginState,
+    transition: PluginTransition
+  ): void;
+
   // Registry events
   emitPluginUploadStarted(pluginName: string, fileSize: number, checksum: string): void;
-  emitPluginValidationCompleted(pluginName: string, type: string, isValid: boolean, warnings: string[], errors: string[]): void;
+  emitPluginValidationCompleted(
+    pluginName: string,
+    type: string,
+    isValid: boolean,
+    warnings: string[],
+    errors: string[]
+  ): void;
   emitPluginStored(pluginName: string, metadata: PluginMetadata, location: string): void;
   emitPluginDownloaded(pluginName: string, userAgent?: string, ipAddress?: string): void;
-  
+
   // Security events
   emitPluginSecurityScanCompleted(pluginName: string, scanType: string, threats: string[], riskLevel: string): void;
   emitPluginSecurityViolation(pluginName: string, violationType: string, severity: string, blocked: boolean): void;
-  
+
   // Performance events
   emitPluginPerformance(pluginName: string, metric: string, value: number, unit: string): void;
-  
+
   // Error events
   emitPluginError(pluginName: string, error: Error, severity: string, category: string): void;
 }
@@ -291,3 +305,6 @@ export interface IPluginEventMiddleware {
   use(middleware: EventMiddleware): void;
   process<T extends PluginEvent>(event: T): T;
 }
+
+// Export PluginEventEmitter class (forward declaration)
+export { PluginEventEmitter } from './plugin-event-emitter';

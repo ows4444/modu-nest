@@ -1,6 +1,6 @@
 /**
  * Plugin Version Manager Service
- * 
+ *
  * Provides comprehensive version management capabilities for plugins including:
  * - Multiple version storage and retrieval
  * - Semantic version comparison and validation
@@ -49,7 +49,7 @@ export enum PluginVersionStatus {
   DEPRECATED = 'deprecated',
   DISABLED = 'disabled',
   ARCHIVED = 'archived',
-  ROLLBACK_TARGET = 'rollback_target'
+  ROLLBACK_TARGET = 'rollback_target',
 }
 
 export interface VersionCompatibilityCheck {
@@ -65,8 +65,6 @@ export class PluginVersionManager {
   private readonly logger = new Logger(PluginVersionManager.name);
 
   constructor(
-    @InjectRepository(PluginEntity)
-    private readonly pluginRepository: Repository<PluginEntity>,
     @InjectRepository(PluginVersionEntity)
     private readonly versionRepository: Repository<PluginVersionEntity>,
     private readonly eventEmitter: PluginEventEmitter
@@ -80,23 +78,23 @@ export class PluginVersionManager {
 
     const versions = await this.versionRepository.find({
       where: { pluginName },
-      order: { uploadDate: 'DESC' }
+      order: { uploadDate: 'DESC' },
     });
 
     // Sort by semantic version (latest first)
     const sortedVersions = versions.sort((a, b) => {
       const versionA = semver.coerce(a.version);
       const versionB = semver.coerce(b.version);
-      
+
       if (!versionA || !versionB) {
         // Fallback to string comparison if semantic version parsing fails
         return b.version.localeCompare(a.version);
       }
-      
+
       return semver.rcompare(versionA, versionB);
     });
 
-    return sortedVersions.map(version => ({
+    return sortedVersions.map((version) => ({
       name: version.pluginName,
       version: version.version,
       status: version.status as PluginVersionStatus,
@@ -105,7 +103,7 @@ export class PluginVersionManager {
       fileSize: version.fileSize,
       checksum: version.checksum,
       downloadCount: version.downloadCount,
-      rollbackTarget: version.status === PluginVersionStatus.ROLLBACK_TARGET
+      rollbackTarget: version.status === PluginVersionStatus.ROLLBACK_TARGET,
     }));
   }
 
@@ -116,11 +114,11 @@ export class PluginVersionManager {
     this.logger.debug(`Getting active version for plugin: ${pluginName}`);
 
     const activeVersion = await this.versionRepository.findOne({
-      where: { 
-        pluginName, 
+      where: {
+        pluginName,
         isActive: true,
-        status: PluginVersionStatus.ACTIVE
-      }
+        status: PluginVersionStatus.ACTIVE,
+      },
     });
 
     if (!activeVersion) {
@@ -135,7 +133,7 @@ export class PluginVersionManager {
       uploadDate: activeVersion.uploadDate,
       fileSize: activeVersion.fileSize,
       checksum: activeVersion.checksum,
-      downloadCount: activeVersion.downloadCount
+      downloadCount: activeVersion.downloadCount,
     };
   }
 
@@ -146,17 +144,14 @@ export class PluginVersionManager {
     this.logger.debug(`Getting version ${version} for plugin: ${pluginName}`);
 
     return await this.versionRepository.findOne({
-      where: { pluginName, version }
+      where: { pluginName, version },
     });
   }
 
   /**
    * Add a new version of a plugin
    */
-  async addPluginVersion(
-    pluginData: Partial<PluginEntity>,
-    makeActive = true
-  ): Promise<PluginVersionEntity> {
+  async addPluginVersion(pluginData: Partial<PluginEntity>, makeActive = true): Promise<PluginVersionEntity> {
     this.logger.log(`Adding new version ${pluginData.version} for plugin: ${pluginData.name}`);
 
     // Check if this version already exists
@@ -200,7 +195,7 @@ export class PluginVersionManager {
       pluginName: pluginData.name!,
       version: pluginData.version!,
       isActive: makeActive,
-      uploadDate: savedVersion.uploadDate
+      uploadDate: savedVersion.uploadDate,
     });
 
     this.logger.log(`Successfully added version ${pluginData.version} for plugin: ${pluginData.name}`);
@@ -221,23 +216,19 @@ export class PluginVersionManager {
 
     // Get current active version
     const currentActive = await this.getActiveVersion(pluginName);
-    
+
     // Start transaction
-    await this.versionRepository.manager.transaction(async manager => {
+    await this.versionRepository.manager.transaction(async (manager) => {
       // Deactivate all current versions
-      await manager.update(
-        PluginVersionEntity,
-        { pluginName, isActive: true },
-        { isActive: false }
-      );
+      await manager.update(PluginVersionEntity, { pluginName, isActive: true }, { isActive: false });
 
       // Activate the target version
       await manager.update(
         PluginVersionEntity,
         { pluginName, version },
-        { 
+        {
           isActive: true,
-          status: PluginVersionStatus.ACTIVE
+          status: PluginVersionStatus.ACTIVE,
         }
       );
 
@@ -264,17 +255,13 @@ export class PluginVersionManager {
       previousActiveVersion: currentActive?.version,
       newActiveVersion: version,
       affectedDependents: await this.findDependentPlugins(pluginName),
-      warnings: []
+      warnings: [],
     };
 
     // Check for compatibility issues
     if (currentActive && currentActive.version !== version) {
-      const compatibility = await this.checkVersionCompatibility(
-        pluginName, 
-        currentActive.version, 
-        version
-      );
-      
+      const compatibility = await this.checkVersionCompatibility(pluginName, currentActive.version, version);
+
       if (!compatibility.isCompatible) {
         result.warnings = compatibility.compatibilityIssues;
       }
@@ -285,7 +272,7 @@ export class PluginVersionManager {
       pluginName,
       fromVersion: currentActive?.version,
       toVersion: version,
-      promotionDate: new Date()
+      promotionDate: new Date(),
     });
 
     this.logger.log(`Successfully promoted version ${version} for plugin: ${pluginName}`);
@@ -296,18 +283,13 @@ export class PluginVersionManager {
    * Rollback to a previous version
    */
   async rollbackToVersion(
-    pluginName: string, 
+    pluginName: string,
     targetVersion: string,
     options: VersionRollbackOptions = {}
   ): Promise<VersionPromotionResult> {
     this.logger.log(`Rolling back plugin ${pluginName} to version ${targetVersion}`);
 
-    const {
-      preserveCurrentVersion = true,
-      rollbackReason = 'Manual rollback',
-      performBackup = true,
-      validateCompatibility = true
-    } = options;
+    const { preserveCurrentVersion = true, rollbackReason = 'Manual rollback', validateCompatibility = true } = options;
 
     // Get current active version
     const currentActive = await this.getActiveVersion(pluginName);
@@ -323,11 +305,7 @@ export class PluginVersionManager {
 
     // Compatibility check
     if (validateCompatibility) {
-      const compatibility = await this.checkVersionCompatibility(
-        pluginName,
-        currentActive.version,
-        targetVersion
-      );
+      const compatibility = await this.checkVersionCompatibility(pluginName, currentActive.version, targetVersion);
 
       if (!compatibility.isCompatible && compatibility.breakingChanges.length > 0) {
         this.logger.warn(`Rollback may cause compatibility issues: ${compatibility.breakingChanges.join(', ')}`);
@@ -351,7 +329,7 @@ export class PluginVersionManager {
       fromVersion: currentActive.version,
       toVersion: targetVersion,
       rollbackReason,
-      rollbackDate: new Date()
+      rollbackDate: new Date(),
     });
 
     this.logger.log(`Successfully rolled back plugin ${pluginName} from ${currentActive.version} to ${targetVersion}`);
@@ -365,12 +343,9 @@ export class PluginVersionManager {
     this.logger.log(`Archiving old versions for plugin ${pluginName}, keeping latest ${keepLatest}`);
 
     const versions = await this.getPluginVersions(pluginName);
-    
+
     // Filter out active and rollback target versions
-    const archivableVersions = versions.filter(v => 
-      !v.isActive && 
-      v.status !== PluginVersionStatus.ROLLBACK_TARGET
-    );
+    const archivableVersions = versions.filter((v) => !v.isActive && v.status !== PluginVersionStatus.ROLLBACK_TARGET);
 
     // Skip if we have fewer versions than the keep limit
     if (archivableVersions.length <= keepLatest) {
@@ -378,9 +353,7 @@ export class PluginVersionManager {
     }
 
     // Get versions to archive (oldest ones)
-    const versionsToArchive = archivableVersions
-      .slice(keepLatest)
-      .map(v => v.version);
+    const versionsToArchive = archivableVersions.slice(keepLatest).map((v) => v.version);
 
     // Archive the versions
     if (versionsToArchive.length > 0) {
@@ -420,7 +393,7 @@ export class PluginVersionManager {
       pluginName,
       version,
       deletionDate: new Date(),
-      forced: force
+      forced: force,
     });
 
     this.logger.log(`Successfully deleted version ${version} for plugin: ${pluginName}`);
@@ -445,7 +418,7 @@ export class PluginVersionManager {
         compatibilityIssues: ['One or both versions not found'],
         migrationRequired: false,
         deprecatedFeatures: [],
-        breakingChanges: ['Version not found']
+        breakingChanges: ['Version not found'],
       };
     }
 
@@ -476,7 +449,7 @@ export class PluginVersionManager {
     // Check dependency changes
     const fromDeps = JSON.parse(fromVersionEntity.dependencies || '[]');
     const toDeps = JSON.parse(toVersionEntity.dependencies || '[]');
-    
+
     const removedDeps = fromDeps.filter((dep: string) => !toDeps.includes(dep));
     const addedDeps = toDeps.filter((dep: string) => !fromDeps.includes(dep));
 
@@ -493,7 +466,7 @@ export class PluginVersionManager {
       // Check for removed exports
       const fromExports = fromManifest.module.exports || [];
       const toExports = toManifest.module.exports || [];
-      
+
       const removedExports = fromExports.filter((exp: string) => !toExports.includes(exp));
       if (removedExports.length > 0) {
         breakingChanges.push(`Removed exports: ${removedExports.join(', ')}`);
@@ -508,7 +481,7 @@ export class PluginVersionManager {
       compatibilityIssues: [...issues, ...breakingChanges],
       migrationRequired,
       deprecatedFeatures,
-      breakingChanges
+      breakingChanges,
     };
   }
 
@@ -543,12 +516,12 @@ export class PluginVersionManager {
     averageFileSize: number;
   }> {
     const versions = await this.getPluginVersions(pluginName);
-    
+
     if (versions.length === 0) {
       throw new Error(`No versions found for plugin ${pluginName}`);
     }
 
-    const activeVersion = versions.find(v => v.isActive);
+    const activeVersion = versions.find((v) => v.isActive);
     const totalDownloads = versions.reduce((sum, v) => sum + v.downloadCount, 0);
     const averageFileSize = versions.reduce((sum, v) => sum + v.fileSize, 0) / versions.length;
 
@@ -558,7 +531,7 @@ export class PluginVersionManager {
       newestVersion: versions[0].version,
       oldestVersion: versions[versions.length - 1].version,
       totalDownloads,
-      averageFileSize: Math.round(averageFileSize)
+      averageFileSize: Math.round(averageFileSize),
     };
   }
 }

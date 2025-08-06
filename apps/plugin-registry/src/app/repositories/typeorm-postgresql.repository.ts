@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository } from 'typeorm';
 import { PluginMetadata } from '@modu-nest/plugin-types';
-import { 
-  IPluginRepository, 
-  PluginRecord, 
-  PluginDownloadRecord, 
-  PluginSearchOptions, 
-  RepositoryStats 
+import {
+  IPluginRepository,
+  PluginRecord,
+  PluginDownloadRecord,
+  PluginSearchOptions,
+  RepositoryStats,
 } from './plugin-repository.interface';
 import { PluginEntity, PluginDownloadEntity } from '../entities';
 
@@ -40,10 +40,15 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
     this.logger.log('PostgreSQL repository connection closed');
   }
 
-  async savePlugin(metadata: PluginMetadata, filePath: string, fileSize: number, checksum: string): Promise<PluginRecord> {
+  async savePlugin(
+    metadata: PluginMetadata,
+    filePath: string,
+    fileSize: number,
+    checksum: string
+  ): Promise<PluginRecord> {
     try {
       const manifestJson = JSON.stringify(metadata);
-      const tags = JSON.stringify(metadata.tags || []);
+      const tags = JSON.stringify([]);
       const dependencies = JSON.stringify(metadata.dependencies || []);
 
       // Use UPSERT (ON CONFLICT) for PostgreSQL
@@ -66,16 +71,17 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
           tags,
           dependencies,
           status: 'active' as const,
-          downloadCount: 0
+          downloadCount: 0,
         })
-        .onConflict('(name) DO UPDATE SET ' +
-          'version = EXCLUDED.version, ' +
-          'description = EXCLUDED.description, ' +
-          'manifest = EXCLUDED.manifest, ' +
-          'file_path = EXCLUDED.file_path, ' +
-          'file_size = EXCLUDED.file_size, ' +
-          'checksum = EXCLUDED.checksum, ' +
-          'updated_at = EXCLUDED.updated_at'
+        .onConflict(
+          '(name) DO UPDATE SET ' +
+            'version = EXCLUDED.version, ' +
+            'description = EXCLUDED.description, ' +
+            'manifest = EXCLUDED.manifest, ' +
+            'file_path = EXCLUDED.file_path, ' +
+            'file_size = EXCLUDED.file_size, ' +
+            'checksum = EXCLUDED.checksum, ' +
+            'updated_at = EXCLUDED.updated_at'
         )
         .returning('*')
         .execute();
@@ -92,7 +98,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
   async getPluginByName(name: string): Promise<PluginRecord | null> {
     try {
       const plugin = await this.pluginRepository.findOne({
-        where: { name, status: 'active' }
+        where: { name, status: 'active' },
       });
       return plugin ? this.mapEntityToRecord(plugin) : null;
     } catch (error) {
@@ -104,7 +110,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
   async getPluginByChecksum(checksum: string): Promise<PluginRecord | null> {
     try {
       const plugin = await this.pluginRepository.findOne({
-        where: { checksum }
+        where: { checksum },
       });
       return plugin ? this.mapEntityToRecord(plugin) : null;
     } catch (error) {
@@ -115,13 +121,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
 
   async getAllPlugins(options: PluginSearchOptions = {}): Promise<PluginRecord[]> {
     try {
-      const {
-        status = 'active',
-        limit = 100,
-        offset = 0,
-        sortBy = 'uploadDate',
-        sortOrder = 'desc'
-      } = options;
+      const { status = 'active', limit = 100, offset = 0, sortBy = 'uploadDate', sortOrder = 'desc' } = options;
 
       const queryBuilder = this.pluginRepository.createQueryBuilder('plugin');
 
@@ -134,18 +134,18 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         uploadDate: 'upload_date',
         downloadCount: 'download_count',
         createdAt: 'created_at',
-        updatedAt: 'updated_at'
+        updatedAt: 'updated_at',
       };
-      
+
       const dbColumn = columnMap[sortBy] || sortBy;
-      
+
       queryBuilder
         .orderBy(`plugin.${dbColumn}`, sortOrder.toUpperCase() as 'ASC' | 'DESC')
         .limit(limit)
         .offset(offset);
 
       const plugins = await queryBuilder.getMany();
-      return plugins.map(plugin => this.mapEntityToRecord(plugin));
+      return plugins.map((plugin) => this.mapEntityToRecord(plugin));
     } catch (error) {
       this.logger.error('Failed to get all plugins:', error);
       return [];
@@ -165,7 +165,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         .orderBy('plugin.name', 'ASC')
         .getMany();
 
-      return plugins.map(plugin => this.mapEntityToRecord(plugin));
+      return plugins.map((plugin) => this.mapEntityToRecord(plugin));
     } catch (error) {
       this.logger.error(`Failed to search plugins with query '${query}':`, error);
       return [];
@@ -175,12 +175,12 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
   async deletePlugin(name: string): Promise<boolean> {
     try {
       const result = await this.pluginRepository.delete({ name });
-      const deleted = result.affected && result.affected > 0;
-      
+      const deleted = Boolean(result.affected && result.affected > 0);
+
       if (deleted) {
         this.logger.log(`Plugin deleted: ${name}`);
       }
-      
+
       return deleted;
     } catch (error) {
       this.logger.error(`Failed to delete plugin ${name}:`, error);
@@ -191,9 +191,9 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
   async recordDownload(name: string, userAgent?: string, ipAddress?: string): Promise<void> {
     try {
       // Use a transaction for atomic operations
-      await this.pluginRepository.manager.transaction(async transactionalEntityManager => {
-        const plugin = await transactionalEntityManager.findOne(PluginEntity, { 
-          where: { name, status: 'active' } 
+      await this.pluginRepository.manager.transaction(async (transactionalEntityManager) => {
+        const plugin = await transactionalEntityManager.findOne(PluginEntity, {
+          where: { name, status: 'active' },
         });
 
         if (!plugin) {
@@ -204,9 +204,9 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         await transactionalEntityManager
           .createQueryBuilder()
           .update(PluginEntity)
-          .set({ 
+          .set({
             downloadCount: () => 'download_count + 1',
-            lastAccessed: new Date()
+            lastAccessed: new Date(),
           })
           .where('id = :id', { id: plugin.id })
           .execute();
@@ -217,7 +217,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
           version: plugin.version,
           userAgent,
           ipAddress,
-          downloadDate: new Date()
+          downloadDate: new Date(),
         });
       });
 
@@ -237,7 +237,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
           'COUNT(*) as total_plugins',
           'COALESCE(SUM(plugin.file_size), 0) as total_storage',
           'COALESCE(AVG(plugin.file_size), 0) as average_plugin_size',
-          'COALESCE(SUM(plugin.download_count), 0) as total_downloads'
+          'COALESCE(SUM(plugin.download_count), 0) as total_downloads',
         ])
         .where('plugin.status = :status', { status: 'active' })
         .getRawOne();
@@ -245,16 +245,16 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
       const [mostPopular, oldest, newest] = await Promise.all([
         this.pluginRepository.findOne({
           where: { status: 'active' },
-          order: { downloadCount: 'DESC' }
+          order: { downloadCount: 'DESC' },
         }),
         this.pluginRepository.findOne({
           where: { status: 'active' },
-          order: { uploadDate: 'ASC' }
+          order: { uploadDate: 'ASC' },
         }),
         this.pluginRepository.findOne({
           where: { status: 'active' },
-          order: { uploadDate: 'DESC' }
-        })
+          order: { uploadDate: 'DESC' },
+        }),
       ]);
 
       return {
@@ -264,7 +264,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         mostPopularPlugin: mostPopular?.name || 'None',
         oldestPlugin: oldest?.name || 'None',
         newestPlugin: newest?.name || 'None',
-        totalDownloads: parseInt(statsQuery.total_downloads) || 0
+        totalDownloads: parseInt(statsQuery.total_downloads) || 0,
       };
     } catch (error) {
       this.logger.error('Failed to get repository stats:', error);
@@ -298,13 +298,13 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         .limit(limit)
         .getMany();
 
-      return downloads.map(download => ({
+      return downloads.map((download) => ({
         id: download.id,
         pluginId: download.pluginId,
-        version: download.version,
+        version: download.version || 'unknown',
         downloadDate: download.downloadDate,
         userAgent: download.userAgent || undefined,
-        ipAddress: download.ipAddress || undefined
+        ipAddress: download.ipAddress || undefined,
       }));
     } catch (error) {
       this.logger.error(`Failed to get download history for ${pluginName}:`, error);
@@ -314,16 +314,13 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
 
   async updatePluginStatus(name: string, status: 'active' | 'deprecated' | 'disabled'): Promise<boolean> {
     try {
-      const result = await this.pluginRepository.update(
-        { name },
-        { status, updatedAt: new Date() }
-      );
-      
-      const updated = result.affected && result.affected > 0;
+      const result = await this.pluginRepository.update({ name }, { status, updatedAt: new Date() });
+
+      const updated = Boolean(result.affected && result.affected > 0);
       if (updated) {
         this.logger.log(`Plugin status updated: ${name} -> ${status}`);
       }
-      
+
       return updated;
     } catch (error) {
       this.logger.error(`Failed to update plugin status for ${name}:`, error);
@@ -331,7 +328,9 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
     }
   }
 
-  async bulkInsert(plugins: Array<{ metadata: PluginMetadata; filePath: string; fileSize: number; checksum: string }>): Promise<void> {
+  async bulkInsert(
+    plugins: Array<{ metadata: PluginMetadata; filePath: string; fileSize: number; checksum: string }>
+  ): Promise<void> {
     try {
       const entities = plugins.map(({ metadata, filePath, fileSize, checksum }) => ({
         name: metadata.name,
@@ -345,10 +344,10 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         checksum,
         uploadDate: new Date(),
         lastAccessed: new Date(),
-        tags: JSON.stringify(metadata.tags || []),
+        tags: JSON.stringify([]),
         dependencies: JSON.stringify(metadata.dependencies || []),
         status: 'active' as const,
-        downloadCount: 0
+        downloadCount: 0,
       }));
 
       // Use PostgreSQL's efficient bulk insert
@@ -382,9 +381,9 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
       id: entity.id,
       name: entity.name,
       version: entity.version,
-      description: entity.description,
-      author: entity.author,
-      license: entity.license,
+      description: entity.description || '',
+      author: entity.author || '',
+      license: entity.license || '',
       manifest: entity.manifest,
       filePath: entity.filePath,
       fileSize: entity.fileSize,
@@ -396,7 +395,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
       tags: entity.tags,
       dependencies: entity.dependencies,
       createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt
+      updatedAt: entity.updatedAt,
     };
   }
 }

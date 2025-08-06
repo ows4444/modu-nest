@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createVerify, createHash, randomBytes } from 'crypto';
-import JSZip from 'jszip';
+import { createVerify, createHash } from 'crypto';
 import {
   PluginSecurityError,
   PluginValidationError,
-  handlePluginError,
   PluginErrorMetrics,
   PluginSecurity,
   PluginManifest,
@@ -15,6 +13,8 @@ export interface SignatureValidationResult {
   trustLevel: 'internal' | 'verified' | 'community';
   errors: string[];
   warnings: string[];
+  verified?: boolean;
+  algorithm?: string;
 }
 
 export interface SigningKeyPair {
@@ -60,11 +60,11 @@ export class PluginSignatureService {
     // Example: Load trusted keys from environment variables or configuration file
     // In production, this would typically load from a secure key management service
     const trustedKeysConfig = process.env.TRUSTED_PLUGIN_KEYS;
-    
+
     if (trustedKeysConfig) {
       try {
         const keys = JSON.parse(trustedKeysConfig) as TrustedPublicKey[];
-        keys.forEach(key => {
+        keys.forEach((key) => {
           this.trustedKeys.set(key.issuer, {
             ...key,
             validFrom: new Date(key.validFrom),
@@ -96,7 +96,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
       trustLevel: 'internal',
       validFrom: new Date(),
     };
-    
+
     this.trustedKeys.set('development', devKey);
     this.logger.warn('Using development trusted key - NOT FOR PRODUCTION USE');
   }
@@ -104,12 +104,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
   /**
    * Validate plugin signature according to security policy
    */
-  async validatePluginSignature(
-    pluginBuffer: Buffer,
-    manifest: PluginManifest
-  ): Promise<SignatureValidationResult> {
+  async validatePluginSignature(pluginBuffer: Buffer, manifest: PluginManifest): Promise<SignatureValidationResult> {
     const pluginName = manifest.name;
-    
+
     try {
       // Check if plugin has security configuration
       if (!manifest.security) {
@@ -125,23 +122,23 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
 
       // Handle unsigned plugins
       return this.handleUnsignedPlugin(pluginName, security.trustLevel);
-
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const signatureError = new PluginSecurityError(
         pluginName,
-        [`Signature validation failed: ${error.message}`],
+        [`Signature validation failed: ${errorMessage}`],
         'high'
       );
       this.errorMetrics.recordError(signatureError, {
         pluginName,
-        operation: 'signature-validation'
+        operation: 'signature-validation',
       });
-      
+
       return {
         isValid: false,
         trustLevel: 'community',
         errors: [signatureError.message],
-        warnings: []
+        warnings: [],
       };
     }
   }
@@ -153,23 +150,18 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
     pluginName: string,
     trustLevel: 'internal' | 'verified' | 'community' = 'community'
   ): SignatureValidationResult {
-    
     if (this.REQUIRE_SIGNATURES && !this.ALLOW_UNSIGNED_PLUGINS) {
-      const error = new PluginSecurityError(
-        pluginName,
-        ['Plugin signature is required but missing'],
-        'high'
-      );
+      const error = new PluginSecurityError(pluginName, ['Plugin signature is required but missing'], 'high');
       this.errorMetrics.recordError(error, {
         pluginName,
-        operation: 'signature-requirement-check'
+        operation: 'signature-requirement-check',
       });
-      
+
       return {
         isValid: false,
         trustLevel: 'community',
         errors: [error.message],
-        warnings: []
+        warnings: [],
       };
     }
 
@@ -179,12 +171,12 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
     }
 
     this.logger.warn(`Allowing unsigned plugin: ${pluginName} (trustLevel: ${trustLevel})`);
-    
+
     return {
       isValid: true,
       trustLevel,
       errors: [],
-      warnings
+      warnings,
     };
   }
 
@@ -196,7 +188,6 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
     security: PluginSecurity,
     pluginName: string
   ): Promise<SignatureValidationResult> {
-    
     if (!security.signature) {
       throw new Error('Signature configuration is missing');
     }
@@ -205,10 +196,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
 
     // Validate algorithm
     if (!this.SIGNATURE_ALGORITHMS.includes(algorithm)) {
-      throw new PluginValidationError(
-        pluginName,
-        [`Unsupported signature algorithm: ${algorithm}. Supported: ${this.SIGNATURE_ALGORITHMS.join(', ')}`]
-      );
+      throw new PluginValidationError(pluginName, [
+        `Unsupported signature algorithm: ${algorithm}. Supported: ${this.SIGNATURE_ALGORITHMS.join(', ')}`,
+      ]);
     }
 
     // Find trusted key or validate provided key
@@ -219,13 +209,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
     if (trustedKey) {
       // Validate key expiration
       if (trustedKey.validUntil && new Date() > trustedKey.validUntil) {
-        throw new PluginSecurityError(
-          pluginName,
-          ['Trusted key has expired'],
-          'high'
-        );
+        throw new PluginSecurityError(pluginName, ['Trusted key has expired'], 'high');
       }
-      
+
       actualTrustLevel = trustedKey.trustLevel;
       this.logger.debug(`Using trusted key from issuer: ${trustedKey.issuer}`);
     } else {
@@ -252,12 +238,12 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
     }
 
     this.logger.log(`Plugin signature verified successfully: ${pluginName} (trustLevel: ${actualTrustLevel})`);
-    
+
     return {
       isValid: true,
       trustLevel: actualTrustLevel,
       errors: [],
-      warnings
+      warnings,
     };
   }
 
@@ -267,7 +253,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
   private async calculatePluginHash(pluginBuffer: Buffer): Promise<string> {
     // Create hash of the plugin content
     const hash = createHash('sha256');
-    hash.update(pluginBuffer);
+    hash.update(new Uint8Array(pluginBuffer));
     return hash.digest('hex');
   }
 
@@ -276,7 +262,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
    */
   private findTrustedKey(publicKey: string): TrustedPublicKey | null {
     // First try to find by exact key match
-    for (const [issuer, trustedKey] of this.trustedKeys) {
+    for (const [, trustedKey] of this.trustedKeys) {
       if (trustedKey.key === publicKey) {
         return trustedKey;
       }
@@ -291,10 +277,10 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
    */
   private mapAlgorithmToCrypto(algorithm: string): string {
     const algorithmMap: Record<string, string> = {
-      'RS256': 'RSA-SHA256',
-      'RS512': 'RSA-SHA512',
-      'ES256': 'sha256',
-      'ES512': 'sha512',
+      RS256: 'RSA-SHA256',
+      RS512: 'RSA-SHA512',
+      ES256: 'sha256',
+      ES512: 'sha512',
     };
 
     return algorithmMap[algorithm] || 'RSA-SHA256';
@@ -305,17 +291,17 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
    */
   generateKeyPair(algorithm: string = this.DEFAULT_ALGORITHM): SigningKeyPair {
     const { generateKeyPairSync } = require('crypto');
-    
+
     let keyOptions: any;
-    
+
     if (algorithm.startsWith('RS')) {
       keyOptions = {
         type: 'rsa',
         options: {
           modulusLength: algorithm === 'RS512' ? 4096 : 2048,
           publicKeyEncoding: { type: 'spki', format: 'pem' },
-          privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-        }
+          privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+        },
       };
     } else if (algorithm.startsWith('ES')) {
       keyOptions = {
@@ -323,19 +309,19 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
         options: {
           namedCurve: algorithm === 'ES512' ? 'secp521r1' : 'prime256v1',
           publicKeyEncoding: { type: 'spki', format: 'pem' },
-          privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-        }
+          privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+        },
       };
     } else {
       throw new Error(`Unsupported algorithm for key generation: ${algorithm}`);
     }
 
     const { publicKey, privateKey } = generateKeyPairSync(keyOptions.type, keyOptions.options);
-    
+
     return {
       publicKey,
       privateKey,
-      algorithm
+      algorithm,
     };
   }
 
@@ -344,11 +330,11 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1234567890abcdef...
    */
   signPluginContent(pluginBuffer: Buffer, privateKey: string, algorithm: string = this.DEFAULT_ALGORITHM): string {
     const pluginHash = createHash('sha256').update(pluginBuffer).digest('hex');
-    
+
     const sign = require('crypto').createSign(this.mapAlgorithmToCrypto(algorithm));
     sign.update(pluginHash);
     sign.end();
-    
+
     return sign.sign(privateKey, 'base64');
   }
 

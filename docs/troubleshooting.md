@@ -76,6 +76,7 @@ Solution: Review plugin manifest dependencies, adjust loadOrder values
 ```
 
 **Debugging Steps:**
+
 1. Check plugin manifests for dependency declarations
 2. Verify loadOrder values are properly set
 3. Use dependency graph visualization: `nx graph`
@@ -89,6 +90,7 @@ Solution: Verify guard exports in dependency plugin manifests
 ```
 
 **Resolution Process:**
+
 1. Check the dependency plugin's manifest for guard exports
 2. Verify guard class names match manifest declarations
 3. Ensure guard scope is set correctly (local/external)
@@ -102,6 +104,7 @@ Solution: Remove dangerous Node.js imports, use NestJS/framework alternatives
 ```
 
 **Safe Alternatives:**
+
 - `fs` → Use NestJS file utilities or configured storage services
 - `child_process` → Use worker threads or external microservices
 - `process` → Access environment through configuration services
@@ -115,6 +118,7 @@ Solution: Optimize plugin code, increase MAX_PLUGIN_MEMORY if needed
 ```
 
 **Optimization Strategies:**
+
 1. Review plugin for memory leaks
 2. Optimize data structures and algorithms
 3. Implement proper cleanup in lifecycle hooks
@@ -149,6 +153,7 @@ console.log('Memory usage:', {
 ### Plugin Hot Reloading Issues
 
 **Problem:** Plugin changes not reflected after reload
+
 ```bash
 # Solutions:
 1. Check if hot reload is enabled
@@ -162,6 +167,7 @@ export ENABLE_HOT_RELOAD=true
 ### TypeScript Compilation Errors
 
 **Problem:** Plugin TypeScript compilation failing
+
 ```bash
 # Debugging steps:
 1. Check tsconfig.json extends path
@@ -174,6 +180,7 @@ export ENABLE_HOT_RELOAD=true
 ### Plugin Registry Connection Issues
 
 **Problem:** Cannot connect to plugin registry
+
 ```bash
 # Diagnostic commands:
 curl http://localhost:6001/health
@@ -229,20 +236,23 @@ export class DebugPluginService implements OnModuleInit, OnModuleDestroy {
 ### Database Debugging
 
 ```typescript
-// SQLite debugging
+// PostgreSQL debugging
 const db = await this.databaseService.getConnection();
 
 // Check table structure
-const tables = await db.all("SELECT name FROM sqlite_master WHERE type='table'");
-console.log('Database tables:', tables);
+const tables = await db.query(`
+  SELECT tablename FROM pg_tables 
+  WHERE schemaname = 'public'
+`);
+console.log('Database tables:', tables.rows);
 
 // Analyze query performance
-const explain = await db.all("EXPLAIN QUERY PLAN SELECT * FROM plugins WHERE name = ?", ['plugin-name']);
-console.log('Query plan:', explain);
+const explain = await db.query('EXPLAIN ANALYZE SELECT * FROM plugins WHERE name = $1', ['plugin-name']);
+console.log('Query plan:', explain.rows);
 
-// Check database integrity
-const integrity = await db.get("PRAGMA integrity_check");
-console.log('Database integrity:', integrity);
+// Check database statistics
+const stats = await db.query('SELECT * FROM pg_stat_database WHERE datname = current_database()');
+console.log('Database stats:', stats.rows);
 ```
 
 ## Production Troubleshooting
@@ -250,12 +260,14 @@ console.log('Database integrity:', integrity);
 ### High Memory Usage (>80% of allocated memory)
 
 **Diagnosis Steps:**
+
 1. Check for memory leaks in plugin loading/unloading
 2. Analyze plugin instance tracking
 3. Verify garbage collection effectiveness
 4. Check for circular references in plugin dependencies
 
 **Resolution Commands:**
+
 ```bash
 # Memory usage analysis
 curl http://localhost:4001/debug/memory-usage
@@ -268,12 +280,14 @@ curl -X POST http://localhost:4001/debug/force-gc
 ### Plugin Loading Timeout (>30 seconds)
 
 **Diagnosis Steps:**
+
 1. Check dependency resolution performance
 2. Analyze plugin size and complexity
 3. Verify network connectivity to plugin registry
 4. Check database connection availability
 
 **Resolution Commands:**
+
 ```bash
 # Plugin loading diagnostics
 curl http://localhost:4001/debug/plugin-loading-queue
@@ -287,26 +301,29 @@ curl -w "@curl-format.txt" http://localhost:6001/plugins/test-plugin/download
 ### Database Connection Issues
 
 **Diagnosis Steps:**
+
 1. Check SQLite database file permissions
 2. Verify database file integrity
 3. Check for file locks
 4. Analyze database size and performance
 
 **Resolution Commands:**
+
 ```bash
 # Database diagnostics
-sqlite3 /app/data/database.db "PRAGMA integrity_check;"
-sqlite3 /app/data/database.db ".schema"
-lsof /app/data/database.db  # Check file locks
+psql -h $DATABASE_HOST -U $DATABASE_USERNAME -d $DATABASE_NAME -c "SELECT version();"
+psql -h $DATABASE_HOST -U $DATABASE_USERNAME -d $DATABASE_NAME -c "\dt"  # List tables
+netstat -an | grep 5432  # Check database connections
 
 # Database performance
-sqlite3 /app/data/database.db "ANALYZE;"
-sqlite3 /app/data/database.db "PRAGMA optimize;"
+psql -h $DATABASE_HOST -U $DATABASE_USERNAME -d $DATABASE_NAME -c "ANALYZE;"
+psql -h $DATABASE_HOST -U $DATABASE_USERNAME -d $DATABASE_NAME -c "VACUUM ANALYZE;"
 ```
 
 ### Performance Optimization Commands
 
 **Plugin Performance Profiling:**
+
 ```bash
 # Enable detailed plugin profiling
 export PLUGIN_PROFILING_ENABLED=true
@@ -320,6 +337,7 @@ curl http://localhost:4001/debug/plugin-memory-analysis
 ```
 
 **Database Optimization:**
+
 ```sql
 -- Analyze query performance
 EXPLAIN QUERY PLAN SELECT * FROM plugins WHERE name = 'plugin-name';
@@ -344,16 +362,16 @@ export class PluginRecoveryService {
     try {
       // 1. Unload failed plugin
       await this.pluginLoader.unloadPlugin(pluginName);
-      
+
       // 2. Clear plugin cache
       await this.pluginCache.clear(pluginName);
-      
+
       // 3. Reset plugin state
       await this.pluginLoader.resetPluginState(pluginName);
-      
+
       // 4. Reload plugin
       await this.pluginLoader.loadPlugin(pluginName);
-      
+
       console.log(`Plugin ${pluginName} recovered successfully`);
     } catch (error) {
       console.error(`Failed to recover plugin ${pluginName}:`, error);
@@ -375,16 +393,16 @@ HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4001/hea
 
 if [ "$HEALTH_STATUS" != "200" ]; then
     echo "System unhealthy, attempting recovery..."
-    
+
     # Restart services
     docker-compose restart plugin-host
-    
+
     # Wait for recovery
     sleep 30
-    
+
     # Verify recovery
     RECOVERY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4001/health)
-    
+
     if [ "$RECOVERY_STATUS" = "200" ]; then
         echo "System recovered successfully"
     else
@@ -406,20 +424,20 @@ while true; do
     # Check plugin host health
     HOST_HEALTH=$(curl -s http://localhost:4001/health)
     HOST_STATUS=$(echo $HOST_HEALTH | jq -r '.status')
-    
+
     # Check plugin registry health
     REGISTRY_HEALTH=$(curl -s http://localhost:6001/health)
     REGISTRY_STATUS=$(echo $REGISTRY_HEALTH | jq -r '.status')
-    
+
     if [ "$HOST_STATUS" != "healthy" ] || [ "$REGISTRY_STATUS" != "healthy" ]; then
         echo "ALERT: System health degraded at $(date)"
         echo "Host status: $HOST_STATUS"
         echo "Registry status: $REGISTRY_STATUS"
-        
+
         # Send alert (email, Slack, etc.)
         # /opt/scripts/send-alert.sh "System health degraded"
     fi
-    
+
     sleep 60
 done
 ```

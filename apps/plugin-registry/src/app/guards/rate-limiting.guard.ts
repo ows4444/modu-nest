@@ -22,31 +22,31 @@ export interface RateLimitOptions {
 export const RateLimit = (options: RateLimitOptions) => SetMetadata('rateLimit', options);
 
 // Pre-defined decorators for common scenarios
-export const UploadRateLimit = () => 
+export const UploadRateLimit = () =>
   RateLimit({
     ruleName: 'plugin-upload',
     identifierExtractor: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   });
 
-export const DownloadRateLimit = () => 
+export const DownloadRateLimit = () =>
   RateLimit({
     ruleName: 'plugin-download',
     identifierExtractor: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   });
 
-export const ApiRateLimit = () => 
+export const ApiRateLimit = () =>
   RateLimit({
     ruleName: 'general-api',
     identifierExtractor: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   });
 
-export const SearchRateLimit = () => 
+export const SearchRateLimit = () =>
   RateLimit({
     ruleName: 'plugin-search',
     identifierExtractor: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   });
 
-export const AdminRateLimit = () => 
+export const AdminRateLimit = () =>
   RateLimit({
     ruleName: 'admin-operations',
     identifierExtractor: (req) => {
@@ -60,10 +60,7 @@ export const AdminRateLimit = () =>
 export class RateLimitingGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitingGuard.name);
 
-  constructor(
-    private readonly rateLimitingService: PluginRateLimitingService,
-    private readonly reflector: Reflector
-  ) {}
+  constructor(private readonly rateLimitingService: PluginRateLimitingService, private readonly reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const rateLimitOptions = this.reflector.get<RateLimitOptions>('rateLimit', context.getHandler());
@@ -82,7 +79,7 @@ export class RateLimitingGuard implements CanActivate {
     }
 
     // Extract identifier (usually IP address, but could be user ID, API key, etc.)
-    const identifier = rateLimitOptions.identifierExtractor 
+    const identifier = rateLimitOptions.identifierExtractor
       ? rateLimitOptions.identifierExtractor(request)
       : this.getDefaultIdentifier(request);
 
@@ -110,7 +107,7 @@ export class RateLimitingGuard implements CanActivate {
       // Log rate limit violation
       this.logger.warn(
         `Rate limit exceeded: ${rateLimitOptions.ruleName} for ${this.sanitizeIdentifier(identifier)} ` +
-        `on ${request.method} ${request.path}`
+          `on ${request.method} ${request.path}`
       );
 
       // Throw HTTP exception
@@ -155,7 +152,7 @@ export class RateLimitingGuard implements CanActivate {
    */
   private addRateLimitHeaders(response: Response, result: RateLimitResult): void {
     const rule = this.rateLimitingService.getRule(result.rule);
-    
+
     if (rule) {
       response.setHeader('X-RateLimit-Limit', rule.maxRequests);
       response.setHeader('X-RateLimit-Remaining', result.remaining);
@@ -173,7 +170,7 @@ export class RateLimitingGuard implements CanActivate {
    */
   private getRateLimitMessage(ruleName: string): string {
     const rule = this.rateLimitingService.getRule(ruleName);
-    
+
     if (rule?.message) {
       return rule.message;
     }
@@ -196,11 +193,11 @@ export class RateLimitingGuard implements CanActivate {
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(identifier)) {
       return identifier.replace(/\.\d{1,3}$/, '.xxx');
     }
-    
+
     if (identifier.length > 8) {
       return identifier.substring(0, 4) + '****' + identifier.substring(identifier.length - 2);
     }
-    
+
     return '****';
   }
 }
@@ -217,7 +214,6 @@ export class RateLimitHeadersInterceptor implements NestInterceptor {
   constructor(private readonly rateLimitingService: PluginRateLimitingService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
 
     return next.handle().pipe(

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   PluginResponseDto,
   PluginMetadata,
+  PluginManifest,
   CreatePluginDto,
   RegistryStats,
   PluginListResponseDto,
@@ -10,20 +11,35 @@ import {
   PluginManifestError,
   handlePluginError,
   PluginErrorMetrics,
+  PluginError,
+  PluginRegistryError,
 } from '@modu-nest/plugin-types';
 import { PluginValidationService } from './plugin-validation.service';
 import { PluginSecurityService } from './plugin-security.service';
 import { PluginSignatureService } from './plugin-signature.service';
 import { PluginBundleOptimizationService } from './plugin-bundle-optimization.service';
 import { PluginStorageOrchestratorService } from './plugin-storage-orchestrator.service';
-import { PluginVersionManager } from './plugin-version-manager';
-import { PluginTrustManager, TrustLevel } from './plugin-trust-manager';
+import { PluginVersionManager, VersionRollbackOptions } from './plugin-version-manager';
+import { PluginTrustManager, TrustLevel, TrustLevelAssignment, TrustLevelChangeRequest } from './plugin-trust-manager';
 
 @Injectable()
 export class PluginRegistryService implements IPluginEventSubscriber {
   private readonly logger = new Logger(PluginRegistryService.name);
   private eventEmitter: PluginEventEmitter;
   private errorMetrics = PluginErrorMetrics.getInstance();
+
+  /**
+   * Convert a standard Error or unknown to a PluginError for type compatibility
+   */
+  private toPluginError(error: unknown, operation = 'registry-operation', pluginName?: string): PluginError {
+    if (error instanceof PluginError) {
+      return error;
+    }
+    if (error instanceof Error) {
+      return new PluginRegistryError(operation, error.message || 'Unknown error occurred', pluginName);
+    }
+    return new PluginRegistryError(operation, String(error) || 'Unknown error occurred', pluginName);
+  }
 
   constructor(
     private readonly validationService: PluginValidationService,
@@ -85,8 +101,14 @@ export class PluginRegistryService implements IPluginEventSubscriber {
           manifestValidationResult.errors,
           manifestValidationResult.warnings
         );
-        this.errorMetrics.recordError(error, { pluginName, operation: 'manifest-validation' });
-        handlePluginError(error, { pluginName, operation: 'uploadPlugin' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'manifest-validation', pluginName), {
+          pluginName,
+          operation: 'manifest-validation',
+        });
+        handlePluginError(this.toPluginError(error, 'uploadPlugin', pluginName), {
+          pluginName,
+          operation: 'uploadPlugin',
+        });
       }
 
       // Log warnings if any
@@ -116,7 +138,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       this.eventEmitter.emitPluginSecurityScanCompleted(pluginName, 'imports', [], 'low');
 
       // Emit signature verification started event
-      this.eventEmitter.emitPluginSecurityScanStarted(pluginName, 'signature');
+      this.eventEmitter.emitPluginSecurityScanStarted(pluginName, 'manifest');
 
       // Perform signature verification
       const signatureResult = await this.signatureService.validatePluginSignature(pluginBuffer, extractedManifest);
@@ -124,19 +146,21 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       // Emit signature verification completed event
       this.eventEmitter.emitPluginSecurityScanCompleted(
         pluginName,
-        'signature',
+        'manifest',
         signatureResult.errors,
         signatureResult.isValid ? 'low' : 'high'
       );
 
       if (!signatureResult.isValid) {
-        const error = new PluginManifestError(
+        const error = new PluginManifestError(pluginName, signatureResult.errors, signatureResult.warnings);
+        this.errorMetrics.recordError(this.toPluginError(error, 'signature-verification', pluginName), {
           pluginName,
-          signatureResult.errors,
-          signatureResult.warnings
-        );
-        this.errorMetrics.recordError(error, { pluginName, operation: 'signature-verification' });
-        handlePluginError(error, { pluginName, operation: 'uploadPlugin' });
+          operation: 'signature-verification',
+        });
+        handlePluginError(this.toPluginError(error, 'uploadPlugin', pluginName), {
+          pluginName,
+          operation: 'uploadPlugin',
+        });
       }
 
       // Log signature verification warnings if any
@@ -144,11 +168,13 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         this.logger.warn(`Plugin signature warnings: ${signatureResult.warnings.join(', ')}`);
       }
 
-      this.logger.log(`Plugin signature verified successfully: ${pluginName} (trustLevel: ${signatureResult.trustLevel})`);
+      this.logger.log(
+        `Plugin signature verified successfully: ${pluginName} (trustLevel: ${signatureResult.trustLevel})`
+      );
 
       // Trust level assignment and validation
-      const trustLevel = signatureResult.trustLevel as TrustLevel || TrustLevel.COMMUNITY;
-      
+      const trustLevel = (signatureResult.trustLevel as TrustLevel) || TrustLevel.COMMUNITY;
+
       // Assign initial trust level based on signature verification
       await this.trustManager.assignTrustLevel({
         pluginName,
@@ -157,18 +183,20 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         assignedBy: 'system',
         assignedAt: new Date(),
         reason: `Initial trust level assignment based on signature verification`,
-        evidence: [{
-          type: 'signature',
-          description: 'Cryptographic signature verification',
-          score: signatureResult.verified ? 100 : 0,
-          verifiedBy: 'system',
-          verifiedAt: new Date(),
-          details: {
-            algorithm: signatureResult.algorithm,
-            verified: signatureResult.verified,
-            warnings: signatureResult.warnings
-          }
-        }]
+        evidence: [
+          {
+            type: 'signature',
+            description: 'Cryptographic signature verification',
+            score: signatureResult.verified ? 100 : 0,
+            verifiedBy: 'system',
+            verifiedAt: new Date(),
+            details: {
+              algorithm: signatureResult.algorithm,
+              verified: signatureResult.verified,
+              warnings: signatureResult.warnings,
+            },
+          },
+        ],
       });
 
       // Validate plugin against trust policy
@@ -181,7 +209,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       if (!policyValidation.isValid) {
         const violationMessage = `Plugin violates trust policy: ${policyValidation.violations.join(', ')}`;
         this.logger.error(violationMessage);
-        
+
         // Record trust violation
         await this.trustManager.recordTrustViolation({
           pluginName,
@@ -192,12 +220,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
           detectedAt: new Date(),
           details: {
             violations: policyValidation.violations,
-            requiredActions: policyValidation.requiredActions
+            requiredActions: policyValidation.requiredActions,
           },
-          action: 'restrict'
+          action: 'restrict',
         });
 
-        throw new Error(`Plugin upload rejected: ${violationMessage}. Required actions: ${policyValidation.requiredActions.join(', ')}`);
+        throw new Error(
+          `Plugin upload rejected: ${violationMessage}. Required actions: ${policyValidation.requiredActions.join(
+            ', '
+          )}`
+        );
       }
 
       this.logger.log(`Plugin trust policy validation passed: ${pluginName} (trustLevel: ${trustLevel})`);
@@ -205,37 +237,33 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       // Bundle optimization (if enabled)
       let finalPluginBuffer = pluginBuffer;
       const enableOptimization = process.env.ENABLE_BUNDLE_OPTIMIZATION !== 'false'; // enabled by default
-      
+
       if (enableOptimization) {
         this.logger.debug(`Starting bundle optimization for plugin: ${pluginName}`);
-        
-        try {
-          const optimizationResult = await this.bundleOptimizationService.optimizeBundle(
-            pluginBuffer,
-            pluginName
-          );
 
-          if (optimizationResult.compressionRatio > 0.05) { // Only use if we save more than 5%
+        try {
+          const optimizationResult = await this.bundleOptimizationService.optimizeBundle(pluginBuffer, pluginName);
+
+          if (optimizationResult.compressionRatio > 0.05) {
+            // Only use if we save more than 5%
             finalPluginBuffer = optimizationResult.optimizedBuffer;
-            
+
             this.logger.log(
               `Bundle optimization completed for ${pluginName}: ` +
-              `${optimizationResult.originalSize} → ${optimizationResult.optimizedSize} bytes ` +
-              `(${(optimizationResult.compressionRatio * 100).toFixed(1)}% reduction)`
+                `${optimizationResult.originalSize} → ${optimizationResult.optimizedSize} bytes ` +
+                `(${(optimizationResult.compressionRatio * 100).toFixed(1)}% reduction)`
             );
 
             // Emit bundle optimization event
-            this.eventEmitter.emitPluginSecurityScanCompleted(
-              pluginName,
-              'bundle-optimization',
-              [],
-              'low'
-            );
+            this.eventEmitter.emitPluginSecurityScanCompleted(pluginName, 'structure', [], 'low');
           } else {
-            this.logger.debug(`Bundle optimization for ${pluginName} did not provide significant savings, using original`);
+            this.logger.debug(
+              `Bundle optimization for ${pluginName} did not provide significant savings, using original`
+            );
           }
         } catch (error) {
-          this.logger.warn(`Bundle optimization failed for ${pluginName}, using original bundle: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(`Bundle optimization failed for ${pluginName}, using original bundle: ${errorMessage}`);
           // Continue with original buffer - optimization failure shouldn't block upload
         }
       }
@@ -258,14 +286,20 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     } catch (error) {
       // Record error metrics if it's a plugin error
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'uploadPlugin' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'uploadPlugin', pluginName), {
+          pluginName,
+          operation: 'uploadPlugin',
+        });
       }
 
       // Emit plugin error event
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'validation', false);
 
       // Use standardized error handling
-      handlePluginError(error, { pluginName, operation: 'uploadPlugin' });
+      handlePluginError(this.toPluginError(error, 'uploadPlugin', pluginName), {
+        pluginName,
+        operation: 'uploadPlugin',
+      });
     }
   }
 
@@ -295,14 +329,20 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     } catch (error) {
       // Record error metrics
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName: name, operation: 'downloadPlugin' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'downloadPlugin', name), {
+          pluginName: name,
+          operation: 'downloadPlugin',
+        });
       }
 
       // Emit plugin error event
       this.eventEmitter.emitPluginError(name, error as Error, 'medium', 'network', true);
 
       // Use standardized error handling
-      handlePluginError(error, { pluginName: name, operation: 'downloadPlugin' });
+      handlePluginError(this.toPluginError(error, 'downloadPlugin', name), {
+        pluginName: name,
+        operation: 'downloadPlugin',
+      });
     }
   }
 
@@ -315,14 +355,20 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     } catch (error) {
       // Record error metrics
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName: name, operation: 'deletePlugin' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'deletePlugin', name), {
+          pluginName: name,
+          operation: 'deletePlugin',
+        });
       }
 
       // Emit plugin error event
       this.eventEmitter.emitPluginError(name, error as Error, 'medium', 'runtime', true);
 
       // Use standardized error handling
-      handlePluginError(error, { pluginName: name, operation: 'deletePlugin' });
+      handlePluginError(this.toPluginError(error, 'deletePlugin', name), {
+        pluginName: name,
+        operation: 'deletePlugin',
+      });
     }
   }
 
@@ -397,60 +443,73 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   subscribeToEvents(eventEmitter: PluginEventEmitter): void {
     // Subscribe to validation events for statistics
     eventEmitter.on('plugin.validation.completed', (event) => {
+      const validationEvent = event as any;
       this.logger.debug(
-        `Validation completed for ${event.pluginName}: ${event.validationType} - ${
-          event.isValid ? 'VALID' : 'INVALID'
-        }${event.cacheHit ? ' (cached)' : ''}`
+        `Validation completed for ${validationEvent.pluginName}: ${validationEvent.validationType} - ${
+          validationEvent.isValid ? 'VALID' : 'INVALID'
+        }${validationEvent.cacheHit ? ' (cached)' : ''}`
       );
     });
 
     // Subscribe to security events for monitoring
     eventEmitter.on('plugin.security.scan.completed', (event) => {
-      if (event.threats.length > 0) {
+      const securityEvent = event as any;
+      if (securityEvent.threats.length > 0) {
         this.logger.warn(
-          `Security threats detected in ${event.pluginName}: ${event.threats.join(', ')} (Risk: ${event.riskLevel})`
+          `Security threats detected in ${securityEvent.pluginName}: ${securityEvent.threats.join(', ')} (Risk: ${
+            securityEvent.riskLevel
+          })`
         );
       }
     });
 
     eventEmitter.on('plugin.security.violation', (event) => {
+      const violationEvent = event as any;
       this.logger.error(
-        `Security violation in ${event.pluginName}: ${event.violationType} (Severity: ${event.severity}, Blocked: ${event.blocked})`
+        `Security violation in ${violationEvent.pluginName}: ${violationEvent.violationType} (Severity: ${violationEvent.severity}, Blocked: ${violationEvent.blocked})`
       );
     });
 
     // Subscribe to upload/download events for analytics
     eventEmitter.on('plugin.upload.started', (event) => {
-      this.logger.debug(`Plugin upload started: ${event.pluginName} (${(event.fileSize / 1024 / 1024).toFixed(2)}MB)`);
+      const uploadEvent = event as any;
+      this.logger.debug(
+        `Plugin upload started: ${uploadEvent.pluginName} (${(uploadEvent.fileSize / 1024 / 1024).toFixed(2)}MB)`
+      );
     });
 
     eventEmitter.on('plugin.downloaded', (event) => {
+      const downloadEvent = event as any;
       this.logger.debug(
-        `Plugin downloaded: ${event.pluginName} by ${event.userAgent || 'unknown'} from ${event.ipAddress || 'unknown'}`
+        `Plugin downloaded: ${downloadEvent.pluginName} by ${downloadEvent.userAgent || 'unknown'} from ${
+          downloadEvent.ipAddress || 'unknown'
+        }`
       );
     });
 
     // Subscribe to cache events for optimization insights
     eventEmitter.on('plugin.cache', (event) => {
-      if (event.operation === 'hit') {
-        this.logger.debug(`Cache hit for ${event.pluginName}: ${event.cacheType}`);
-      } else if (event.operation === 'miss') {
-        this.logger.debug(`Cache miss for ${event.pluginName}: ${event.cacheType}`);
+      const cacheEvent = event as any;
+      if (cacheEvent.operation === 'hit') {
+        this.logger.debug(`Cache hit for ${cacheEvent.pluginName}: ${cacheEvent.cacheType}`);
+      } else if (cacheEvent.operation === 'miss') {
+        this.logger.debug(`Cache miss for ${cacheEvent.pluginName}: ${cacheEvent.cacheType}`);
       }
     });
 
     // Subscribe to error events for centralized error handling
     eventEmitter.on('plugin.error', (event) => {
-      if (event.severity === 'critical' || event.severity === 'high') {
+      const errorEvent = event as any;
+      if (errorEvent.severity === 'critical' || errorEvent.severity === 'high') {
         this.logger.error(
-          `${event.severity.toUpperCase()} registry error in ${event.pluginName} (${event.category}): ${
-            event.error.message
+          `${errorEvent.severity.toUpperCase()} registry error in ${errorEvent.pluginName} (${errorEvent.category}): ${
+            errorEvent.error.message
           }`,
-          event.error.stack
+          errorEvent.error.stack
         );
       } else {
         this.logger.warn(
-          `Registry ${event.severity} error in ${event.pluginName} (${event.category}): ${event.error.message}`
+          `Registry ${errorEvent.severity} error in ${errorEvent.pluginName} (${errorEvent.category}): ${errorEvent.error.message}`
         );
       }
     });
@@ -482,10 +541,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.versionManager.getPluginVersions(pluginName);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginVersions' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getPluginVersions', pluginName), {
+          pluginName,
+          operation: 'getPluginVersions',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'getPluginVersions' });
+      handlePluginError(this.toPluginError(error, 'getPluginVersions', pluginName), {
+        pluginName,
+        operation: 'getPluginVersions',
+      });
     }
   }
 
@@ -497,10 +562,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.versionManager.getActiveVersion(pluginName);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getActivePluginVersion' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getActivePluginVersion', pluginName), {
+          pluginName,
+          operation: 'getActivePluginVersion',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'getActivePluginVersion' });
+      handlePluginError(this.toPluginError(error, 'getActivePluginVersion', pluginName), {
+        pluginName,
+        operation: 'getActivePluginVersion',
+      });
     }
   }
 
@@ -512,10 +583,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.versionManager.getPluginVersion(pluginName, version);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginVersion' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getPluginVersion', pluginName), {
+          pluginName,
+          operation: 'getPluginVersion',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'getPluginVersion' });
+      handlePluginError(this.toPluginError(error, 'getPluginVersion', pluginName), {
+        pluginName,
+        operation: 'getPluginVersion',
+      });
     }
   }
 
@@ -525,12 +602,12 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   async promotePluginVersion(pluginName: string, version: string) {
     try {
       this.logger.log(`Promoting plugin ${pluginName} version ${version} to active`);
-      
+
       // Emit version promotion started event
       this.eventEmitter.emit('plugin-version-promotion-started', {
         pluginName,
         version,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       const promotionResult = await this.versionManager.promoteVersion(pluginName, version);
@@ -542,41 +619,47 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         toVersion: promotionResult.newActiveVersion,
         affectedDependents: promotionResult.affectedDependents,
         warnings: promotionResult.warnings,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return promotionResult;
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'promotePluginVersion' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'promotePluginVersion', pluginName), {
+          pluginName,
+          operation: 'promotePluginVersion',
+        });
       }
-      
+
       // Emit version promotion failed event
       this.eventEmitter.emit('plugin-version-promotion-failed', {
         pluginName,
         version,
         error: error as Error,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-      
+
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'promotePluginVersion' });
+      handlePluginError(this.toPluginError(error, 'promotePluginVersion', pluginName), {
+        pluginName,
+        operation: 'promotePluginVersion',
+      });
     }
   }
 
   /**
    * Rollback to a previous version of a plugin
    */
-  async rollbackPluginVersion(pluginName: string, targetVersion: string, options?: any) {
+  async rollbackPluginVersion(pluginName: string, targetVersion: string, options?: VersionRollbackOptions) {
     try {
       this.logger.log(`Rolling back plugin ${pluginName} to version ${targetVersion}`);
-      
+
       // Emit rollback started event
       this.eventEmitter.emit('plugin-version-rollback-started', {
         pluginName,
         targetVersion,
         options,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       const rollbackResult = await this.versionManager.rollbackToVersion(pluginName, targetVersion, options);
@@ -587,25 +670,31 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         fromVersion: rollbackResult.previousActiveVersion,
         toVersion: rollbackResult.newActiveVersion,
         rollbackReason: options?.rollbackReason,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return rollbackResult;
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'rollbackPluginVersion' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'rollbackPluginVersion', pluginName), {
+          pluginName,
+          operation: 'rollbackPluginVersion',
+        });
       }
-      
+
       // Emit rollback failed event
       this.eventEmitter.emit('plugin-version-rollback-failed', {
         pluginName,
         targetVersion,
         error: error as Error,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-      
+
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'rollbackPluginVersion' });
+      handlePluginError(this.toPluginError(error, 'rollbackPluginVersion', pluginName), {
+        pluginName,
+        operation: 'rollbackPluginVersion',
+      });
     }
   }
 
@@ -615,7 +704,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   async archiveOldPluginVersions(pluginName: string, keepLatest = 5) {
     try {
       this.logger.log(`Archiving old versions for plugin ${pluginName}, keeping latest ${keepLatest}`);
-      
+
       const archivedVersions = await this.versionManager.archiveOldVersions(pluginName, keepLatest);
 
       // Emit versions archived event
@@ -623,16 +712,22 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         pluginName,
         archivedVersions,
         keepLatest,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return archivedVersions;
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'archiveOldPluginVersions' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'archiveOldPluginVersions', pluginName), {
+          pluginName,
+          operation: 'archiveOldPluginVersions',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'archiveOldPluginVersions' });
+      handlePluginError(this.toPluginError(error, 'archiveOldPluginVersions', pluginName), {
+        pluginName,
+        operation: 'archiveOldPluginVersions',
+      });
     }
   }
 
@@ -642,13 +737,13 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   async deletePluginVersion(pluginName: string, version: string, force = false) {
     try {
       this.logger.log(`Deleting version ${version} for plugin ${pluginName}${force ? ' (forced)' : ''}`);
-      
+
       // Emit version deletion started event
       this.eventEmitter.emit('plugin-version-deletion-started', {
         pluginName,
         version,
         force,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       await this.versionManager.deleteVersion(pluginName, version, force);
@@ -658,24 +753,29 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         pluginName,
         version,
         force,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'deletePluginVersion' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'deleteVersionError', pluginName), {
+          pluginName,
+          operation: 'deletePluginVersion',
+        });
       }
-      
+
       // Emit version deletion failed event
       this.eventEmitter.emit('plugin-version-deletion-failed', {
         pluginName,
         version,
         error: error as Error,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-      
+
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'deletePluginVersion' });
+      handlePluginError(this.toPluginError(error, 'deletePluginVersion', pluginName), {
+        pluginName,
+        operation: 'deletePluginVersion',
+      });
     }
   }
 
@@ -687,10 +787,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.versionManager.checkVersionCompatibility(pluginName, fromVersion, toVersion);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'checkVersionCompatibility' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'checkVersionCompatibility', pluginName), {
+          pluginName,
+          operation: 'checkVersionCompatibility',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'checkVersionCompatibility' });
+      handlePluginError(this.toPluginError(error, 'checkVersionCompatibility', pluginName), {
+        pluginName,
+        operation: 'checkVersionCompatibility',
+      });
     }
   }
 
@@ -702,10 +808,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.versionManager.getVersionStatistics(pluginName);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginVersionStatistics' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getPluginVersionStatistics', pluginName), {
+          pluginName,
+          operation: 'getPluginVersionStatistics',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'getPluginVersionStatistics' });
+      handlePluginError(this.toPluginError(error, 'getPluginVersionStatistics', pluginName), {
+        pluginName,
+        operation: 'getPluginVersionStatistics',
+      });
     }
   }
 
@@ -719,15 +831,15 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     try {
       // Follow similar validation process as uploadPlugin
       this.securityService.validateFileSize(pluginBuffer);
-      
+
       const extractedManifest = await this.validationService.extractAndValidateManifest(pluginBuffer);
       pluginName = extractedManifest.name;
       version = extractedManifest.version;
 
       // Check if this is a version update (plugin exists but this version doesn't)
-      const existingActive = await this.versionManager.getActiveVersion(pluginName);
+      await this.versionManager.getActiveVersion(pluginName);
       const existingVersion = await this.versionManager.getPluginVersion(pluginName, version);
-      
+
       if (existingVersion) {
         throw new Error(`Version ${version} already exists for plugin ${pluginName}`);
       }
@@ -752,46 +864,59 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       }
 
       // Security validation
-      await this.securityService.validatePlugin(pluginBuffer, extractedManifest, metadata.checksum);
+      await this.securityService.validatePluginSecurityWithCache(pluginBuffer, metadata.checksum);
 
       // Signature verification
-      await this.signatureService.verifyPluginSignature(pluginBuffer, extractedManifest);
+      await this.signatureService.validatePluginSignature(pluginBuffer, extractedManifest);
 
       // Bundle optimization if enabled
       const optimizeBundle = process.env.ENABLE_BUNDLE_OPTIMIZATION?.toLowerCase() === 'true';
       if (optimizeBundle) {
-        const optimizationResult = await this.bundleOptimizationService.optimizeBundle(
-          pluginBuffer,
-          extractedManifest
-        );
-        if (optimizationResult.optimized && optimizationResult.optimizedBuffer) {
-          metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, optimizationResult.optimizedBuffer);
+        const optimizationResult = await this.bundleOptimizationService.optimizeBundle(pluginBuffer, pluginName);
+        if (optimizationResult.optimizedBuffer) {
+          metadata = this.storageOrchestrator.createPluginMetadata(
+            extractedManifest,
+            optimizationResult.optimizedBuffer
+          );
         }
       }
 
       // Save to file system first
-      const savedPlugin = await this.storageOrchestrator.savePlugin(metadata, pluginBuffer);
+      await this.storageOrchestrator.storePlugin(metadata, pluginBuffer);
+
+      // Prepare plugin data for version management
+      const pluginData = {
+        name: pluginName,
+        version: version,
+        description: metadata.description,
+        author: metadata.author,
+        license: metadata.license,
+        manifest: JSON.stringify(extractedManifest),
+        fileSize: pluginBuffer.length,
+        checksum: metadata.checksum,
+        dependencies: JSON.stringify(metadata.dependencies || []),
+      };
 
       // Add to version management system
-      await this.versionManager.addPluginVersion(savedPlugin, makeActive);
+      await this.versionManager.addPluginVersion(pluginData, makeActive);
 
       // Emit success events
-      this.eventEmitter.emitPluginUploaded(
-        pluginName,
-        version,
-        savedPlugin.fileSize,
-        metadata.checksum
-      );
+      this.eventEmitter.emitPluginUploadStarted(pluginName, pluginBuffer.length, metadata.checksum);
 
       this.logger.log(`Successfully uploaded new version ${version} for plugin: ${pluginName}`);
       return metadata;
-
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'uploadPluginVersion' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'uploadPluginVersion', pluginName), {
+          pluginName,
+          operation: 'uploadPluginVersion',
+        });
       }
-      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'upload', false);
-      handlePluginError(error, { pluginName, version, operation: 'uploadPluginVersion' });
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'validation', false);
+      handlePluginError(this.toPluginError(error, 'uploadPluginVersion', pluginName), {
+        pluginName,
+        operation: 'uploadPluginVersion',
+      });
       throw error; // Re-throw to maintain API contract
     }
   }
@@ -808,38 +933,47 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.trustManager.getTrustLevel(pluginName, version);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'getPluginTrustLevel' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getPluginTrustLevel', pluginName), {
+          pluginName,
+          operation: 'getPluginTrustLevel',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(error, { pluginName, operation: 'getPluginTrustLevel' });
+      handlePluginError(this.toPluginError(error, 'getPluginTrustLevel', pluginName), {
+        pluginName,
+        operation: 'getPluginTrustLevel',
+      });
     }
   }
 
   /**
    * Assign trust level to a plugin
    */
-  async assignPluginTrustLevel(assignment: any) {
+  async assignPluginTrustLevel(assignment: TrustLevelAssignment) {
     try {
       this.logger.log(`Assigning trust level ${assignment.trustLevel} to plugin: ${assignment.pluginName}`);
-      
+
       await this.trustManager.assignTrustLevel(assignment);
 
       // Emit trust level assignment event
       this.eventEmitter.emit('plugin-trust-level-assigned', {
         ...assignment,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return { success: true };
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { 
-          pluginName: assignment.pluginName, 
-          operation: 'assignPluginTrustLevel' 
+        this.errorMetrics.recordError(this.toPluginError(error, 'assignPluginTrustLevel', assignment.pluginName), {
+          pluginName: assignment.pluginName,
+          operation: 'assignPluginTrustLevel',
         });
       }
       this.eventEmitter.emitPluginError(assignment.pluginName, error as Error, 'high', 'security', true);
-      handlePluginError(error, { pluginName: assignment.pluginName, operation: 'assignPluginTrustLevel' });
+      handlePluginError(this.toPluginError(error, 'assignPluginTrustLevel', assignment.pluginName), {
+        pluginName: assignment.pluginName,
+        operation: 'assignPluginTrustLevel',
+      });
     }
   }
 
@@ -849,7 +983,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   async validatePluginCapability(pluginName: string, capability: string, version?: string) {
     try {
       const canPerform = await this.trustManager.canPerformCapability(pluginName, capability, version);
-      
+
       if (!canPerform) {
         // Record capability violation
         await this.trustManager.recordTrustViolation({
@@ -860,17 +994,23 @@ export class PluginRegistryService implements IPluginEventSubscriber {
           severity: 'medium',
           detectedAt: new Date(),
           details: { capability },
-          action: 'warn'
+          action: 'warn',
         });
       }
 
       return { allowed: canPerform };
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'validatePluginCapability' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'validatePluginCapability', pluginName), {
+          pluginName,
+          operation: 'validatePluginCapability',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'security', true);
-      handlePluginError(error, { pluginName, operation: 'validatePluginCapability' });
+      handlePluginError(this.toPluginError(error, 'validatePluginCapability', pluginName), {
+        pluginName,
+        operation: 'validatePluginCapability',
+      });
     }
   }
 
@@ -882,9 +1022,9 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return this.trustManager.getTrustPolicy(trustLevel);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { operation: 'getTrustPolicy' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getTrustPolicy'), { operation: 'getTrustPolicy' });
       }
-      handlePluginError(error, { operation: 'getTrustPolicy' });
+      handlePluginError(this.toPluginError(error, 'getTrustPolicy'), { operation: 'getTrustPolicy' });
     }
   }
 
@@ -896,9 +1036,11 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return this.trustManager.getAllCapabilities();
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { operation: 'getPluginCapabilities' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getPluginCapabilities'), {
+          operation: 'getPluginCapabilities',
+        });
       }
-      handlePluginError(error, { operation: 'getPluginCapabilities' });
+      handlePluginError(this.toPluginError(error, 'getPluginCapabilities'), { operation: 'getPluginCapabilities' });
     }
   }
 
@@ -910,52 +1052,65 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       return await this.trustManager.getTrustStatistics();
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { operation: 'getTrustStatistics' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'getTrustStatistics'), {
+          operation: 'getTrustStatistics',
+        });
       }
-      handlePluginError(error, { operation: 'getTrustStatistics' });
+      handlePluginError(this.toPluginError(error, 'getTrustStatistics'), { operation: 'getTrustStatistics' });
     }
   }
 
   /**
    * Request trust level change
    */
-  async requestTrustLevelChange(request: any) {
+  async requestTrustLevelChange(request: TrustLevelChangeRequest) {
     try {
-      this.logger.log(`Trust level change requested: ${request.pluginName} from ${request.currentTrustLevel} to ${request.requestedTrustLevel}`);
-      
+      this.logger.log(
+        `Trust level change requested: ${request.pluginName} from ${request.currentTrustLevel} to ${request.requestedTrustLevel}`
+      );
+
       await this.trustManager.requestTrustLevelChange(request);
 
       // Emit trust level change request event
       this.eventEmitter.emit('plugin-trust-level-change-requested', {
         ...request,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return { success: true, message: 'Trust level change request submitted for review' };
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { 
-          pluginName: request.pluginName, 
-          operation: 'requestTrustLevelChange' 
+        this.errorMetrics.recordError(this.toPluginError(error, 'requestTrustLevelChange', request.pluginName), {
+          pluginName: request.pluginName,
+          operation: 'requestTrustLevelChange',
         });
       }
       this.eventEmitter.emitPluginError(request.pluginName, error as Error, 'medium', 'security', true);
-      handlePluginError(error, { pluginName: request.pluginName, operation: 'requestTrustLevelChange' });
+      handlePluginError(this.toPluginError(error, 'requestTrustLevelChange', request.pluginName), {
+        pluginName: request.pluginName,
+        operation: 'requestTrustLevelChange',
+      });
     }
   }
 
   /**
    * Validate plugin against trust policy
    */
-  async validatePluginTrustPolicy(pluginName: string, manifest: any, version?: string) {
+  async validatePluginTrustPolicy(pluginName: string, manifest: PluginManifest, version?: string) {
     try {
       return await this.trustManager.validatePluginAgainstTrustPolicy(pluginName, manifest, version);
     } catch (error) {
       if (error instanceof Error) {
-        this.errorMetrics.recordError(error as any, { pluginName, operation: 'validatePluginTrustPolicy' });
+        this.errorMetrics.recordError(this.toPluginError(error, 'validatePluginTrustPolicy', pluginName), {
+          pluginName,
+          operation: 'validatePluginTrustPolicy',
+        });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'security', true);
-      handlePluginError(error, { pluginName, operation: 'validatePluginTrustPolicy' });
+      handlePluginError(this.toPluginError(error, 'validatePluginTrustPolicy', pluginName), {
+        pluginName,
+        operation: 'validatePluginTrustPolicy',
+      });
     }
   }
 }

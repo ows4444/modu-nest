@@ -25,13 +25,13 @@ import { PluginRateLimitingService } from '../services/plugin-rate-limiting.serv
 import { PluginBundleOptimizationService } from '../services/plugin-bundle-optimization.service';
 import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
-import { 
-  RateLimitingGuard, 
-  UploadRateLimit, 
-  DownloadRateLimit, 
-  ApiRateLimit, 
-  SearchRateLimit, 
-  AdminRateLimit 
+import {
+  RateLimitingGuard,
+  UploadRateLimit,
+  DownloadRateLimit,
+  ApiRateLimit,
+  SearchRateLimit,
+  AdminRateLimit,
 } from '../guards/rate-limiting.guard';
 
 @Controller('plugins')
@@ -40,7 +40,7 @@ export class PluginController {
   constructor(
     private readonly pluginRegistryService: PluginRegistryService,
     private readonly rateLimitingService: PluginRateLimitingService,
-    private readonly bundleOptimizationService: PluginBundleOptimizationService,
+    private readonly bundleOptimizationService: PluginBundleOptimizationService
   ) {}
 
   @Post()
@@ -156,37 +156,30 @@ export class PluginController {
 
   @Get('database/stats')
   async getDatabaseStats() {
-    const dbService = this.pluginRegistryService.getDatabaseService();
-    return dbService.getDatabaseStats();
+    // TODO: Implement database stats - getDatabaseService currently not implemented
+    throw new BadRequestException('Database stats functionality not yet implemented');
   }
 
   @Post('database/backup')
   @UseGuards(RateLimitingGuard)
   @AdminRateLimit()
-  async createDatabaseBackup(@Query('type') type: 'full' | 'incremental' = 'full') {
-    const dbService = this.pluginRegistryService.getDatabaseService();
-    const backup = await dbService.createBackup(type);
-    return {
-      message: 'Database backup created successfully',
-      backup,
-    };
+  async createDatabaseBackup(@Query('type') _type: 'full' | 'incremental' = 'full') {
+    // TODO: Implement database backup - getDatabaseService currently not implemented
+    throw new BadRequestException('Database backup functionality not yet implemented');
   }
 
   @Get('database/backups')
   async listDatabaseBackups() {
-    const dbService = this.pluginRegistryService.getDatabaseService();
-    return dbService.listBackups();
+    // TODO: Implement database backup listing - getDatabaseService currently not implemented
+    throw new BadRequestException('Database backup listing functionality not yet implemented');
   }
 
   @Post('database/restore/:filename')
   @UseGuards(RateLimitingGuard)
   @AdminRateLimit()
-  async restoreDatabaseBackup(@Param('filename') filename: string) {
-    const dbService = this.pluginRegistryService.getDatabaseService();
-    await dbService.restoreBackup(filename);
-    return {
-      message: `Database restored from backup: ${filename}`,
-    };
+  async restoreDatabaseBackup(@Param('filename') _filename: string) {
+    // TODO: Implement database restore - getDatabaseService currently not implemented
+    throw new BadRequestException('Database restore functionality not yet implemented');
   }
 
   @Get('rate-limit/stats')
@@ -203,13 +196,10 @@ export class PluginController {
   @Get('rate-limit/status/:rule')
   @UseGuards(RateLimitingGuard)
   @ApiRateLimit()
-  async getRateLimitStatus(
-    @Param('rule') ruleName: string, 
-    @Req() req: Request
-  ) {
+  async getRateLimitStatus(@Param('rule') ruleName: string, @Req() req: Request) {
     const identifier = req.ip || req.connection?.remoteAddress || 'unknown';
     const status = this.rateLimitingService.getRateLimitStatus(ruleName, identifier);
-    
+
     if (!status) {
       throw new BadRequestException(`Rate limiting rule '${ruleName}' not found`);
     }
@@ -223,16 +213,14 @@ export class PluginController {
   @Delete('rate-limit/reset/:rule')
   @UseGuards(RateLimitingGuard)
   @AdminRateLimit()
-  async resetRateLimit(
-    @Param('rule') ruleName: string,
-    @Query('identifier') identifier?: string,
-    @Req() req: Request
-  ) {
+  async resetRateLimit(@Param('rule') ruleName: string, @Req() req: Request, @Query('identifier') identifier?: string) {
     const targetIdentifier = identifier || req.ip || req.connection?.remoteAddress || 'unknown';
     const reset = this.rateLimitingService.resetRateLimit(ruleName, targetIdentifier);
-    
+
     if (!reset) {
-      throw new BadRequestException(`Could not reset rate limit for rule '${ruleName}' and identifier '${targetIdentifier}'`);
+      throw new BadRequestException(
+        `Could not reset rate limit for rule '${ruleName}' and identifier '${targetIdentifier}'`
+      );
     }
 
     return {
@@ -257,7 +245,7 @@ export class PluginController {
   @ApiRateLimit()
   async getRateLimitRules() {
     const ruleNames = this.rateLimitingService.getRuleNames();
-    const rules = ruleNames.map(name => ({
+    const rules = ruleNames.map((name) => ({
       name,
       config: this.rateLimitingService.getRule(name),
     }));
@@ -300,7 +288,7 @@ export class PluginController {
     @Query('enableTreeShaking') enableTreeShaking?: string,
     @Query('enableMinification') enableMinification?: string,
     @Query('compressionAlgorithm') compressionAlgorithm?: string,
-    @Query('compressionLevel') compressionLevel?: string,
+    @Query('compressionLevel') compressionLevel?: string
   ) {
     if (!file) {
       throw new BadRequestException('No plugin file provided');
@@ -338,7 +326,8 @@ export class PluginController {
         options,
       };
     } catch (error) {
-      throw new BadRequestException(`Bundle optimization preview failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException(`Bundle optimization preview failed: ${errorMessage}`);
     }
   }
 
@@ -349,11 +338,11 @@ export class PluginController {
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(identifier)) {
       return identifier.replace(/\.\d{1,3}$/, '.xxx');
     }
-    
+
     if (identifier.length > 8) {
       return identifier.substring(0, 4) + '****' + identifier.substring(identifier.length - 2);
     }
-    
+
     return '****';
   }
 }

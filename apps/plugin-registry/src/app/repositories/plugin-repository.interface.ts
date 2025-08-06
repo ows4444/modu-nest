@@ -118,7 +118,9 @@ export interface IPluginRepository {
   /**
    * Bulk operations for performance
    */
-  bulkInsert(plugins: Array<{ metadata: PluginMetadata; filePath: string; fileSize: number; checksum: string }>): Promise<void>;
+  bulkInsert(
+    plugins: Array<{ metadata: PluginMetadata; filePath: string; fileSize: number; checksum: string }>
+  ): Promise<void>;
 
   /**
    * Health check for the repository

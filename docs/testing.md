@@ -85,6 +85,7 @@ describe('PluginGuard', () => {
 ### 1. Unit Tests
 
 **Plugin Service Tests:**
+
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { MyPluginService } from './my-plugin.service';
@@ -104,19 +105,19 @@ describe('MyPluginService', () => {
     it('should create a new item', async () => {
       const key = 'test-key';
       const value = { data: 'test' };
-      
+
       await service.create(key, value);
       const result = await service.read(key);
-      
+
       expect(result).toEqual(value);
     });
 
     it('should throw error for duplicate key', async () => {
       const key = 'duplicate-key';
       const value = { data: 'test' };
-      
+
       await service.create(key, value);
-      
+
       await expect(service.create(key, value)).rejects.toThrow();
     });
   });
@@ -131,6 +132,7 @@ describe('MyPluginService', () => {
 ```
 
 **Plugin Controller Tests:**
+
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { MyPluginController } from './my-plugin.controller';
@@ -167,9 +169,9 @@ describe('MyPluginController', () => {
     it('should create item and return success', async () => {
       const key = 'test-key';
       const data = { value: 'test' };
-      
+
       const result = await controller.create(key, data);
-      
+
       expect(service.create).toHaveBeenCalledWith(key, data);
       expect(result).toEqual({ success: true });
     });
@@ -180,9 +182,9 @@ describe('MyPluginController', () => {
       const key = 'test-key';
       const mockData = { value: 'test' };
       (service.read as jest.Mock).mockResolvedValue(mockData);
-      
+
       const result = await controller.read(key);
-      
+
       expect(service.read).toHaveBeenCalledWith(key);
       expect(result).toEqual({ data: mockData });
     });
@@ -191,6 +193,7 @@ describe('MyPluginController', () => {
 ```
 
 **Plugin Guard Tests:**
+
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
@@ -229,7 +232,7 @@ describe('MyPluginGuard', () => {
 
   it('should allow access when user has required permissions', () => {
     const mockContext = createMockExecutionContext({
-      user: { permissions: ['read', 'write'] }
+      user: { permissions: ['read', 'write'] },
     });
     (reflector.get as jest.Mock).mockReturnValue(['read']);
 
@@ -240,7 +243,7 @@ describe('MyPluginGuard', () => {
 
   it('should deny access when user lacks required permissions', () => {
     const mockContext = createMockExecutionContext({
-      user: { permissions: ['read'] }
+      user: { permissions: ['read'] },
     });
     (reflector.get as jest.Mock).mockReturnValue(['write']);
 
@@ -264,6 +267,7 @@ function createMockExecutionContext(request = {}): ExecutionContext {
 ### 2. Integration Tests
 
 **Plugin Module Integration Tests:**
+
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
@@ -299,9 +303,7 @@ describe('MyPluginModule (Integration)', () => {
   describe('/my-plugin/:key (GET)', () => {
     beforeEach(async () => {
       // Setup test data
-      await request(app.getHttpServer())
-        .post('/my-plugin/test-key')
-        .send({ value: 'test data' });
+      await request(app.getHttpServer()).post('/my-plugin/test-key').send({ value: 'test data' });
     });
 
     it('should return existing item', () => {
@@ -312,9 +314,7 @@ describe('MyPluginModule (Integration)', () => {
     });
 
     it('should return 404 for non-existent item', () => {
-      return request(app.getHttpServer())
-        .get('/my-plugin/non-existent')
-        .expect(404);
+      return request(app.getHttpServer()).get('/my-plugin/non-existent').expect(404);
     });
   });
 });
@@ -323,6 +323,7 @@ describe('MyPluginModule (Integration)', () => {
 ### 3. End-to-End Tests
 
 **Plugin Host E2E Tests:**
+
 ```typescript
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -391,15 +392,14 @@ describe('PluginHost (e2e)', () => {
   describe('Plugin-specific Routes', () => {
     it('should handle plugin routes', async () => {
       // Assuming user-plugin is loaded
-      return request(app.getHttpServer())
-        .get('/api/user-plugin/users')
-        .expect(200);
+      return request(app.getHttpServer()).get('/api/user-plugin/users').expect(200);
     });
   });
 });
 ```
 
 **Plugin Registry E2E Tests:**
+
 ```typescript
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -426,7 +426,7 @@ describe('PluginRegistry (e2e)', () => {
   describe('Plugin Upload', () => {
     it('/plugins (POST) should upload plugin', () => {
       const pluginPath = path.join(__dirname, 'fixtures', 'test-plugin.zip');
-      
+
       return request(app.getHttpServer())
         .post('/plugins')
         .attach('plugin', pluginPath)
@@ -439,11 +439,8 @@ describe('PluginRegistry (e2e)', () => {
 
     it('/plugins (POST) should reject invalid plugin', () => {
       const invalidPath = path.join(__dirname, 'fixtures', 'invalid-plugin.zip');
-      
-      return request(app.getHttpServer())
-        .post('/plugins')
-        .attach('plugin', invalidPath)
-        .expect(400);
+
+      return request(app.getHttpServer()).post('/plugins').attach('plugin', invalidPath).expect(400);
     });
   });
 
@@ -568,12 +565,7 @@ const config: Config = {
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: '../../coverage/apps/plugin-host',
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.spec.ts',
-    '!src/**/*.interface.ts',
-    '!src/**/*.d.ts',
-  ],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.interface.ts', '!src/**/*.d.ts'],
   coverageThreshold: {
     global: {
       branches: 80,

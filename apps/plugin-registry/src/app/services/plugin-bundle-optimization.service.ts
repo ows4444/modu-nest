@@ -1,15 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createGzip, createBrotliCompress, constants } from 'zlib';
-import { promisify } from 'util';
-import { pipeline } from 'stream';
 import JSZip from 'jszip';
-import {
-  PluginValidationError,
-  handlePluginError,
-  PluginErrorMetrics,
-} from '@modu-nest/plugin-types';
-
-const pipelineAsync = promisify(pipeline);
+import { PluginValidationError, handlePluginError, PluginErrorMetrics } from '@modu-nest/plugin-types';
 
 export interface BundleOptimizationResult {
   originalSize: number;
@@ -114,7 +106,7 @@ export class PluginBundleOptimizationService {
   ): Promise<BundleOptimizationResult> {
     const finalOptions = { ...this.DEFAULT_OPTIONS, ...options };
     const startTime = Date.now();
-    
+
     try {
       this.logger.log(`Starting bundle optimization for plugin: ${pluginName}`);
 
@@ -124,7 +116,7 @@ export class PluginBundleOptimizationService {
 
       // Perform bundle analysis
       const analysis = finalOptions.bundleAnalysis ? await this.analyzeBundleContents(contents) : null;
-      
+
       // Apply optimizations
       let optimizedZip = contents;
       let treeShakingResult: TreeShakingResult = {
@@ -145,13 +137,17 @@ export class PluginBundleOptimizationService {
         const treeShakingData = await this.performTreeShaking(optimizedZip);
         treeShakingResult = treeShakingData.result;
         optimizedZip = treeShakingData.optimizedZip;
-        this.logger.debug(`Tree shaking removed ${treeShakingResult.removedFiles.length} files, saved ${treeShakingResult.sizeSaved} bytes`);
+        this.logger.debug(
+          `Tree shaking removed ${treeShakingResult.removedFiles.length} files, saved ${treeShakingResult.sizeSaved} bytes`
+        );
       }
 
       // Minification
       if (finalOptions.enableMinification) {
         minificationResult = await this.minifyJavaScriptFiles(optimizedZip, finalOptions);
-        this.logger.debug(`Minified ${minificationResult.filesMinified} files, saved ${minificationResult.sizeSaved} bytes`);
+        this.logger.debug(
+          `Minified ${minificationResult.filesMinified} files, saved ${minificationResult.sizeSaved} bytes`
+        );
       }
 
       // Remove source maps and other unnecessary files
@@ -180,7 +176,9 @@ export class PluginBundleOptimizationService {
 
       this.logger.log(
         `Bundle optimization completed for ${pluginName} in ${optimizationTime}ms: ` +
-        `${pluginBuffer.length} → ${finalOptimizedBuffer.length} bytes (${(compressionRatio * 100).toFixed(1)}% reduction)`
+          `${pluginBuffer.length} → ${finalOptimizedBuffer.length} bytes (${(compressionRatio * 100).toFixed(
+            1
+          )}% reduction)`
       );
 
       return {
@@ -214,16 +212,12 @@ export class PluginBundleOptimizationService {
           totalAssetSize: this.calculateAssetSize(optimizedZip),
         },
       };
-
     } catch (error) {
-      const validationError = new PluginValidationError(
-        pluginName,
-        [`Bundle optimization failed: ${error.message}`]
-      );
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const validationError = new PluginValidationError(pluginName, [`Bundle optimization failed: ${errorMessage}`]);
       this.errorMetrics.recordError(validationError, {
         pluginName,
         operation: 'bundle-optimization',
-        optimizationTime: Date.now() - startTime,
       });
       handlePluginError(validationError, { pluginName, operation: 'optimizeBundle' });
     }
@@ -250,9 +244,9 @@ export class PluginBundleOptimizationService {
       const content = await file.async('nodebuffer');
       const size = content.length;
       const extension = fileName.split('.').pop() || 'unknown';
-      
+
       analysis.totalSize += size;
-      
+
       if (!analysis.filesByType[extension]) {
         analysis.filesByType[extension] = { count: 0, size: 0 };
       }
@@ -270,9 +264,7 @@ export class PluginBundleOptimizationService {
     }
 
     // Sort and get largest files
-    analysis.largestFiles = fileSizes
-      .sort((a, b) => b.size - a.size)
-      .slice(0, 10);
+    analysis.largestFiles = fileSizes.sort((a, b) => b.size - a.size).slice(0, 10);
 
     // Remove duplicate dependencies
     analysis.dependencies = [...new Set(analysis.dependencies)];
@@ -296,10 +288,10 @@ export class PluginBundleOptimizationService {
 
     const optimizedZip = new JSZip();
     const usedFiles = new Set<string>();
-    
+
     // Always keep essential files
     const essentialFiles = ['plugin.manifest.json', 'package.json', 'index.js', 'main.js'];
-    
+
     // Find entry points and trace dependencies
     const entryPoints = await this.findEntryPoints(zip);
     for (const entryPoint of entryPoints) {
@@ -307,14 +299,14 @@ export class PluginBundleOptimizationService {
     }
 
     // Add essential files to used files
-    essentialFiles.forEach(file => usedFiles.add(file));
+    essentialFiles.forEach((file) => usedFiles.add(file));
 
     // Copy only used files to optimized ZIP
     for (const [fileName, file] of Object.entries(zip.files)) {
       if (file.dir) {
         // Always keep directories
         optimizedZip.folder(fileName);
-      } else if (usedFiles.has(fileName) || essentialFiles.some(essential => fileName.includes(essential))) {
+      } else if (usedFiles.has(fileName) || essentialFiles.some((essential) => fileName.includes(essential))) {
         // Keep used files and essential files
         const content = await file.async('nodebuffer');
         optimizedZip.file(fileName, content);
@@ -334,7 +326,7 @@ export class PluginBundleOptimizationService {
    */
   private async findEntryPoints(zip: JSZip): Promise<string[]> {
     const entryPoints: string[] = [];
-    
+
     // Check for standard entry points
     const standardEntries = ['index.js', 'main.js', 'app.js'];
     for (const entry of standardEntries) {
@@ -358,7 +350,7 @@ export class PluginBundleOptimizationService {
 
     // If no entry points found, include all JS files as potential entry points
     if (entryPoints.length === 0) {
-      Object.keys(zip.files).forEach(fileName => {
+      Object.keys(zip.files).forEach((fileName) => {
         if (fileName.endsWith('.js') && !zip.files[fileName].dir) {
           entryPoints.push(fileName);
         }
@@ -377,17 +369,19 @@ export class PluginBundleOptimizationService {
     }
 
     usedFiles.add(fileName);
-    
+
     if (fileName.endsWith('.js')) {
       try {
         const content = await zip.files[fileName].async('text');
         const dependencies = this.extractLocalDependencies(content);
-        
+
         for (const dep of dependencies) {
           await this.traceFileDependencies(zip, dep, usedFiles);
         }
       } catch (error) {
-        this.logger.warn(`Failed to trace dependencies for ${fileName}: ${error.message}`);
+        this.logger.warn(
+          `Failed to trace dependencies for ${fileName}: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
   }
@@ -397,7 +391,7 @@ export class PluginBundleOptimizationService {
    */
   private extractLocalDependencies(code: string): string[] {
     const dependencies: string[] = [];
-    
+
     // Match require() calls for local files
     const requireRegex = /require\s*\(\s*['"`](\.[^'"`]+)['"`]\s*\)/g;
     let match;
@@ -428,7 +422,7 @@ export class PluginBundleOptimizationService {
    */
   private extractDependencies(code: string): string[] {
     const dependencies: string[] = [];
-    
+
     // Match all require() and import statements
     const patterns = [
       /require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
@@ -439,7 +433,8 @@ export class PluginBundleOptimizationService {
       let match;
       while ((match = pattern.exec(code)) !== null) {
         const dep = match[1];
-        if (!dep.startsWith('.')) { // Only external dependencies
+        if (!dep.startsWith('.')) {
+          // Only external dependencies
           dependencies.push(dep);
         }
       }
@@ -466,7 +461,7 @@ export class PluginBundleOptimizationService {
           result.originalSize += originalContent.length;
 
           const minifiedContent = this.minifyJavaScript(originalContent, options);
-          
+
           if (minifiedContent.length < originalContent.length) {
             zip.file(fileName, minifiedContent);
             result.filesMinified++;
@@ -476,7 +471,7 @@ export class PluginBundleOptimizationService {
             result.minifiedSize += originalContent.length;
           }
         } catch (error) {
-          this.logger.warn(`Failed to minify ${fileName}: ${error.message}`);
+          this.logger.warn(`Failed to minify ${fileName}: ${error instanceof Error ? error.message : String(error)}`);
           const originalContent = await file.async('text');
           result.originalSize += originalContent.length;
           result.minifiedSize += originalContent.length;
@@ -532,7 +527,7 @@ export class PluginBundleOptimizationService {
     for (const fileName of Object.keys(zip.files)) {
       if (zip.files[fileName].dir) continue;
 
-      const shouldRemove = 
+      const shouldRemove =
         (options.removeSourceMaps && (fileName.endsWith('.map') || fileName.endsWith('.d.ts.map'))) ||
         fileName.includes('test') ||
         fileName.includes('spec') ||
@@ -552,7 +547,7 @@ export class PluginBundleOptimizationService {
     }
 
     // Remove the files
-    filesToRemove.forEach(fileName => {
+    filesToRemove.forEach((fileName) => {
       zip.remove(fileName);
     });
 
@@ -564,11 +559,7 @@ export class PluginBundleOptimizationService {
   /**
    * Apply external compression algorithms
    */
-  private async applyExternalCompression(
-    buffer: Buffer,
-    algorithm: string,
-    level: number
-  ): Promise<Buffer> {
+  private async applyExternalCompression(buffer: Buffer, algorithm: string, level: number): Promise<Buffer> {
     switch (algorithm) {
       case 'gzip':
         return this.compressWithGzip(buffer, level);
@@ -590,11 +581,11 @@ export class PluginBundleOptimizationService {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       const gzip = createGzip({ level, memLevel: 9 });
-      
-      gzip.on('data', chunk => chunks.push(chunk));
+
+      gzip.on('data', (chunk) => chunks.push(chunk));
       gzip.on('end', () => resolve(Buffer.concat(chunks)));
       gzip.on('error', reject);
-      
+
       gzip.write(buffer);
       gzip.end();
     });
@@ -612,11 +603,11 @@ export class PluginBundleOptimizationService {
           [constants.BROTLI_PARAM_SIZE_HINT]: buffer.length,
         },
       });
-      
-      brotli.on('data', chunk => chunks.push(chunk));
+
+      brotli.on('data', (chunk) => chunks.push(chunk));
       brotli.on('end', () => resolve(Buffer.concat(chunks)));
       brotli.on('error', reject);
-      
+
       brotli.write(buffer);
       brotli.end();
     });

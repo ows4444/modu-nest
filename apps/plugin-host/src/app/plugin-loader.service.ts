@@ -10,6 +10,7 @@ import {
   GuardEntry,
   PluginGuardRegistryService,
   LocalGuardEntry,
+  ExternalGuardEntry,
   PluginLifecycleHook,
   PluginCircuitBreaker,
   PluginCircuitOpenError,
@@ -30,11 +31,7 @@ import {
   LoadingStrategyType,
   PluginLoadingStrategyFactory,
 } from './strategies';
-import {
-  PluginStateMachine,
-  PluginState,
-  PluginTransition,
-} from './state-machine';
+import { PluginStateMachine, PluginState, PluginTransition } from './state-machine';
 
 @Injectable()
 export class PluginLoaderService implements PluginLoaderContext, IPluginEventSubscriber {
@@ -51,12 +48,16 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private loadingStrategy: IPluginLoadingStrategy;
   private eventEmitter: PluginEventEmitter;
   private dependencyResolver: PluginDependencyResolver;
+  private loadingState = new Map<string, PluginLoadingState>();
 
   // Memory management for plugin cleanup
-  private readonly pluginWeakRefs = new Map<string, WeakRef<any>>();
+  private readonly pluginWeakRefs = new Map<string, WeakRef<Record<string, unknown>>>();
   private readonly pluginTimers = new Map<string, NodeJS.Timeout[]>();
-  private readonly pluginEventListeners = new Map<string, Array<{ target: any; event: string; listener: Function }>>();
-  private readonly pluginInstances = new Map<string, Set<any>>();
+  private readonly pluginEventListeners = new Map<
+    string,
+    Array<{ target: EventTarget | NodeJS.EventEmitter; event: string; listener: Function }>
+  >();
+  private readonly pluginInstances = new Map<string, Set<object>>();
 
   // FinalizationRegistry to track garbage collection
   private readonly cleanupRegistry = new FinalizationRegistry((pluginName: string) => {
@@ -67,27 +68,24 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   constructor() {
     // Initialize event emitter
     this.eventEmitter = new PluginEventEmitter();
-    
+
     // Initialize loading strategy from environment or use default
     const strategyType = PluginLoadingStrategyFactory.getStrategyFromEnvironment();
     const batchSize = process.env.PLUGIN_BATCH_SIZE ? parseInt(process.env.PLUGIN_BATCH_SIZE, 10) : undefined;
-    
+
     this.loadingStrategy = PluginLoadingStrategyFactory.createStrategy(strategyType, { batchSize });
-    this.logger.log(`Initialized with ${this.loadingStrategy.name} loading strategy: ${this.loadingStrategy.description}`);
-    
+    this.logger.log(
+      `Initialized with ${this.loadingStrategy.name} loading strategy: ${this.loadingStrategy.description}`
+    );
+
     // Subscribe to events
     this.subscribeToEvents(this.eventEmitter);
-    
+
     // Connect state machine to event emitter
     this.stateMachine.addStateChangeListener((event) => {
-      this.eventEmitter.emitPluginStateChanged(
-        event.pluginName,
-        event.fromState,
-        event.toState,
-        event.transition
-      );
+      this.eventEmitter.emitPluginStateChanged(event.pluginName, event.fromState, event.toState, event.transition);
     });
-    
+
     // Initialize dependency resolver
     this.dependencyResolver = new PluginDependencyResolver(this.eventEmitter, this.stateMachine);
   }
@@ -101,18 +99,20 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     // Convert new state machine states back to old enum for compatibility
     const compatibilityMap = new Map<string, PluginLoadingState>();
     const states = this.stateMachine.getAllStates();
-    
+
     for (const [pluginName, state] of states) {
-      compatibilityMap.set(pluginName, state as any);
+      if (state) {
+        compatibilityMap.set(pluginName, state as unknown as PluginLoadingState);
+      }
     }
-    
+
     return compatibilityMap;
   }
 
   setLoadingState(pluginName: string, state: PluginLoadingState): void {
     // Convert old enum to new state machine transitions
     const currentState = this.stateMachine.getCurrentState(pluginName);
-    
+
     if (!currentState && state === PluginLoadingState.DISCOVERED) {
       this.stateMachine.transition(pluginName, PluginTransition.REDISCOVER);
     } else if (currentState === PluginState.DISCOVERED && state === PluginLoadingState.LOADING) {
@@ -157,31 +157,51 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   subscribeToEvents(eventEmitter: PluginEventEmitter): void {
     // Subscribe to dependency resolution events for timeout handling
     eventEmitter.on('plugin.dependency.resolved', (event) => {
-      this.logger.debug(`Dependency resolved: ${event.pluginName} -> ${event.dependency} (${event.resolutionTimeMs}ms)`);
+      const depEvent = event as any;
+      this.logger.debug(
+        `Dependency resolved: ${event.pluginName} -> ${depEvent.dependency} (${depEvent.resolutionTimeMs}ms)`
+      );
     });
 
     eventEmitter.on('plugin.dependency.failed', (event) => {
-      this.logger.error(`Dependency failed: ${event.pluginName} -> ${event.dependency}: ${event.error.message}${event.timeout ? ' (timeout)' : ''}`);
+      const depEvent = event as any;
+      this.logger.error(
+        `Dependency failed: ${event.pluginName} -> ${depEvent.dependency}: ${depEvent.error.message}${
+          depEvent.timeout ? ' (timeout)' : ''
+        }`
+      );
     });
 
     // Subscribe to performance events for monitoring
     eventEmitter.on('plugin.performance', (event) => {
-      if (event.exceeded) {
-        this.logger.warn(`Performance threshold exceeded for ${event.pluginName}: ${event.metric} = ${event.value}${event.unit} (threshold: ${event.threshold})`);
+      const perfEvent = event as any;
+      if (perfEvent.exceeded) {
+        this.logger.warn(
+          `Performance threshold exceeded for ${event.pluginName}: ${perfEvent.metric} = ${perfEvent.value}${perfEvent.unit} (threshold: ${perfEvent.threshold})`
+        );
       }
     });
 
     // Subscribe to circuit breaker events
     eventEmitter.on('plugin.circuit-breaker', (event) => {
-      this.logger.warn(`Circuit breaker ${event.state} for ${event.pluginName}: ${event.reason}`);
+      const cbEvent = event as any;
+      this.logger.warn(`Circuit breaker ${cbEvent.state} for ${event.pluginName}: ${cbEvent.reason}`);
     });
 
     // Subscribe to error events for centralized error handling
     eventEmitter.on('plugin.error', (event) => {
-      if (event.severity === 'critical' || event.severity === 'high') {
-        this.logger.error(`${event.severity.toUpperCase()} plugin error in ${event.pluginName} (${event.category}): ${event.error.message}`, event.error.stack);
+      const errorEvent = event as any;
+      if (errorEvent.severity === 'critical' || errorEvent.severity === 'high') {
+        this.logger.error(
+          `${errorEvent.severity.toUpperCase()} plugin error in ${event.pluginName} (${errorEvent.category}): ${
+            errorEvent.error.message
+          }`,
+          errorEvent.error.stack
+        );
       } else {
-        this.logger.warn(`Plugin ${event.severity} error in ${event.pluginName} (${event.category}): ${event.error.message}`);
+        this.logger.warn(
+          `Plugin ${errorEvent.severity} error in ${event.pluginName} (${errorEvent.category}): ${errorEvent.error.message}`
+        );
       }
     });
   }
@@ -201,7 +221,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   switchLoadingStrategy(strategyType: LoadingStrategyType, options?: { batchSize?: number }): void {
     const oldStrategy = this.loadingStrategy.name;
     this.loadingStrategy = PluginLoadingStrategyFactory.createStrategy(strategyType, options);
-    this.logger.log(`Switched from ${oldStrategy} to ${this.loadingStrategy.name} loading strategy: ${this.loadingStrategy.description}`);
+    this.logger.log(
+      `Switched from ${oldStrategy} to ${this.loadingStrategy.name} loading strategy: ${this.loadingStrategy.description}`
+    );
   }
 
   /**
@@ -210,7 +232,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   optimizeLoadingStrategy(): void {
     const pluginCount = this.discoveredPlugins.size;
     const recommendedStrategy = PluginLoadingStrategyFactory.getRecommendedStrategy(pluginCount);
-    
+
     if (this.loadingStrategy.name !== recommendedStrategy) {
       this.logger.log(
         `Auto-optimizing loading strategy for ${pluginCount} plugins: ${this.loadingStrategy.name} → ${recommendedStrategy}`
@@ -236,7 +258,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       const loadOrder = await this.performDependencyAnalysis(discoveryResult.plugins);
       await this.optimizeLoadingStrategy();
       const modules = await this.performPluginLoading(loadOrder);
-      
+
       this.logLoadingResults(startTime, discoveryResult, modules, loadOrder);
       await this.performSecurityVerification(modules.length);
 
@@ -252,9 +274,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     const discoveryStartTime = Date.now();
     const discoveredPlugins = await this.discoverPlugins();
     const discoveryTime = Date.now() - discoveryStartTime;
-    
+
     this.logger.log(`Discovered ${discoveredPlugins.length} plugins in ${discoveryTime}ms`);
-    
+
     return { plugins: discoveredPlugins, discoveryTime };
   }
 
@@ -262,18 +284,14 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     const dependencyAnalysisStartTime = Date.now();
     const loadOrder = this.calculateLoadOrder(discoveredPlugins);
     const dependencyAnalysisTime = Date.now() - dependencyAnalysisStartTime;
-    
+
     this.logger.log(`Plugin load order calculated in ${dependencyAnalysisTime}ms: [${loadOrder.join(', ')}]`);
-    
+
     return loadOrder;
   }
 
   private async performPluginLoading(loadOrder: string[]): Promise<DynamicModule[]> {
-    const loadingStartTime = Date.now();
-    const modules = await this.loadPluginsInOrder(loadOrder);
-    const loadingTime = Date.now() - loadingStartTime;
-    
-    return modules;
+    return await this.loadPluginsInOrder(loadOrder);
   }
 
   private logLoadingResults(
@@ -330,14 +348,10 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
         discoveries.push(pluginDiscovery);
         this.discoveredPlugins.set(pluginDiscovery.name, pluginDiscovery);
         this.stateMachine.transition(pluginDiscovery.name, PluginTransition.REDISCOVER);
-        
+
         // Emit plugin discovered event
-        this.eventEmitter.emitPluginDiscovered(
-          pluginDiscovery.name,
-          pluginDiscovery.path,
-          pluginDiscovery.manifest
-        );
-        
+        this.eventEmitter.emitPluginDiscovered(pluginDiscovery.name, pluginDiscovery.path, pluginDiscovery.manifest);
+
         this.logger.debug(
           `Discovered plugin: ${pluginDiscovery.name} (dependencies: [${pluginDiscovery.dependencies.join(', ')}])`
         );
@@ -467,18 +481,21 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
   private async loadPluginsInOrder(loadOrder: string[]): Promise<DynamicModule[]> {
     const startTime = Date.now();
-    
+
     try {
       const modules = await this.loadingStrategy.loadPlugins(loadOrder, this.discoveredPlugins, this);
       const loadTime = Date.now() - startTime;
-      
+
       // Record performance for strategy optimization
       PluginLoadingStrategyFactory.recordPerformance(this.loadingStrategy.name as LoadingStrategyType, loadTime);
-      
+
       return modules;
     } catch (error) {
       const loadTime = Date.now() - startTime;
-      this.logger.error(`Plugin loading strategy ${this.loadingStrategy.name} failed after ${loadTime}ms:`, error as Error);
+      this.logger.error(
+        `Plugin loading strategy ${this.loadingStrategy.name} failed after ${loadTime}ms:`,
+        error as Error
+      );
       throw error;
     }
   }
@@ -613,9 +630,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       await this.resolveDependencies(pluginName, pluginDiscoveryInfo.dependencies);
       const pluginModule = await this.loadAndValidatePlugin(pluginName, pluginDiscoveryInfo);
       const loadedPlugin = await this.instantiatePlugin(pluginName, pluginDiscoveryInfo, pluginModule);
-      
+
       this.finalizePluginLoad(pluginName, loadedPlugin, loadStartTime);
-      
+
       return loadedPlugin;
     } catch (error) {
       await this.handlePluginLoadError(pluginName, error as Error, loadStartTime);
@@ -628,24 +645,16 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     if (!pluginDiscoveryInfo) {
       this.logger.error(`Plugin discovery not found: ${pluginName}`);
       this.metricsService?.recordPluginLoadError(pluginName, new Error('Plugin discovery not found'));
-      
-      this.eventEmitter.emitPluginLoadFailed(
-        pluginName,
-        new Error('Plugin discovery not found'),
-        'discovery'
-      );
-      
+
+      this.eventEmitter.emitPluginLoadFailed(pluginName, new Error('Plugin discovery not found'), 'discovery');
+
       return null;
     }
     return pluginDiscoveryInfo;
   }
 
   private emitLoadingStartEvents(pluginName: string, pluginDiscoveryInfo: PluginDiscovery): void {
-    this.eventEmitter.emitPluginLoadingStarted(
-      pluginName,
-      this.loadingStrategy.name,
-      pluginDiscoveryInfo.dependencies
-    );
+    this.eventEmitter.emitPluginLoadingStarted(pluginName, this.loadingStrategy.name, pluginDiscoveryInfo.dependencies);
 
     this.metricsService?.recordPluginLoadStart(pluginName);
   }
@@ -655,17 +664,24 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     await this.dependencyResolver.waitForDependencies(pluginName, dependencies);
   }
 
-  private async loadAndValidatePlugin(pluginName: string, pluginDiscoveryInfo: PluginDiscovery): Promise<Record<string, unknown>> {
+  private async loadAndValidatePlugin(
+    pluginName: string,
+    pluginDiscoveryInfo: PluginDiscovery
+  ): Promise<Record<string, unknown>> {
     this.eventEmitter.emitPluginLoadingProgress(pluginName, 'validation', 30);
     return await this.importPluginModule(pluginDiscoveryInfo.path);
   }
 
-  private async instantiatePlugin(pluginName: string, pluginDiscoveryInfo: PluginDiscovery, pluginModule: Record<string, unknown>): Promise<LoadedPlugin> {
+  private async instantiatePlugin(
+    pluginName: string,
+    pluginDiscoveryInfo: PluginDiscovery,
+    pluginModule: Record<string, unknown>
+  ): Promise<LoadedPlugin> {
     this.eventEmitter.emitPluginLoadingProgress(pluginName, 'instantiation', 50);
 
     const loadedPlugin: LoadedPlugin = {
       manifest: pluginDiscoveryInfo.manifest,
-      module: null as any,
+      module: null as DynamicModule | null,
       instance: pluginModule,
     };
 
@@ -689,23 +705,12 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
   private finalizePluginLoad(pluginName: string, loadedPlugin: LoadedPlugin, loadStartTime: number): void {
     const loadTime = Date.now() - loadStartTime;
-    
+
     this.metricsService?.recordPluginLoad(loadedPlugin.manifest.name, loadTime, loadedPlugin.manifest.version);
 
-    this.eventEmitter.emitPluginLoaded(
-      pluginName,
-      loadedPlugin,
-      loadTime,
-      process.memoryUsage().heapUsed
-    );
+    this.eventEmitter.emitPluginLoaded(pluginName, loadedPlugin, loadTime, process.memoryUsage().heapUsed);
 
-    this.eventEmitter.emitPluginPerformance(
-      pluginName,
-      'load-time',
-      loadTime,
-      'ms',
-      10000
-    );
+    this.eventEmitter.emitPluginPerformance(pluginName, 'load-time', loadTime, 'ms', 10000);
   }
 
   private async handlePluginLoadError(pluginName: string, error: Error, loadStartTime: number): Promise<void> {
@@ -717,7 +722,6 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     // Note: executeLifecycleHook requires loadedPlugin which may not exist in error case
     // Only execute if we have a partial plugin object
   }
-
 
   private async processPluginGuards(
     pluginName: string,
@@ -798,7 +802,6 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     return discovery?.manifest.critical === true;
   }
 
-
   private async createDynamicModuleFromPlugin(
     manifest: PluginManifest,
     pluginModule: Record<string, unknown>
@@ -812,11 +815,11 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       }
 
       // Helper function to resolve component references from manifest
-      const resolveComponents = (componentRefs: string[] | string | undefined): any[] => {
+      const resolveComponents = (componentRefs: string[] | string | undefined): Function[] => {
         if (!componentRefs) return [];
 
         const refs = Array.isArray(componentRefs) ? componentRefs : [componentRefs];
-        const components: any[] = [];
+        const components: Function[] = [];
 
         for (const ref of refs) {
           if (typeof ref !== 'string' || !ref.trim()) {
@@ -927,7 +930,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    * Resolve and create guard providers for a plugin's dynamic module
    * Only injects guards that are explicitly listed in the plugin manifest
    */
-  private async resolveAndCreateGuardProviders(pluginName: string, guardEntries: GuardEntry[]): Promise<any[]> {
+  private async resolveAndCreateGuardProviders(pluginName: string, guardEntries: GuardEntry[]): Promise<Function[]> {
     if (!guardEntries || guardEntries.length === 0) {
       return [];
     }
@@ -1170,7 +1173,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   /**
    * Gets guards for a specific plugin (for debugging)
    */
-  getPluginGuards(pluginName: string): any[] {
+  getPluginGuards(pluginName: string): unknown[] {
     return this.guardManager.getPluginGuards(pluginName);
   }
 
@@ -1179,7 +1182,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    */
   getPluginState(pluginName: string): PluginLoadingState | undefined {
     const state = this.stateMachine.getCurrentState(pluginName);
-    return state as any; // Cast to maintain compatibility
+    return state ? (state as unknown as PluginLoadingState) : undefined; // Safe cast with null check
   }
 
   /**
@@ -1213,18 +1216,31 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   /**
    * Get dependency resolution metrics for monitoring and debugging
    */
-  getDependencyResolutionMetrics(): Map<string, {
-    resolveTime: number;
-    dependencyCount: number;
-    timestamp: Date;
-  }> {
+  getDependencyResolutionMetrics(): Map<
+    string,
+    {
+      resolveTime: number;
+      dependencyCount: number;
+      timestamp: Date;
+    }
+  > {
     return this.dependencyResolver.getResolutionMetrics();
   }
 
   /**
    * Get pending dependency waiters (for debugging)
    */
-  getPendingDependencyWaiters(): Map<string, any> {
+  getPendingDependencyWaiters(): Map<
+    string,
+    {
+      pluginName: string;
+      dependencies: string[];
+      resolve: () => void;
+      reject: (error: Error) => void;
+      timeout: NodeJS.Timeout;
+      startTime: number;
+    }
+  > {
     return this.dependencyResolver.getPendingWaiters();
   }
 
@@ -1364,7 +1380,11 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    * Register plugin for comprehensive memory tracking
    * @private
    */
-  private registerPluginForMemoryTracking(pluginName: string, pluginModule: any, loadedPlugin: LoadedPlugin): void {
+  private registerPluginForMemoryTracking(
+    pluginName: string,
+    pluginModule: Record<string, unknown>,
+    loadedPlugin: LoadedPlugin
+  ): void {
     try {
       // Create WeakRef for the main plugin instance
       if (pluginModule) {
@@ -1374,7 +1394,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       }
 
       // Track all instances created by the plugin
-      const instances = new Set<any>();
+      const instances = new Set<object>();
       this.pluginInstances.set(pluginName, instances);
 
       // Scan plugin module for instances and potential memory references
@@ -1392,7 +1412,11 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    * Track instances within plugin module for cleanup
    * @private
    */
-  private trackPluginInstances(pluginName: string, pluginModule: any, instances: Set<any>): void {
+  private trackPluginInstances(
+    pluginName: string,
+    pluginModule: Record<string, unknown>,
+    instances: Set<object>
+  ): void {
     if (!pluginModule) return;
 
     try {
@@ -1430,7 +1454,12 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   /**
    * Track event listeners added by plugins
    */
-  registerPluginEventListener(pluginName: string, target: any, event: string, listener: Function): void {
+  registerPluginEventListener(
+    pluginName: string,
+    target: EventTarget | NodeJS.EventEmitter,
+    event: string,
+    listener: Function
+  ): void {
     if (!this.pluginEventListeners.has(pluginName)) {
       this.pluginEventListeners.set(pluginName, []);
     }
@@ -1499,12 +1528,16 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
       for (const { target, event, listener } of listeners) {
         try {
-          if (target && typeof target.removeEventListener === 'function') {
-            target.removeEventListener(event, listener);
-          } else if (target && typeof target.off === 'function') {
-            target.off(event, listener);
-          } else if (target && typeof target.removeListener === 'function') {
-            target.removeListener(event, listener);
+          if (target) {
+            // Use type assertions to handle different event emitter types
+            const eventTarget = target as any;
+            if (typeof eventTarget.removeEventListener === 'function') {
+              eventTarget.removeEventListener(event, listener);
+            } else if (typeof eventTarget.off === 'function') {
+              eventTarget.off(event, listener);
+            } else if (typeof eventTarget.removeListener === 'function') {
+              eventTarget.removeListener(event, listener);
+            }
           }
         } catch (error) {
           this.logger.debug(`Error removing event listener for ${pluginName}:`, error);
@@ -1539,8 +1572,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
           if (instance && typeof instance === 'object' && !Array.isArray(instance)) {
             Object.keys(instance).forEach((key) => {
               try {
-                if (instance[key] && typeof instance[key] === 'object') {
-                  instance[key] = null;
+                const typedInstance = instance as Record<string, any>;
+                if (typedInstance[key] && typeof typedInstance[key] === 'object') {
+                  typedInstance[key] = null;
                 }
               } catch (error) {
                 // Ignore errors when clearing properties (may be read-only)
@@ -1624,7 +1658,16 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     systemMemoryUsage: NodeJS.MemoryUsage;
   } {
     const pluginNames = Array.from(this.loadedPlugins.keys());
-    const pluginMemoryDetails: Record<string, any> = {};
+    const pluginMemoryDetails: Record<
+      string,
+      {
+        hasWeakRef: boolean;
+        isAlive: boolean;
+        trackedInstances: number;
+        activeTimers: number;
+        activeEventListeners: number;
+      }
+    > = {};
 
     let totalWeakRefs = 0;
     let totalAliveInstances = 0;
@@ -1760,7 +1803,10 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   /**
    * Unload a specific plugin
    */
-  async unloadPlugin(pluginName: string, reason: 'manual' | 'error' | 'shutdown' | 'dependency-conflict' = 'manual'): Promise<void> {
+  async unloadPlugin(
+    pluginName: string,
+    reason: 'manual' | 'error' | 'shutdown' | 'dependency-conflict' = 'manual'
+  ): Promise<void> {
     const loadedPlugin = this.loadedPlugins.get(pluginName);
     if (!loadedPlugin) {
       this.logger.warn(`Plugin not loaded: ${pluginName}`);
@@ -1805,16 +1851,10 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       this.logger.log(`Plugin unloaded successfully: ${pluginName}`);
     } catch (error) {
       this.logger.error(`Failed to unload plugin ${pluginName}:`, error);
-      
+
       // Emit plugin error event
-      this.eventEmitter.emitPluginError(
-        pluginName,
-        error as Error,
-        'high',
-        'runtime',
-        false
-      );
-      
+      this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', false);
+
       // Execute onError lifecycle hook
       await this.executeLifecycleHook(loadedPlugin, 'onError', error);
       throw error;
@@ -1849,7 +1889,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
         totalGuards++;
 
         if (guardEntry.scope === 'local') {
-          const localEntry = guardEntry as any;
+          const localEntry = guardEntry as LocalGuardEntry;
           if (localEntry.exported) {
             exportedGuards++;
           }
@@ -1867,7 +1907,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
           }
         } else if (guardEntry.scope === 'external') {
           externalReferences++;
-          const externalEntry = guardEntry as any;
+          const externalEntry = guardEntry as ExternalGuardEntry;
 
           // Verify external guard source exists and is exported
           const sourcePlugin = this.loadedPlugins.get(externalEntry.source);
@@ -1879,7 +1919,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
             // Check if the referenced guard is actually exported
             const sourceGuards = sourcePlugin.manifest.module.guards || [];
             const referencedGuard = sourceGuards.find((g) => g.name === guardEntry.name && g.scope === 'local');
-            if (!referencedGuard || !(referencedGuard as any).exported) {
+            if (!referencedGuard || !(referencedGuard as LocalGuardEntry).exported) {
               violations.push(
                 `Plugin '${pluginName}' tries to access non-exported guard '${guardEntry.name}' from plugin '${externalEntry.source}'`
               );
@@ -1916,7 +1956,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   /**
    * Adds plugin name metadata to controllers for guard isolation
    */
-  private addPluginMetadataToControllers(controllers: any[], pluginName: string): void {
+  private addPluginMetadataToControllers(controllers: Function[], pluginName: string): void {
     for (const controller of controllers) {
       if (typeof controller === 'function') {
         // Add plugin name metadata to the controller class
@@ -1982,7 +2022,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
               source: pluginName,
               scope: 'external',
             },
-            guardClass: guardClass as new (...args: any[]) => any,
+            guardClass: guardClass as new (...args: unknown[]) => unknown,
           });
 
           this.logger.debug(`Registered guard '${entry.name}' from plugin '${pluginName}' with guard registry`);
@@ -2073,13 +2113,6 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   ): void {
     this.circuitBreaker.setPluginConfig(pluginName, config);
     this.logger.log(`Circuit breaker configured for plugin '${pluginName}':`, config);
-  }
-
-  /**
-   * Cleanup circuit breaker resources (called on service shutdown)
-   */
-  private destroyCircuitBreaker(): void {
-    this.circuitBreaker.destroy();
   }
 
   /**

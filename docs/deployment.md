@@ -11,7 +11,7 @@ services:
   plugin-host:
     build: ./apps/plugin-host
     ports:
-      - "4001:4001"
+      - '4001:4001'
     environment:
       - NODE_ENV=production
       - PORT=4001
@@ -24,7 +24,7 @@ services:
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:4001/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,7 +32,7 @@ services:
   plugin-registry:
     build: ./apps/plugin-registry
     ports:
-      - "6001:6001"
+      - '6001:6001'
     environment:
       - NODE_ENV=production
       - PORT=6001
@@ -43,7 +43,7 @@ services:
       - registry-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6001/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:6001/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -110,7 +110,7 @@ LOG_DIR=/app/logs
 1. **Reverse Proxy**: nginx or cloud load balancer for SSL termination
 2. **Container Runtime**: Docker or containerd
 3. **File Storage**: Persistent volumes for plugins and data
-4. **Backup Strategy**: Regular backups of SQLite database and plugin files
+4. **Backup Strategy**: Regular backups of PostgreSQL database and plugin files
 5. **Monitoring**: Basic health checks and log aggregation
 
 ## Kubernetes Deployment (Optional)
@@ -129,36 +129,36 @@ spec:
   template:
     spec:
       containers:
-      - name: plugin-host
-        image: modu-nest/plugin-host:latest
-        ports:
-        - containerPort: 4001
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-        volumeMounts:
-        - name: plugin-data
-          mountPath: /app/plugins
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: 4001
-          initialDelaySeconds: 10
-          periodSeconds: 5
-        livenessProbe:
-          httpGet:
-            path: /health/live
-            port: 4001
-          initialDelaySeconds: 30
-          periodSeconds: 10
+        - name: plugin-host
+          image: modu-nest/plugin-host:latest
+          ports:
+            - containerPort: 4001
+          resources:
+            requests:
+              memory: '512Mi'
+              cpu: '250m'
+            limits:
+              memory: '1Gi'
+              cpu: '500m'
+          volumeMounts:
+            - name: plugin-data
+              mountPath: /app/plugins
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 4001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 4001
+            initialDelaySeconds: 30
+            periodSeconds: 10
       volumes:
-      - name: plugin-data
-        persistentVolumeClaim:
-          claimName: plugin-data-pvc
+        - name: plugin-data
+          persistentVolumeClaim:
+            claimName: plugin-data-pvc
 ```
 
 ## Health Monitoring - Current Implementation
@@ -171,7 +171,6 @@ The system includes basic health monitoring suitable for development and single-
 // Basic health check implementation
 @Controller('health')
 export class HealthController {
-  
   @Get()
   async getHealth(): Promise<HealthStatus> {
     return {
@@ -180,8 +179,8 @@ export class HealthController {
       metrics: {
         uptime: process.uptime(),
         memoryUsage: process.memoryUsage(),
-        loadedPlugins: this.pluginLoader.getLoadedPluginCount()
-      }
+        loadedPlugins: this.pluginLoader.getLoadedPluginCount(),
+      },
     };
   }
 
@@ -190,7 +189,7 @@ export class HealthController {
     // Basic readiness check
     return {
       ready: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }
@@ -199,6 +198,7 @@ export class HealthController {
 ### Monitoring Capabilities
 
 **Current Features:**
+
 - Basic application health endpoint (`/health`)
 - Plugin statistics endpoint (`/plugins/stats`)
 - Memory usage monitoring
@@ -206,6 +206,7 @@ export class HealthController {
 - Circuit breaker status monitoring
 
 **Development Monitoring:**
+
 - Console logging with configurable levels
 - Plugin loading timeline debugging
 - Guard resolution status tracking
@@ -214,6 +215,7 @@ export class HealthController {
 ### Future Monitoring Enhancements
 
 For production deployments, consider adding:
+
 - Prometheus metrics integration
 - Structured logging (JSON format)
 - Application performance monitoring (APM)
@@ -261,37 +263,37 @@ location: eastus
 name: plugin-host-container-group
 properties:
   containers:
-  - name: plugin-host
-    properties:
-      image: your-registry/plugin-host:latest
-      resources:
-        requests:
-          cpu: 0.5
-          memoryInGb: 1
-      ports:
-      - port: 4001
-        protocol: TCP
-      environmentVariables:
-      - name: NODE_ENV
-        value: production
-      - name: PORT
-        value: '4001'
-      volumeMounts:
-      - name: plugin-storage
-        mountPath: /app/plugins
+    - name: plugin-host
+      properties:
+        image: your-registry/plugin-host:latest
+        resources:
+          requests:
+            cpu: 0.5
+            memoryInGb: 1
+        ports:
+          - port: 4001
+            protocol: TCP
+        environmentVariables:
+          - name: NODE_ENV
+            value: production
+          - name: PORT
+            value: '4001'
+        volumeMounts:
+          - name: plugin-storage
+            mountPath: /app/plugins
   volumes:
-  - name: plugin-storage
-    azureFile:
-      shareName: plugins
-      storageAccountName: yourstorageaccount
-      storageAccountKey: your-key
+    - name: plugin-storage
+      azureFile:
+        shareName: plugins
+        storageAccountName: yourstorageaccount
+        storageAccountKey: your-key
   osType: Linux
   restartPolicy: Always
   ipAddress:
     type: Public
     ports:
-    - protocol: TCP
-      port: 4001
+      - protocol: TCP
+        port: 4001
 ```
 
 ### 2. Traditional Server Deployment
@@ -373,7 +375,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Increase upload size for plugin packages
         client_max_body_size 100M;
     }
@@ -393,8 +395,8 @@ services:
       context: .
       dockerfile: apps/plugin-host/Dockerfile.dev
     ports:
-      - "4001:4001"
-      - "9229:9229"  # Debug port
+      - '4001:4001'
+      - '9229:9229' # Debug port
     environment:
       - NODE_ENV=development
       - ENABLE_SWAGGER=true
@@ -413,8 +415,8 @@ services:
       context: .
       dockerfile: apps/plugin-registry/Dockerfile.dev
     ports:
-      - "6001:6001"
-      - "9230:9230"  # Debug port
+      - '6001:6001'
+      - '9230:9230' # Debug port
     environment:
       - NODE_ENV=development
       - ENABLE_SWAGGER=true
@@ -427,7 +429,7 @@ services:
 
 ## Backup and Recovery
 
-### SQLite Database Backup
+### PostgreSQL Database Backup
 
 ```bash
 #!/bin/bash
@@ -435,19 +437,24 @@ services:
 
 BACKUP_DIR="/backup/modu-nest"
 DATE=$(date +%Y%m%d_%H%M%S)
+DB_HOST="${DATABASE_HOST:-localhost}"
+DB_PORT="${DATABASE_PORT:-5432}"
+DB_NAME="${DATABASE_NAME:-plugin_registry}"
+DB_USER="${DATABASE_USERNAME:-postgres}"
 
 # Create backup directory
 mkdir -p "$BACKUP_DIR"
 
-# Backup SQLite databases
-sqlite3 /app/data/plugin-host.db ".backup $BACKUP_DIR/plugin-host-$DATE.db"
-sqlite3 /app/data/plugin-registry.db ".backup $BACKUP_DIR/plugin-registry-$DATE.db"
+# Backup PostgreSQL database
+pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+  --no-password --clean --if-exists \
+  > "$BACKUP_DIR/plugin-registry-$DATE.sql"
 
 # Backup plugin files
 tar -czf "$BACKUP_DIR/plugins-$DATE.tar.gz" /app/plugins
 
 # Clean old backups (keep last 7 days)
-find "$BACKUP_DIR" -name "*.db" -mtime +7 -delete
+find "$BACKUP_DIR" -name "*.sql" -mtime +7 -delete
 find "$BACKUP_DIR" -name "*.tar.gz" -mtime +7 -delete
 
 echo "Backup completed: $DATE"

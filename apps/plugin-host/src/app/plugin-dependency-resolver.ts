@@ -13,7 +13,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PluginEventEmitter } from '@modu-nest/plugin-types';
-import { PluginStateMachine, PluginState, PluginTransition } from './state-machine';
+import { PluginStateMachine, PluginState } from './state-machine';
 
 export interface DependencyWaiter {
   pluginName: string;
@@ -151,18 +151,20 @@ export class PluginDependencyResolver {
 
   private setupEventListeners(): void {
     // Listen for plugin state changes
-    this.eventEmitter.on('plugin-state-changed', (event) => {
-      this.handlePluginStateChange(event.pluginName, event.toState);
+    this.eventEmitter.on('plugin.state.changed', (event) => {
+      const stateChangedEvent = event as any; // Cast to handle event typing
+      this.handlePluginStateChange(stateChangedEvent.pluginName, stateChangedEvent.toState);
     });
 
     // Listen for plugin loading events
-    this.eventEmitter.on('plugin-loaded', (event) => {
+    this.eventEmitter.on('plugin.loaded', (event) => {
       this.handlePluginLoaded(event.pluginName);
     });
 
     // Listen for plugin failure events
-    this.eventEmitter.on('plugin-load-failed', (event) => {
-      this.handlePluginFailed(event.pluginName, event.error);
+    this.eventEmitter.on('plugin.load.failed', (event) => {
+      const failedEvent = event as any; // Cast to handle event typing
+      this.handlePluginFailed(failedEvent.pluginName, failedEvent.error);
     });
   }
 
@@ -233,7 +235,7 @@ export class PluginDependencyResolver {
   private handleDependencyTimeout(
     pluginName: string,
     dependencies: string[],
-    resolve: () => void,
+    _resolve: () => void,
     reject: (error: Error) => void,
     enableTimeoutWarnings: boolean
   ): void {

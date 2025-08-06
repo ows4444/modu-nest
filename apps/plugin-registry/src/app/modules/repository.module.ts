@@ -1,16 +1,10 @@
 import { Module, DynamicModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
 import { PluginEntity, PluginDownloadEntity, PluginVersionEntity, PluginTrustLevelEntity } from '../entities';
-import { 
-  IPluginRepository, 
-  TypeORMSQLiteRepository, 
-  TypeORMPostgreSQLRepository, 
-  InMemoryRepository 
-} from '../repositories';
+import { TypeORMPostgreSQLRepository, InMemoryRepository } from '../repositories';
 import { PLUGIN_REPOSITORY_TOKEN } from '../services/plugin-storage.service';
 
-type DatabaseType = 'sqlite' | 'postgres' | 'memory';
+type DatabaseType = 'postgres' | 'memory';
 
 @Module({})
 export class RepositoryModule {
@@ -23,9 +17,7 @@ export class RepositoryModule {
     password?: string;
     synchronize?: boolean;
   }): DynamicModule {
-    const dbType: DatabaseType = config?.type || 
-      (process.env.DATABASE_TYPE as DatabaseType) || 
-      'sqlite';
+    const dbType: DatabaseType = config?.type || (process.env.DATABASE_TYPE as DatabaseType) || 'postgres';
 
     if (dbType === 'memory') {
       return {
@@ -41,27 +33,19 @@ export class RepositoryModule {
       };
     }
 
-    // TypeORM configuration
-    const typeOrmConfig = dbType === 'sqlite' 
-      ? {
-          type: 'sqlite' as const,
-          database: config?.database || process.env.DATABASE_PATH || 'data/plugins.db',
-          entities: [PluginEntity, PluginDownloadEntity, PluginVersionEntity, PluginTrustLevelEntity],
-          synchronize: config?.synchronize ?? (process.env.NODE_ENV === 'development'),
-          logging: process.env.DATABASE_LOGGING === 'true',
-        }
-      : {
-          type: 'postgres' as const,
-          host: config?.host || process.env.DATABASE_HOST || 'localhost',
-          port: config?.port || parseInt(process.env.DATABASE_PORT || '5432'),
-          username: config?.username || process.env.DATABASE_USERNAME || 'postgres',
-          password: config?.password || process.env.DATABASE_PASSWORD || '',
-          database: config?.database || process.env.DATABASE_NAME || 'plugin_registry',
-          entities: [PluginEntity, PluginDownloadEntity, PluginVersionEntity, PluginTrustLevelEntity],
-          synchronize: config?.synchronize ?? (process.env.NODE_ENV === 'development'),
-          logging: process.env.DATABASE_LOGGING === 'true',
-          ssl: process.env.DATABASE_SSL === 'true',
-        };
+    // TypeORM configuration for PostgreSQL
+    const typeOrmConfig = {
+      type: 'postgres' as const,
+      host: config?.host || process.env.DATABASE_HOST || 'localhost',
+      port: config?.port || parseInt(process.env.DATABASE_PORT || '5432'),
+      username: config?.username || process.env.DATABASE_USERNAME || 'postgres',
+      password: config?.password || process.env.DATABASE_PASSWORD || '',
+      database: config?.database || process.env.DATABASE_NAME || 'plugin_registry',
+      entities: [PluginEntity, PluginDownloadEntity, PluginVersionEntity, PluginTrustLevelEntity],
+      synchronize: config?.synchronize ?? process.env.NODE_ENV === 'development',
+      logging: process.env.DATABASE_LOGGING === 'true',
+      ssl: process.env.DATABASE_SSL === 'true',
+    };
 
     return {
       module: RepositoryModule,
@@ -70,17 +54,10 @@ export class RepositoryModule {
         TypeOrmModule.forFeature([PluginEntity, PluginDownloadEntity, PluginVersionEntity, PluginTrustLevelEntity]),
       ],
       providers: [
-        TypeORMSQLiteRepository,
         TypeORMPostgreSQLRepository,
         {
           provide: PLUGIN_REPOSITORY_TOKEN,
-          useFactory: (
-            sqliteRepo: TypeORMSQLiteRepository,
-            postgresRepo: TypeORMPostgreSQLRepository
-          ): IPluginRepository => {
-            return dbType === 'sqlite' ? sqliteRepo : postgresRepo;
-          },
-          inject: [TypeORMSQLiteRepository, TypeORMPostgreSQLRepository],
+          useClass: TypeORMPostgreSQLRepository,
         },
       ],
       exports: [PLUGIN_REPOSITORY_TOKEN],
@@ -102,21 +79,15 @@ export class RepositoryModule {
     };
   }
 
-  static forSQLite(database?: string): DynamicModule {
-    return this.forRoot({
-      type: 'sqlite',
-      database,
-      synchronize: true,
-    });
-  }
-
-  static forPostgreSQL(config: {
-    host?: string;
-    port?: number;
-    username?: string;
-    password?: string;
-    database?: string;
-  } = {}): DynamicModule {
+  static forPostgreSQL(
+    config: {
+      host?: string;
+      port?: number;
+      username?: string;
+      password?: string;
+      database?: string;
+    } = {}
+  ): DynamicModule {
     return this.forRoot({
       type: 'postgres',
       ...config,

@@ -1,5 +1,11 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PluginMetricsCollector, PluginMetrics, SystemMetrics, PluginMetricsSnapshot } from '@modu-nest/plugin-types';
+import {
+  PluginMetricsCollector,
+  PluginMetrics,
+  SystemMetrics,
+  PluginMetricsSnapshot,
+  PluginPerformanceEntry,
+} from '@modu-nest/plugin-types';
 
 export interface MetricsServiceConfiguration {
   enabled: boolean;
@@ -29,6 +35,20 @@ export interface MetricsExportOptions {
   includePerformanceHistory?: boolean;
 }
 
+export interface AlertThreshold {
+  errorRate?: number;
+  responseTime?: number;
+  memoryGrowth?: number;
+  [key: string]: number | undefined;
+}
+
+export interface MetricsExportData {
+  timestamp: string;
+  systemMetrics: SystemMetrics;
+  pluginMetrics: PluginMetrics[];
+  performanceHistory?: Record<string, PluginPerformanceEntry[]>;
+}
+
 @Injectable()
 export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PluginMetricsService.name);
@@ -36,7 +56,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
 
   private configuration: MetricsServiceConfiguration;
   private healthReportCache = new Map<string, PluginHealthReport>();
-  private alertThresholds = new Map<string, any>();
+  private alertThresholds = new Map<string, AlertThreshold>();
 
   constructor() {
     this.configuration = this.loadConfiguration();
@@ -243,13 +263,13 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     if (!this.alertThresholds.has(pluginName)) {
       this.alertThresholds.set(pluginName, {});
     }
-    const pluginThresholds = this.alertThresholds.get(pluginName);
+    const pluginThresholds = this.alertThresholds.get(pluginName)!;
     pluginThresholds[metric] = threshold;
 
     this.logger.log(`Set alert threshold for ${pluginName}.${metric}: ${threshold}`);
   }
 
-  getAlertThresholds(pluginName?: string): Map<string, any> | any {
+  getAlertThresholds(pluginName?: string): Map<string, AlertThreshold> | AlertThreshold {
     if (pluginName) {
       return this.alertThresholds.get(pluginName) || {};
     }
@@ -345,7 +365,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private checkPerformanceAlerts(pluginName: string, responseTime: number, isError: boolean): void {
-    const thresholds = this.getAlertThresholds(pluginName);
+    const thresholds = this.getAlertThresholds(pluginName) as AlertThreshold;
 
     if (responseTime > (thresholds.responseTime || this.configuration.responseTimeThreshold)) {
       this.logger.warn(`Performance alert: ${pluginName} response time ${responseTime}ms exceeds threshold`);
@@ -362,7 +382,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private exportAsJson(metrics: PluginMetrics[], options: MetricsExportOptions): string {
-    const exportData: any = {
+    const exportData: MetricsExportData = {
       timestamp: new Date().toISOString(),
       systemMetrics: this.getSystemMetrics(),
       pluginMetrics: metrics,
@@ -372,7 +392,7 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
       exportData.performanceHistory = {};
       metrics.forEach((metric) => {
         const snapshot = this.getPluginMetricsSnapshot(metric.pluginName);
-        if (snapshot) {
+        if (snapshot && exportData.performanceHistory) {
           exportData.performanceHistory[metric.pluginName] = snapshot.performanceHistory;
         }
       });

@@ -60,7 +60,7 @@ export interface CacheConfig {
 export class PluginCacheService implements OnModuleDestroy {
   private readonly logger = new Logger(PluginCacheService.name);
 
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
   private accessOrder = new Map<string, number>(); // Track access order for LRU
   private accessCounter = 0;
 
@@ -312,7 +312,7 @@ export class PluginCacheService implements OnModuleDestroy {
    * @param key - Cache key
    * @returns Cache entry details or undefined
    */
-  getEntryDetails(key: string): (CacheEntry<any> & { ttl: number; isExpired: boolean }) | undefined {
+  getEntryDetails(key: string): (CacheEntry<unknown> & { ttl: number; isExpired: boolean }) | undefined {
     const entry = this.cache.get(key);
     if (!entry) return undefined;
 

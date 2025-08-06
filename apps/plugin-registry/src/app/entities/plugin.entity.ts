@@ -9,66 +9,66 @@ import { PluginVersionEntity } from './plugin-version.entity';
 @Index(['uploadDate'])
 export class PluginEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column()
-  version: string;
+  version!: string;
 
   @Column({ nullable: true })
-  description: string;
+  description!: string | null;
 
   @Column({ nullable: true })
-  author: string;
+  author!: string | null;
 
   @Column({ nullable: true })
-  license: string;
+  license!: string | null;
 
   @Column('text')
-  manifest: string; // JSON string
+  manifest!: string; // JSON string
 
   @Column()
-  filePath: string;
+  filePath!: string;
 
   @Column('integer')
-  fileSize: number;
+  fileSize!: number;
 
   @Column({ unique: true })
-  checksum: string;
+  checksum!: string;
 
   @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  uploadDate: Date;
+  uploadDate!: Date;
 
   @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  lastAccessed: Date;
+  lastAccessed!: Date;
 
   @Column('integer', { default: 0 })
-  downloadCount: number;
+  downloadCount!: number;
 
-  @Column({ 
+  @Column({
     type: 'varchar',
     default: 'active',
-    enum: ['active', 'deprecated', 'disabled']
+    enum: ['active', 'deprecated', 'disabled'],
   })
-  status: 'active' | 'deprecated' | 'disabled';
+  status!: 'active' | 'deprecated' | 'disabled';
 
   @Column('text', { default: '[]' })
-  tags: string; // JSON array string
+  tags!: string; // JSON array string
 
   @Column('text', { default: '[]' })
-  dependencies: string; // JSON array string
+  dependencies!: string; // JSON array string
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
-  @OneToMany(() => PluginDownloadEntity, download => download.plugin, { cascade: true })
-  downloads: PluginDownloadEntity[];
+  @OneToMany(() => PluginDownloadEntity, (download) => download.plugin, { cascade: true })
+  downloads!: PluginDownloadEntity[];
 
-  @OneToMany(() => PluginVersionEntity, version => version.plugin, { cascade: false })
-  versions: PluginVersionEntity[];
+  @OneToMany(() => PluginVersionEntity, (version) => version.plugin, { cascade: false })
+  versions!: PluginVersionEntity[];
 }

@@ -1,6 +1,6 @@
 /**
  * Plugin Trust Manager Service
- * 
+ *
  * Provides comprehensive trust level management and enforcement for plugins including:
  * - Trust level assignment and validation
  * - Security policy enforcement based on trust levels
@@ -16,14 +16,14 @@ import { PluginEntity } from '../entities/plugin.entity';
 import { PluginVersionEntity } from '../entities/plugin-version.entity';
 import { PluginTrustLevelEntity } from '../entities/plugin-trust-level.entity';
 import { PluginEventEmitter } from '@modu-nest/plugin-types';
-import { PluginManifest, PluginSecurity } from '@modu-nest/plugin-types';
+import { PluginManifest } from '@modu-nest/plugin-types';
 
 export enum TrustLevel {
-  INTERNAL = 'internal',      // Fully trusted, developed internally
-  VERIFIED = 'verified',      // Third-party but verified and audited
-  COMMUNITY = 'community',    // Community plugins with basic validation
-  UNTRUSTED = 'untrusted',    // New or flagged plugins with restrictions
-  QUARANTINED = 'quarantined' // Suspicious plugins with severe restrictions
+  INTERNAL = 'internal', // Fully trusted, developed internally
+  VERIFIED = 'verified', // Third-party but verified and audited
+  COMMUNITY = 'community', // Community plugins with basic validation
+  UNTRUSTED = 'untrusted', // New or flagged plugins with restrictions
+  QUARANTINED = 'quarantined', // Suspicious plugins with severe restrictions
 }
 
 export interface TrustPolicy {
@@ -69,11 +69,11 @@ export interface AuditRequirements {
 }
 
 export enum IsolationLevel {
-  NONE = 'none',           // No isolation
-  PROCESS = 'process',     // Process-level isolation
-  VM = 'vm',              // Virtual machine isolation
+  NONE = 'none', // No isolation
+  PROCESS = 'process', // Process-level isolation
+  VM = 'vm', // Virtual machine isolation
   CONTAINER = 'container', // Container isolation
-  SANDBOX = 'sandbox'      // Full sandbox isolation
+  SANDBOX = 'sandbox', // Full sandbox isolation
 }
 
 export interface TrustLevelAssignment {
@@ -152,7 +152,7 @@ export class PluginTrustManager {
         maxFileSize: 100 * 1024 * 1024, // 100MB
         maxNetworkBandwidth: 10 * 1024 * 1024, // 10MB/s
         maxExecutionTime: 300000, // 5 minutes
-        maxDiskUsage: 500 * 1024 * 1024 // 500MB
+        maxDiskUsage: 500 * 1024 * 1024, // 500MB
       },
       securityRequirements: {
         signatureRequired: false, // Internal plugins can be unsigned
@@ -160,16 +160,16 @@ export class PluginTrustManager {
         sourceCodeReview: false,
         securityScan: true,
         vulnerabilityAssessment: false,
-        minimumTrustScore: 70
+        minimumTrustScore: 70,
       },
       auditRequirements: {
         logAllActions: false,
         monitorResourceUsage: true,
         trackApiCalls: false,
         alertOnSuspiciousActivity: true,
-        requireApprovalForActions: []
+        requireApprovalForActions: [],
       },
-      isolationLevel: IsolationLevel.PROCESS
+      isolationLevel: IsolationLevel.PROCESS,
     });
 
     // VERIFIED - High trust with moderate restrictions
@@ -182,7 +182,7 @@ export class PluginTrustManager {
         maxFileSize: 50 * 1024 * 1024, // 50MB
         maxNetworkBandwidth: 5 * 1024 * 1024, // 5MB/s
         maxExecutionTime: 180000, // 3 minutes
-        maxDiskUsage: 200 * 1024 * 1024 // 200MB
+        maxDiskUsage: 200 * 1024 * 1024, // 200MB
       },
       securityRequirements: {
         signatureRequired: true,
@@ -190,16 +190,16 @@ export class PluginTrustManager {
         sourceCodeReview: true,
         securityScan: true,
         vulnerabilityAssessment: true,
-        minimumTrustScore: 85
+        minimumTrustScore: 85,
       },
       auditRequirements: {
         logAllActions: true,
         monitorResourceUsage: true,
         trackApiCalls: true,
         alertOnSuspiciousActivity: true,
-        requireApprovalForActions: ['security-modify', 'system-access']
+        requireApprovalForActions: ['security-modify', 'system-access'],
       },
-      isolationLevel: IsolationLevel.CONTAINER
+      isolationLevel: IsolationLevel.CONTAINER,
     });
 
     // COMMUNITY - Medium trust with significant restrictions
@@ -212,7 +212,7 @@ export class PluginTrustManager {
         maxFileSize: 25 * 1024 * 1024, // 25MB
         maxNetworkBandwidth: 2 * 1024 * 1024, // 2MB/s
         maxExecutionTime: 120000, // 2 minutes
-        maxDiskUsage: 100 * 1024 * 1024 // 100MB
+        maxDiskUsage: 100 * 1024 * 1024, // 100MB
       },
       securityRequirements: {
         signatureRequired: true,
@@ -220,16 +220,16 @@ export class PluginTrustManager {
         sourceCodeReview: false,
         securityScan: true,
         vulnerabilityAssessment: true,
-        minimumTrustScore: 75
+        minimumTrustScore: 75,
       },
       auditRequirements: {
         logAllActions: true,
         monitorResourceUsage: true,
         trackApiCalls: true,
         alertOnSuspiciousActivity: true,
-        requireApprovalForActions: ['network-access', 'filesystem-write', 'security-modify']
+        requireApprovalForActions: ['network-access', 'filesystem-write', 'security-modify'],
       },
-      isolationLevel: IsolationLevel.SANDBOX
+      isolationLevel: IsolationLevel.SANDBOX,
     });
 
     // UNTRUSTED - Low trust with heavy restrictions
@@ -242,7 +242,7 @@ export class PluginTrustManager {
         maxFileSize: 10 * 1024 * 1024, // 10MB
         maxNetworkBandwidth: 1 * 1024 * 1024, // 1MB/s
         maxExecutionTime: 60000, // 1 minute
-        maxDiskUsage: 50 * 1024 * 1024 // 50MB
+        maxDiskUsage: 50 * 1024 * 1024, // 50MB
       },
       securityRequirements: {
         signatureRequired: true,
@@ -250,16 +250,16 @@ export class PluginTrustManager {
         sourceCodeReview: true,
         securityScan: true,
         vulnerabilityAssessment: true,
-        minimumTrustScore: 90
+        minimumTrustScore: 90,
       },
       auditRequirements: {
         logAllActions: true,
         monitorResourceUsage: true,
         trackApiCalls: true,
         alertOnSuspiciousActivity: true,
-        requireApprovalForActions: ['*'] // All actions require approval
+        requireApprovalForActions: ['*'], // All actions require approval
       },
-      isolationLevel: IsolationLevel.SANDBOX
+      isolationLevel: IsolationLevel.SANDBOX,
     });
 
     // QUARANTINED - No trust, severe restrictions
@@ -272,7 +272,7 @@ export class PluginTrustManager {
         maxFileSize: 5 * 1024 * 1024, // 5MB
         maxNetworkBandwidth: 0, // No network access
         maxExecutionTime: 30000, // 30 seconds
-        maxDiskUsage: 25 * 1024 * 1024 // 25MB
+        maxDiskUsage: 25 * 1024 * 1024, // 25MB
       },
       securityRequirements: {
         signatureRequired: true,
@@ -280,16 +280,16 @@ export class PluginTrustManager {
         sourceCodeReview: true,
         securityScan: true,
         vulnerabilityAssessment: true,
-        minimumTrustScore: 95
+        minimumTrustScore: 95,
       },
       auditRequirements: {
         logAllActions: true,
         monitorResourceUsage: true,
         trackApiCalls: true,
         alertOnSuspiciousActivity: true,
-        requireApprovalForActions: ['*'] // All actions require approval
+        requireApprovalForActions: ['*'], // All actions require approval
       },
-      isolationLevel: IsolationLevel.SANDBOX
+      isolationLevel: IsolationLevel.SANDBOX,
     });
   }
 
@@ -300,15 +300,40 @@ export class PluginTrustManager {
     const capabilities: PluginCapability[] = [
       // Network capabilities
       { name: 'network-http-client', description: 'Make HTTP requests', riskLevel: 'medium', category: 'network' },
-      { name: 'network-websocket', description: 'Create WebSocket connections', riskLevel: 'medium', category: 'network' },
+      {
+        name: 'network-websocket',
+        description: 'Create WebSocket connections',
+        riskLevel: 'medium',
+        category: 'network',
+      },
       { name: 'network-server', description: 'Start network servers', riskLevel: 'high', category: 'network' },
-      { name: 'network-raw-socket', description: 'Access raw network sockets', riskLevel: 'critical', category: 'network' },
+      {
+        name: 'network-raw-socket',
+        description: 'Access raw network sockets',
+        riskLevel: 'critical',
+        category: 'network',
+      },
 
       // Filesystem capabilities
       { name: 'filesystem-read', description: 'Read files from filesystem', riskLevel: 'low', category: 'filesystem' },
-      { name: 'filesystem-write', description: 'Write files to filesystem', riskLevel: 'medium', category: 'filesystem' },
-      { name: 'filesystem-delete', description: 'Delete files from filesystem', riskLevel: 'high', category: 'filesystem' },
-      { name: 'filesystem-execute', description: 'Execute files from filesystem', riskLevel: 'critical', category: 'filesystem' },
+      {
+        name: 'filesystem-write',
+        description: 'Write files to filesystem',
+        riskLevel: 'medium',
+        category: 'filesystem',
+      },
+      {
+        name: 'filesystem-delete',
+        description: 'Delete files from filesystem',
+        riskLevel: 'high',
+        category: 'filesystem',
+      },
+      {
+        name: 'filesystem-execute',
+        description: 'Execute files from filesystem',
+        riskLevel: 'critical',
+        category: 'filesystem',
+      },
 
       // Process capabilities
       { name: 'process-spawn', description: 'Spawn child processes', riskLevel: 'high', category: 'process' },
@@ -318,7 +343,12 @@ export class PluginTrustManager {
       // Database capabilities
       { name: 'database-read', description: 'Read from databases', riskLevel: 'low', category: 'database' },
       { name: 'database-write', description: 'Write to databases', riskLevel: 'medium', category: 'database' },
-      { name: 'database-admin', description: 'Administrative database operations', riskLevel: 'high', category: 'database' },
+      {
+        name: 'database-admin',
+        description: 'Administrative database operations',
+        riskLevel: 'high',
+        category: 'database',
+      },
 
       // API capabilities
       { name: 'api-plugin-management', description: 'Manage other plugins', riskLevel: 'high', category: 'api' },
@@ -326,21 +356,24 @@ export class PluginTrustManager {
       { name: 'api-user-data', description: 'Access user data', riskLevel: 'medium', category: 'api' },
 
       // Security capabilities
-      { name: 'security-crypto', description: 'Use cryptographic functions', riskLevel: 'medium', category: 'security' },
+      {
+        name: 'security-crypto',
+        description: 'Use cryptographic functions',
+        riskLevel: 'medium',
+        category: 'security',
+      },
       { name: 'security-modify', description: 'Modify security settings', riskLevel: 'critical', category: 'security' },
-      { name: 'security-audit', description: 'Access audit logs', riskLevel: 'high', category: 'security' }
+      { name: 'security-audit', description: 'Access audit logs', riskLevel: 'high', category: 'security' },
     ];
 
-    capabilities.forEach(cap => this.capabilities.set(cap.name, cap));
+    capabilities.forEach((cap) => this.capabilities.set(cap.name, cap));
   }
 
   /**
    * Get capabilities filtered by risk level
    */
   private getCapabilitiesByRisk(allowedRiskLevels: string[]): PluginCapability[] {
-    return Array.from(this.capabilities.values()).filter(cap =>
-      allowedRiskLevels.includes(cap.riskLevel)
-    );
+    return Array.from(this.capabilities.values()).filter((cap) => allowedRiskLevels.includes(cap.riskLevel));
   }
 
   /**
@@ -355,30 +388,32 @@ export class PluginTrustManager {
     }
 
     // Check if plugin exists
-    const plugin = assignment.version 
-      ? await this.versionRepository.findOne({ 
-          where: { pluginName: assignment.pluginName, version: assignment.version }
+    const plugin = assignment.version
+      ? await this.versionRepository.findOne({
+          where: { pluginName: assignment.pluginName, version: assignment.version },
         })
-      : await this.pluginRepository.findOne({ 
-          where: { name: assignment.pluginName }
+      : await this.pluginRepository.findOne({
+          where: { name: assignment.pluginName },
         });
 
     if (!plugin) {
-      throw new Error(`Plugin not found: ${assignment.pluginName}${assignment.version ? `:${assignment.version}` : ''}`);
+      throw new Error(
+        `Plugin not found: ${assignment.pluginName}${assignment.version ? `:${assignment.version}` : ''}`
+      );
     }
 
     // Create or update trust level assignment
     let trustEntity = await this.trustRepository.findOne({
-      where: { 
+      where: {
         pluginName: assignment.pluginName,
-        version: assignment.version || null
-      }
+        version: assignment.version ?? undefined,
+      },
     });
 
     if (!trustEntity) {
       trustEntity = new PluginTrustLevelEntity();
       trustEntity.pluginName = assignment.pluginName;
-      trustEntity.version = assignment.version || null;
+      trustEntity.version = assignment.version ?? null;
     }
 
     const previousTrustLevel = trustEntity.trustLevel;
@@ -387,7 +422,7 @@ export class PluginTrustManager {
     trustEntity.assignedAt = assignment.assignedAt;
     trustEntity.reason = assignment.reason;
     trustEntity.evidence = JSON.stringify(assignment.evidence || []);
-    trustEntity.validUntil = assignment.validUntil || null;
+    trustEntity.validUntil = assignment.validUntil ?? null;
     trustEntity.reviewRequired = assignment.reviewRequired || false;
 
     await this.trustRepository.save(trustEntity);
@@ -400,7 +435,7 @@ export class PluginTrustManager {
       newTrustLevel: assignment.trustLevel,
       assignedBy: assignment.assignedBy,
       reason: assignment.reason,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     this.logger.log(`Trust level assigned successfully: ${assignment.pluginName} -> ${assignment.trustLevel}`);
@@ -411,10 +446,10 @@ export class PluginTrustManager {
    */
   async getTrustLevel(pluginName: string, version?: string): Promise<TrustLevel> {
     const trustEntity = await this.trustRepository.findOne({
-      where: { 
+      where: {
         pluginName,
-        version: version || null
-      }
+        version: version ?? undefined,
+      },
     });
 
     if (trustEntity) {
@@ -440,21 +475,17 @@ export class PluginTrustManager {
   /**
    * Validate if a plugin can perform a specific capability
    */
-  async canPerformCapability(
-    pluginName: string, 
-    capabilityName: string, 
-    version?: string
-  ): Promise<boolean> {
+  async canPerformCapability(pluginName: string, capabilityName: string, version?: string): Promise<boolean> {
     const trustLevel = await this.getTrustLevel(pluginName, version);
     const policy = this.getTrustPolicy(trustLevel);
-    
+
     if (!policy) {
       this.logger.warn(`No policy found for trust level: ${trustLevel}`);
       return false;
     }
 
-    const hasCapability = policy.allowedCapabilities.some(cap => cap.name === capabilityName);
-    
+    const hasCapability = policy.allowedCapabilities.some((cap) => cap.name === capabilityName);
+
     if (!hasCapability) {
       this.logger.debug(`Plugin ${pluginName} (${trustLevel}) denied capability: ${capabilityName}`);
     }
@@ -476,12 +507,12 @@ export class PluginTrustManager {
   }> {
     const trustLevel = await this.getTrustLevel(pluginName, version);
     const policy = this.getTrustPolicy(trustLevel);
-    
+
     if (!policy) {
       return {
         isValid: false,
         violations: [`No policy found for trust level: ${trustLevel}`],
-        requiredActions: ['Review trust level assignment']
+        requiredActions: ['Review trust level assignment'],
       };
     }
 
@@ -504,13 +535,13 @@ export class PluginTrustManager {
     if (security?.sandbox?.isolationLevel) {
       const requiredIsolation = policy.isolationLevel;
       const pluginIsolation = security.sandbox.isolationLevel;
-      
+
       const isolationHierarchy = {
         [IsolationLevel.NONE]: 0,
         [IsolationLevel.PROCESS]: 1,
         [IsolationLevel.VM]: 2,
         [IsolationLevel.CONTAINER]: 3,
-        [IsolationLevel.SANDBOX]: 4
+        [IsolationLevel.SANDBOX]: 4,
       };
 
       if (isolationHierarchy[pluginIsolation as IsolationLevel] < isolationHierarchy[requiredIsolation]) {
@@ -538,7 +569,7 @@ export class PluginTrustManager {
     return {
       isValid: violations.length === 0,
       violations,
-      requiredActions
+      requiredActions,
     };
   }
 
@@ -551,7 +582,7 @@ export class PluginTrustManager {
     // Emit trust violation event
     this.eventEmitter.emit('plugin-trust-violation', {
       ...violation,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     // Take action based on violation severity
@@ -559,7 +590,7 @@ export class PluginTrustManager {
       case 'warn':
         this.logger.warn(`Trust violation warning: ${violation.pluginName}`);
         break;
-      
+
       case 'restrict':
         // Downgrade trust level
         await this.assignTrustLevel({
@@ -569,14 +600,16 @@ export class PluginTrustManager {
           assignedBy: 'system',
           assignedAt: new Date(),
           reason: `Trust violation: ${violation.description}`,
-          evidence: [{
-            type: 'violation',
-            description: violation.description,
-            score: 0,
-            verifiedBy: 'system',
-            verifiedAt: new Date(),
-            details: violation.details
-          }]
+          evidence: [
+            {
+              type: 'audit',
+              description: violation.description,
+              score: 0,
+              verifiedBy: 'system',
+              verifiedAt: new Date(),
+              details: violation.details,
+            },
+          ],
         });
         break;
 
@@ -588,14 +621,16 @@ export class PluginTrustManager {
           assignedBy: 'system',
           assignedAt: new Date(),
           reason: `Trust violation - quarantined: ${violation.description}`,
-          evidence: [{
-            type: 'violation',
-            description: violation.description,
-            score: 0,
-            verifiedBy: 'system',
-            verifiedAt: new Date(),
-            details: violation.details
-          }]
+          evidence: [
+            {
+              type: 'audit',
+              description: violation.description,
+              score: 0,
+              verifiedBy: 'system',
+              verifiedAt: new Date(),
+              details: violation.details,
+            },
+          ],
         });
         break;
 
@@ -605,7 +640,7 @@ export class PluginTrustManager {
           pluginName: violation.pluginName,
           version: violation.version,
           reason: violation.description,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
         break;
     }
@@ -622,27 +657,27 @@ export class PluginTrustManager {
     expiredTrustLevels: number;
   }> {
     const allTrustAssignments = await this.trustRepository.find();
-    
+
     const distribution: Record<TrustLevel, number> = {
       [TrustLevel.INTERNAL]: 0,
       [TrustLevel.VERIFIED]: 0,
       [TrustLevel.COMMUNITY]: 0,
       [TrustLevel.UNTRUSTED]: 0,
-      [TrustLevel.QUARANTINED]: 0
+      [TrustLevel.QUARANTINED]: 0,
     };
 
     let pendingReviews = 0;
     let expiredTrustLevels = 0;
     const now = new Date();
 
-    allTrustAssignments.forEach(assignment => {
+    allTrustAssignments.forEach((assignment) => {
       const trustLevel = assignment.trustLevel as TrustLevel;
       distribution[trustLevel]++;
-      
+
       if (assignment.reviewRequired) {
         pendingReviews++;
       }
-      
+
       if (assignment.validUntil && assignment.validUntil < now) {
         expiredTrustLevels++;
       }
@@ -653,7 +688,7 @@ export class PluginTrustManager {
       totalPlugins: allTrustAssignments.length,
       pendingReviews,
       recentViolations: 0, // Would need violation tracking table for accurate count
-      expiredTrustLevels
+      expiredTrustLevels,
     };
   }
 
@@ -668,12 +703,14 @@ export class PluginTrustManager {
    * Request trust level change
    */
   async requestTrustLevelChange(request: TrustLevelChangeRequest): Promise<void> {
-    this.logger.log(`Trust level change requested: ${request.pluginName} from ${request.currentTrustLevel} to ${request.requestedTrustLevel}`);
+    this.logger.log(
+      `Trust level change requested: ${request.pluginName} from ${request.currentTrustLevel} to ${request.requestedTrustLevel}`
+    );
 
     // Emit trust level change request event
     this.eventEmitter.emit('plugin-trust-level-change-requested', {
       ...request,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     // For now, this would trigger a manual review workflow
