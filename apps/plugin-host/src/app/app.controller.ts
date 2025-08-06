@@ -184,6 +184,8 @@ export class AppController {
 
   @Get('plugins/metrics/config')
   getMetricsConfiguration() {
+    console.log(`Fetching metrics configuration at ${new Date().toISOString()}`);
+
     return {
       configuration: this.metricsService.getConfiguration(),
       alertThresholds: this.metricsService.getAlertThresholds(),

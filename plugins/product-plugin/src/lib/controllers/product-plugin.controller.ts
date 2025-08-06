@@ -6,6 +6,7 @@ import {
   PluginDelete,
   PluginUseGuards,
   PluginPermissions,
+  PluginLifecycleHookDecorator,
 } from '@modu-nest/plugin-types';
 import { Body, Param, Query, Request, ValidationPipe, UsePipes } from '@nestjs/common';
 import { ProductPluginService } from '../services/product-plugin.service';
@@ -18,6 +19,37 @@ export class ProductPluginController {
   @PluginGet()
   getHello(): string {
     return this.productPluginService.getHello();
+  }
+
+  @PluginLifecycleHookDecorator('beforeLoad')
+  onPluginBeforeLoad() {
+    console.log(`Product plugin is initializing before load at ${new Date().toISOString()}`);
+
+    return { message: 'Product plugin is initializing before load', timestamp: new Date() };
+  }
+
+  @PluginLifecycleHookDecorator('afterLoad')
+  onPluginAfterLoad() {
+    console.log(`Product plugin has loaded successfully at ${new Date().toISOString()}`);
+    return { message: 'Product plugin has loaded successfully', timestamp: new Date() };
+  }
+
+  @PluginLifecycleHookDecorator('beforeUnload')
+  onPluginBeforeUnload() {
+    console.log(`Product plugin is preparing to unload at ${new Date().toISOString()}`);
+    return { message: 'Product plugin is preparing to unload', timestamp: new Date() };
+  }
+
+  @PluginLifecycleHookDecorator('afterUnload')
+  onPluginAfterUnload() {
+    console.log(`Product plugin has unloaded successfully at ${new Date().toISOString()}`);
+    return { message: 'Product plugin has unloaded successfully', timestamp: new Date() };
+  }
+
+  @PluginLifecycleHookDecorator('onError')
+  onPluginError(error: Error) {
+    console.error(`Product plugin encountered an error: ${error.message} at ${new Date().toISOString()}`);
+    return { message: 'Product plugin encountered an error', error: error.message, timestamp: new Date() };
   }
 
   // === BASIC PRODUCT CRUD OPERATIONS ===
