@@ -302,10 +302,10 @@ curl -w "@curl-format.txt" http://localhost:6001/plugins/test-plugin/download
 
 **Diagnosis Steps:**
 
-1. Check SQLite database file permissions
-2. Verify database file integrity
-3. Check for file locks
-4. Analyze database size and performance
+1. Check PostgreSQL connection configuration
+2. Verify database server accessibility
+3. Check for connection limits and timeouts
+4. Analyze database performance and connection pool
 
 **Resolution Commands:**
 

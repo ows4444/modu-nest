@@ -441,7 +441,7 @@ app.use(
 **Enhanced Scale Capabilities:**
 
 - 🚀 **50-100 plugin developers** with advanced development workflow support
-- 🚀 **5,000-10,000 plugins** with optimized SQLite/PostgreSQL architecture
+- 🚀 **5,000-10,000 plugins** with optimized PostgreSQL architecture
 - 🚀 **50-100 downloads/second** with bundle optimization and caching
 - 🚀 **100-200 concurrent plugin loading** with event-driven dependency resolution
 - 🚀 **Production-ready availability** with comprehensive security and monitoring
@@ -463,7 +463,7 @@ app.use(
 
 - Plugin loading time: ~2-5 seconds (60-80% improvement with event-driven resolution)
 - Memory usage: ~200-500MB steady state with advanced cleanup and WeakRef tracking
-- Database operations: SQLite/PostgreSQL with ~20-50ms average query time
+- Database operations: PostgreSQL with ~20-50ms average query time
 - Concurrent plugin support: 100-200 plugins with event-driven dependency resolution
 - API response time: ~100-300ms (95th percentile) with optimization
 - Download throughput: 50-100 downloads/second with bundle optimization
