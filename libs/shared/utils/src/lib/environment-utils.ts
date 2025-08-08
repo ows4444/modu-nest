@@ -10,7 +10,7 @@ import { parseBoolean } from './parse-boolean';
 export function getEnvNumber(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (value === undefined) return defaultValue;
-  
+
   const parsed = parseInt(value, 10);
   return isNaN(parsed) ? defaultValue : parsed;
 }
@@ -21,7 +21,7 @@ export function getEnvNumber(key: string, defaultValue: number): number {
 export function getEnvFloat(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (value === undefined) return defaultValue;
-  
+
   const parsed = parseFloat(value);
   return isNaN(parsed) ? defaultValue : parsed;
 }
@@ -39,7 +39,7 @@ export function getEnvString(key: string, defaultValue: string): string {
 export function getEnvBoolean(key: string, defaultValue: boolean): boolean {
   const value = process.env[key];
   if (value === undefined) return defaultValue;
-  
+
   return parseBoolean(value);
 }
 
@@ -49,8 +49,11 @@ export function getEnvBoolean(key: string, defaultValue: boolean): boolean {
 export function getEnvArray(key: string, defaultValue: string[]): string[] {
   const value = process.env[key];
   if (!value) return defaultValue;
-  
-  return value.split(',').map(item => item.trim()).filter(item => item.length > 0);
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 /**
@@ -70,11 +73,11 @@ export function getRequiredEnv(key: string): string {
 export function getRequiredEnvNumber(key: string): number {
   const value = getRequiredEnv(key);
   const parsed = parseInt(value, 10);
-  
+
   if (isNaN(parsed)) {
     throw new Error(`Environment variable ${key} must be a valid number, got: ${value}`);
   }
-  
+
   return parsed;
 }
 
@@ -111,8 +114,8 @@ export function isTest(): boolean {
  */
 export function getEnvWithPrefix(prefix: string): Record<string, string> {
   const result: Record<string, string> = {};
-  
-  Object.keys(process.env).forEach(key => {
+
+  Object.keys(process.env).forEach((key) => {
     if (key.startsWith(prefix)) {
       const value = process.env[key];
       if (value !== undefined) {
@@ -120,6 +123,6 @@ export function getEnvWithPrefix(prefix: string): Record<string, string> {
       }
     }
   });
-  
+
   return result;
 }

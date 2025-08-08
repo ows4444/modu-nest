@@ -1,6 +1,6 @@
 /**
  * Plugin Registry Custom Exceptions
- * 
+ *
  * Provides specialized exception classes for plugin registry operations.
  */
 
@@ -13,12 +13,7 @@ export abstract class PluginRegistryException extends HttpException {
   public readonly code: string;
   public readonly details?: Record<string, unknown>;
 
-  constructor(
-    message: string,
-    status: HttpStatus,
-    code: string,
-    details?: Record<string, unknown>
-  ) {
+  constructor(message: string, status: HttpStatus, code: string, details?: Record<string, unknown>) {
     super({ message, code, details }, status);
     this.code = code;
     this.details = details;
@@ -30,12 +25,10 @@ export abstract class PluginRegistryException extends HttpException {
  */
 export class PluginNotFoundException extends PluginRegistryException {
   constructor(pluginName: string, version?: string) {
-    super(
-      `Plugin '${pluginName}${version ? `:${version}` : ''}' not found`,
-      HttpStatus.NOT_FOUND,
-      'PLUGIN_NOT_FOUND',
-      { pluginName, version }
-    );
+    super(`Plugin '${pluginName}${version ? `:${version}` : ''}' not found`, HttpStatus.NOT_FOUND, 'PLUGIN_NOT_FOUND', {
+      pluginName,
+      version,
+    });
   }
 }
 
@@ -44,12 +37,10 @@ export class PluginNotFoundException extends PluginRegistryException {
  */
 export class PluginValidationException extends PluginRegistryException {
   constructor(pluginName: string, validationErrors: Record<string, string[]>) {
-    super(
-      `Plugin '${pluginName}' failed validation`,
-      HttpStatus.BAD_REQUEST,
-      'PLUGIN_VALIDATION_FAILED',
-      { pluginName, validationErrors }
-    );
+    super(`Plugin '${pluginName}' failed validation`, HttpStatus.BAD_REQUEST, 'PLUGIN_VALIDATION_FAILED', {
+      pluginName,
+      validationErrors,
+    });
   }
 }
 
@@ -58,12 +49,7 @@ export class PluginValidationException extends PluginRegistryException {
  */
 export class PluginUploadException extends PluginRegistryException {
   constructor(reason: string, details?: Record<string, unknown>) {
-    super(
-      `Plugin upload failed: ${reason}`,
-      HttpStatus.BAD_REQUEST,
-      'PLUGIN_UPLOAD_FAILED',
-      details
-    );
+    super(`Plugin upload failed: ${reason}`, HttpStatus.BAD_REQUEST, 'PLUGIN_UPLOAD_FAILED', details);
   }
 }
 
@@ -71,11 +57,7 @@ export class PluginUploadException extends PluginRegistryException {
  * Plugin security exception
  */
 export class PluginSecurityException extends PluginRegistryException {
-  constructor(
-    pluginName: string,
-    securityIssue: string,
-    severity: 'low' | 'medium' | 'high' | 'critical' = 'medium'
-  ) {
+  constructor(pluginName: string, securityIssue: string, severity: 'low' | 'medium' | 'high' | 'critical' = 'medium') {
     super(
       `Security violation detected for plugin '${pluginName}': ${securityIssue}`,
       HttpStatus.FORBIDDEN,
@@ -89,12 +71,7 @@ export class PluginSecurityException extends PluginRegistryException {
  * Plugin trust level exception
  */
 export class PluginTrustException extends PluginRegistryException {
-  constructor(
-    pluginName: string,
-    requiredTrustLevel: string,
-    actualTrustLevel: string,
-    operation: string
-  ) {
+  constructor(pluginName: string, requiredTrustLevel: string, actualTrustLevel: string, operation: string) {
     super(
       `Plugin '${pluginName}' with trust level '${actualTrustLevel}' cannot perform operation '${operation}' (requires '${requiredTrustLevel}')`,
       HttpStatus.FORBIDDEN,
@@ -138,7 +115,9 @@ export class PluginConflictException extends PluginRegistryException {
 export class PluginOperationTimeoutException extends PluginRegistryException {
   constructor(operation: string, timeoutMs: number, pluginName?: string) {
     super(
-      `Plugin operation '${operation}' timed out after ${timeoutMs}ms${pluginName ? ` for plugin '${pluginName}'` : ''}`,
+      `Plugin operation '${operation}' timed out after ${timeoutMs}ms${
+        pluginName ? ` for plugin '${pluginName}'` : ''
+      }`,
       HttpStatus.REQUEST_TIMEOUT,
       'OPERATION_TIMEOUT',
       { operation, timeoutMs, pluginName }
@@ -164,12 +143,7 @@ export class PluginStorageException extends PluginRegistryException {
  * Rate limiting exception
  */
 export class RateLimitExceededException extends PluginRegistryException {
-  constructor(
-    rule: string,
-    limit: number,
-    windowMs: number,
-    resetTime: Date
-  ) {
+  constructor(rule: string, limit: number, windowMs: number, resetTime: Date) {
     super(
       `Rate limit exceeded for rule '${rule}'. Limit: ${limit} requests per ${windowMs}ms`,
       HttpStatus.TOO_MANY_REQUESTS,

@@ -1,17 +1,7 @@
 import { EnvironmentType } from '@modu-nest/const';
 import { parseBoolean } from '@modu-nest/utils';
 import { Expose, Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsArray,
-  Min,
-  Max,
-  IsEnum,
-  ValidateIf,
-} from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, IsArray, Min, Max, IsEnum, ValidateIf } from 'class-validator';
 import {
   IsSecurePassword,
   IsJwtExpiration,
@@ -63,8 +53,8 @@ export class SecurityConfigSchema {
   @Expose()
   @IsArray()
   @IsCorsOrigins()
-  @Transform(({ value }: { value: string }) =>
-    value?.split(',').map((v: string) => v.trim()) || ['http://localhost:3000']
+  @Transform(
+    ({ value }: { value: string }) => value?.split(',').map((v: string) => v.trim()) || ['http://localhost:3000']
   )
   CORS_ORIGINS!: string[];
 
@@ -144,8 +134,9 @@ export class SecurityConfigSchema {
   @Expose()
   @IsArray()
   @IsFileExtensions()
-  @Transform(({ value }: { value: string }) =>
-    value?.split(',').map((v: string) => v.trim()) || ['.jpg', '.jpeg', '.png', '.pdf', '.txt', '.json']
+  @Transform(
+    ({ value }: { value: string }) =>
+      value?.split(',').map((v: string) => v.trim()) || ['.jpg', '.jpeg', '.png', '.pdf', '.txt', '.json']
   )
   ALLOWED_FILE_TYPES!: string[];
 
@@ -175,8 +166,9 @@ export class SecurityConfigSchema {
   @Expose()
   @IsArray()
   @IsPluginTrustLevels()
-  @Transform(({ value }: { value: string }) =>
-    value?.split(',').map((v: string) => v.trim()) || ['internal', 'verified', 'community']
+  @Transform(
+    ({ value }: { value: string }) =>
+      value?.split(',').map((v: string) => v.trim()) || ['internal', 'verified', 'community']
   )
   PLUGIN_TRUST_LEVELS!: string[];
 

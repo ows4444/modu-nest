@@ -2,13 +2,12 @@
  * Configuration documentation generator
  */
 export class ConfigDocumentationGenerator {
-  
   /**
    * Generates comprehensive documentation for all configuration options
    */
   static generateConfigurationDocumentation(): string {
     const lines: string[] = [];
-    
+
     lines.push('# Configuration Documentation');
     lines.push('');
     lines.push('This document describes all available configuration options for the Modu-Nest Plugin Architecture.');

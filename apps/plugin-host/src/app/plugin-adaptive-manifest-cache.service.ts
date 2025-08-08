@@ -34,7 +34,7 @@ export class PluginAdaptiveManifestCacheService {
     if (cachedManifest) {
       // Update access tracking
       this.updateAccessTracking(pluginPath);
-      
+
       this.logger.debug(`Cache hit for manifest: ${pluginPath}`);
       return cachedManifest;
     }
@@ -70,7 +70,7 @@ export class PluginAdaptiveManifestCacheService {
   invalidateManifest(pluginPath: string): void {
     const cacheKey = PluginCacheKeyBuilder.pluginManifest(pluginPath);
     this.cacheService.delete(cacheKey);
-    
+
     // Clean up tracking data
     this.accessCounts.delete(pluginPath);
     this.lastAccessTime.delete(pluginPath);
@@ -130,23 +130,23 @@ export class PluginAdaptiveManifestCacheService {
       case 'internal':
         // Internal plugins: longer cache (more stable)
         return baseTTL * 2;
-      
+
       case 'verified':
         // Verified plugins: slightly longer cache
         return baseTTL * 1.5;
-      
+
       case 'community':
         // Community plugins: standard cache
         return baseTTL;
-      
+
       case 'untrusted':
         // Untrusted plugins: shorter cache (more validation needed)
         return baseTTL * 0.5;
-      
+
       case 'quarantined':
         // Quarantined plugins: minimal cache
         return Math.min(baseTTL * 0.2, 60 * 1000); // Max 1 minute
-      
+
       default:
         return baseTTL;
     }
@@ -264,7 +264,7 @@ export class PluginAdaptiveManifestCacheService {
     const totalPlugins = this.accessCounts.size;
     if (totalPlugins === 0) return 0;
 
-    const pluginsWithMultipleAccess = Array.from(this.accessCounts.values()).filter(count => count > 1).length;
+    const pluginsWithMultipleAccess = Array.from(this.accessCounts.values()).filter((count) => count > 1).length;
     return pluginsWithMultipleAccess / totalPlugins;
   }
 
@@ -279,7 +279,8 @@ export class PluginAdaptiveManifestCacheService {
   /**
    * Clean up old tracking data periodically
    */
-  cleanupOldTracking(maxAge: number = 7 * 24 * 60 * 60 * 1000): void { // 7 days default
+  cleanupOldTracking(maxAge: number = 7 * 24 * 60 * 60 * 1000): void {
+    // 7 days default
     const now = Date.now();
     const cutoffTime = now - maxAge;
 

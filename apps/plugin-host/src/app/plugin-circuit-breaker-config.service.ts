@@ -23,17 +23,12 @@ export class PluginCircuitBreakerConfigService {
   /**
    * Configure circuit breaker settings based on plugin characteristics
    */
-  configureCircuitBreaker(
-    circuitBreaker: PluginCircuitBreaker,
-    context: PluginCircuitBreakerContext
-  ): void {
+  configureCircuitBreaker(circuitBreaker: PluginCircuitBreaker, context: PluginCircuitBreakerContext): void {
     const config = this.determineCircuitBreakerConfig(context);
-    
+
     circuitBreaker.setPluginConfig(context.pluginName, config);
-    
-    this.logger.debug(
-      `Circuit breaker configured for ${context.pluginName}: ${JSON.stringify(config)}`
-    );
+
+    this.logger.debug(`Circuit breaker configured for ${context.pluginName}: ${JSON.stringify(config)}`);
   }
 
   /**
@@ -105,7 +100,7 @@ export class PluginCircuitBreakerConfigService {
           resetTimeout: Math.min(config.resetTimeout, 30000),
           operationTimeout: Math.max(config.operationTimeout, 45000),
         };
-      
+
       case 'verified':
         // Verified plugins get moderate settings
         return {
@@ -113,11 +108,11 @@ export class PluginCircuitBreakerConfigService {
           maxFailures: Math.max(config.maxFailures, 3),
           resetTimeout: Math.min(config.resetTimeout, 20000),
         };
-      
+
       case 'community':
         // Community plugins use default settings
         return config;
-      
+
       case 'untrusted':
       case 'quarantined':
         // Untrusted plugins get strict settings
@@ -127,7 +122,7 @@ export class PluginCircuitBreakerConfigService {
           resetTimeout: Math.max(config.resetTimeout, 30000),
           operationTimeout: Math.min(config.operationTimeout, 5000),
         };
-      
+
       default:
         return config;
     }
@@ -159,10 +154,7 @@ export class PluginCircuitBreakerConfigService {
   /**
    * Apply manifest-specific circuit breaker overrides
    */
-  private applyManifestOverrides(
-    config: CircuitBreakerConfig,
-    manifestConfig: any
-  ): CircuitBreakerConfig {
+  private applyManifestOverrides(config: CircuitBreakerConfig, manifestConfig: any): CircuitBreakerConfig {
     const overrides: Partial<CircuitBreakerConfig> = {};
 
     if (manifestConfig.enabled === false) {
@@ -203,7 +195,7 @@ export class PluginCircuitBreakerConfigService {
           halfOpenMaxCalls: 1,
           monitoringWindow: 60000,
         };
-      
+
       case 'standard':
         return {
           maxFailures: 2,
@@ -212,7 +204,7 @@ export class PluginCircuitBreakerConfigService {
           halfOpenMaxCalls: 1,
           monitoringWindow: 90000,
         };
-      
+
       case 'experimental':
         return {
           maxFailures: 3,
@@ -221,7 +213,7 @@ export class PluginCircuitBreakerConfigService {
           halfOpenMaxCalls: 2,
           monitoringWindow: 120000,
         };
-      
+
       default:
         return this.getRecommendedConfig('standard');
     }

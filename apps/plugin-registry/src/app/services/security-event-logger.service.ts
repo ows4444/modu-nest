@@ -1,6 +1,6 @@
 /**
  * Security Event Logger Service
- * 
+ *
  * Provides structured logging for security events in plugin registry operations.
  * Designed for SIEM integration and compliance monitoring.
  */
@@ -158,7 +158,7 @@ export class SecurityEventLoggerService {
    */
   logSecurityEvent(event: BaseSecurityEvent): void {
     const enrichedEvent = this.enrichEvent(event);
-    
+
     // Log with appropriate level based on severity
     switch (event.severity) {
       case SecurityEventSeverity.CRITICAL:
@@ -311,10 +311,12 @@ export class SecurityEventLoggerService {
       description: `Admin operation ${operation} ${successful ? 'successful' : 'failed'}`,
       source: 'plugin-registry',
       actor: request ? this.extractActorInfo(request) : undefined,
-      resource: targetResource ? {
-        type: 'plugin',
-        identifier: targetResource,
-      } : undefined,
+      resource: targetResource
+        ? {
+            type: 'plugin',
+            identifier: targetResource,
+          }
+        : undefined,
       adminDetails: {
         operation,
         targetResource,
@@ -330,12 +332,7 @@ export class SecurityEventLoggerService {
   /**
    * Log capability violation event
    */
-  logCapabilityViolationEvent(
-    pluginName: string,
-    capability: string,
-    reason: string,
-    request?: Request
-  ): void {
+  logCapabilityViolationEvent(pluginName: string, capability: string, reason: string, request?: Request): void {
     const event: BaseSecurityEvent = {
       eventId: this.generateEventId(),
       timestamp: new Date().toISOString(),
@@ -389,7 +386,7 @@ export class SecurityEventLoggerService {
    */
   getSecurityEventStats(): Record<string, Record<string, number>> {
     const stats: Record<string, Record<string, number>> = {};
-    
+
     for (const [key, count] of this.eventCounter.entries()) {
       const [category, severity] = key.split(':');
       if (!stats[category]) {
@@ -469,8 +466,7 @@ export class SecurityEventLoggerService {
   }
 
   private extractCorrelationId(request?: Request): string | undefined {
-    return request?.headers['x-correlation-id'] as string || 
-           request?.headers['x-request-id'] as string;
+    return (request?.headers['x-correlation-id'] as string) || (request?.headers['x-request-id'] as string);
   }
 
   private updateEventCounter(category: SecurityEventCategory, severity: SecurityEventSeverity): void {

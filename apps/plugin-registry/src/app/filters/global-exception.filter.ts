@@ -1,18 +1,11 @@
 /**
  * Global Exception Filter
- * 
+ *
  * Provides standardized error response format across all controllers
  * in the plugin registry application.
  */
 
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { StandardErrorResponse } from '../types/error-response.types';
 
@@ -27,7 +20,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Determine HTTP status
     const httpStatus = this.getHttpStatus(exception);
-    
+
     // Generate standardized error response
     const errorResponse = this.createErrorResponse(exception, request, httpStatus);
 
@@ -42,7 +35,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       return exception.getStatus();
     }
-    
+
     // Handle specific error types
     if (exception instanceof Error) {
       if (exception.name === 'ValidationError') {
@@ -68,11 +61,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     return HttpStatus.INTERNAL_SERVER_ERROR;
   }
 
-  private createErrorResponse(
-    exception: unknown,
-    request: Request,
-    httpStatus: number
-  ): StandardErrorResponse {
+  private createErrorResponse(exception: unknown, request: Request, httpStatus: number): StandardErrorResponse {
     const timestamp = new Date().toISOString();
     const path = request.url;
     const method = request.method;
@@ -85,7 +74,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
-      
+
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
         code = this.getErrorCode(httpStatus);
@@ -101,7 +90,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof Error) {
       message = exception.message || 'Internal server error';
       code = this.getErrorCode(httpStatus, exception.name);
-      
+
       // Include stack trace in development
       if (process.env.NODE_ENV !== 'production') {
         stack = exception.stack;
@@ -193,25 +182,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (httpStatus >= 500) {
       // Server errors - log as error with full details
-      this.logger.error(
-        `Internal server error: ${errorResponse.error.message}`,
-        {
-          ...logContext,
-          exception: exception instanceof Error ? exception.stack : exception,
-        }
-      );
+      this.logger.error(`Internal server error: ${errorResponse.error.message}`, {
+        ...logContext,
+        exception: exception instanceof Error ? exception.stack : exception,
+      });
     } else if (httpStatus === 429) {
       // Rate limiting - log as warning
-      this.logger.warn(
-        `Rate limit exceeded: ${errorResponse.error.message}`,
-        logContext
-      );
+      this.logger.warn(`Rate limit exceeded: ${errorResponse.error.message}`, logContext);
     } else if (httpStatus >= 400) {
       // Client errors - log as debug/info
-      this.logger.debug(
-        `Client error: ${errorResponse.error.message}`,
-        logContext
-      );
+      this.logger.debug(`Client error: ${errorResponse.error.message}`, logContext);
     }
   }
 

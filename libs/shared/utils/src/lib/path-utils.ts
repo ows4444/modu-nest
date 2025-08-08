@@ -67,7 +67,7 @@ export function hasExtension(filePath: string, extension: string): boolean {
  * Checks if a file path has any of the specified extensions
  */
 export function hasAnyExtension(filePath: string, extensions: string[]): boolean {
-  return extensions.some(ext => hasExtension(filePath, ext));
+  return extensions.some((ext) => hasExtension(filePath, ext));
 }
 
 /**

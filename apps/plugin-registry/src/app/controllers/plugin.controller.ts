@@ -35,17 +35,17 @@ import {
   AdminRateLimit,
 } from '../guards/rate-limiting.guard';
 import { createSuccessResponse } from '../utils/response.utils';
-import { 
-  PluginNotFoundException, 
-  PluginUploadException, 
-  PluginValidationException 
+import {
+  PluginNotFoundException,
+  PluginUploadException,
+  PluginValidationException,
 } from '../exceptions/plugin-registry.exceptions';
 import { StandardSuccessResponse } from '../types/error-response.types';
-import { 
-  SecurityEventSeverity, 
-  SecurityEventCategory, 
+import {
+  SecurityEventSeverity,
+  SecurityEventCategory,
   SecurityEventAction,
-  BaseSecurityEvent 
+  BaseSecurityEvent,
 } from '../services/security-event-logger.service';
 
 @Controller('plugins')
@@ -111,7 +111,7 @@ export class PluginController {
       });
 
       const result = await this.pluginRegistryService.uploadPlugin(file.buffer);
-      
+
       // Log successful upload
       this.securityLogger.logAdminOperationEvent(
         'plugin-upload',
@@ -124,7 +124,7 @@ export class PluginController {
       return createSuccessResponse(result as PluginResponseDto, 'Plugin uploaded successfully');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      
+
       // Log failed upload
       this.securityLogger.logAdminOperationEvent(
         'plugin-upload',
@@ -150,8 +150,8 @@ export class PluginController {
     const maxLimit = 100;
 
     if (limit && limit > maxLimit) {
-      throw new PluginValidationException('pagination', { 
-        limit: [`Limit cannot exceed ${maxLimit}. Received: ${limit}`] 
+      throw new PluginValidationException('pagination', {
+        limit: [`Limit cannot exceed ${maxLimit}. Received: ${limit}`],
       });
     }
 
@@ -209,7 +209,7 @@ export class PluginController {
       );
 
       await this.pluginRegistryService.deletePlugin(name);
-      
+
       // Log successful deletion
       this.securityLogger.logAdminOperationEvent(
         'plugin-delete',
@@ -265,8 +265,8 @@ export class PluginController {
   @SearchRateLimit()
   async searchPlugins(@Query('q') query: string): Promise<StandardSuccessResponse<PluginResponseDto[]>> {
     if (!query || query.trim().length === 0) {
-      throw new PluginValidationException('search', { 
-        query: ['Search query is required and cannot be empty'] 
+      throw new PluginValidationException('search', {
+        query: ['Search query is required and cannot be empty'],
       });
     }
     const result = await this.pluginRegistryService.searchPlugins(query.trim());
@@ -486,7 +486,6 @@ export class PluginController {
   }
 
   private extractCorrelationId(request: Request): string | undefined {
-    return request.headers['x-correlation-id'] as string || 
-           request.headers['x-request-id'] as string;
+    return (request.headers['x-correlation-id'] as string) || (request.headers['x-request-id'] as string);
   }
 }

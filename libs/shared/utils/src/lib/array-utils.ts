@@ -5,10 +5,7 @@
 /**
  * Groups array items by a key function
  */
-export function groupBy<T, K extends keyof any>(
-  array: T[],
-  keyFn: (item: T) => K
-): Record<K, T[]> {
+export function groupBy<T, K extends keyof any>(array: T[], keyFn: (item: T) => K): Record<K, T[]> {
   return array.reduce((groups, item) => {
     const key = keyFn(item);
     if (!groups[key]) {
@@ -31,7 +28,7 @@ export function unique<T>(array: T[]): T[] {
  */
 export function uniqueBy<T, K>(array: T[], keyFn: (item: T) => K): T[] {
   const seen = new Set<K>();
-  return array.filter(item => {
+  return array.filter((item) => {
     const key = keyFn(item);
     if (seen.has(key)) {
       return false;
@@ -48,7 +45,7 @@ export function chunk<T>(array: T[], size: number): T[][] {
   if (size <= 0) {
     throw new Error('Chunk size must be positive');
   }
-  
+
   const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
     chunks.push(array.slice(i, i + size));
@@ -80,7 +77,7 @@ export function flattenDeep(array: any[]): any[] {
  */
 export function intersection<T>(array1: T[], array2: T[]): T[] {
   const set2 = new Set(array2);
-  return array1.filter(item => set2.has(item));
+  return array1.filter((item) => set2.has(item));
 }
 
 /**
@@ -88,7 +85,7 @@ export function intersection<T>(array1: T[], array2: T[]): T[] {
  */
 export function difference<T>(array1: T[], array2: T[]): T[] {
   const set2 = new Set(array2);
-  return array1.filter(item => !set2.has(item));
+  return array1.filter((item) => !set2.has(item));
 }
 
 /**
@@ -97,11 +94,8 @@ export function difference<T>(array1: T[], array2: T[]): T[] {
 export function symmetricDifference<T>(array1: T[], array2: T[]): T[] {
   const set1 = new Set(array1);
   const set2 = new Set(array2);
-  
-  return [
-    ...array1.filter(item => !set2.has(item)),
-    ...array2.filter(item => !set1.has(item))
-  ];
+
+  return [...array1.filter((item) => !set2.has(item)), ...array2.filter((item) => !set1.has(item))];
 }
 
 /**
@@ -123,7 +117,7 @@ export function sample<T>(array: T[], n: number): T[] {
   if (n >= array.length) {
     return shuffle(array);
   }
-  
+
   return shuffle(array).slice(0, n);
 }
 
@@ -133,15 +127,15 @@ export function sample<T>(array: T[], n: number): T[] {
 export function partition<T>(array: T[], predicate: (item: T) => boolean): [T[], T[]] {
   const truthy: T[] = [];
   const falsy: T[] = [];
-  
-  array.forEach(item => {
+
+  array.forEach((item) => {
     if (predicate(item)) {
       truthy.push(item);
     } else {
       falsy.push(item);
     }
   });
-  
+
   return [truthy, falsy];
 }
 
@@ -150,11 +144,11 @@ export function partition<T>(array: T[], predicate: (item: T) => boolean): [T[],
  */
 export function countBy<T>(array: T[]): Map<T, number> {
   const counts = new Map<T, number>();
-  
-  array.forEach(item => {
+
+  array.forEach((item) => {
     counts.set(item, (counts.get(item) || 0) + 1);
   });
-  
+
   return counts;
 }
 
@@ -163,10 +157,10 @@ export function countBy<T>(array: T[]): Map<T, number> {
  */
 export function mostFrequent<T>(array: T[]): T[] {
   if (array.length === 0) return [];
-  
+
   const counts = countBy(array);
   const maxCount = Math.max(...counts.values());
-  
+
   return Array.from(counts.entries())
     .filter(([, count]) => count === maxCount)
     .map(([item]) => item);

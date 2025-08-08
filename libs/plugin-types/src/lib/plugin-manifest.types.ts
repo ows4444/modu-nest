@@ -81,4 +81,3 @@ export interface PluginVersion {
   build?: string | null;
   raw?: string;
 }
-

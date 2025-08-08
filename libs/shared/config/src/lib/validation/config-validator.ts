@@ -5,7 +5,6 @@ import { isValidUrl, parseBoolean } from '@modu-nest/utils';
  * Comprehensive configuration validator with security checks and documentation
  */
 export class ConfigValidator {
-
   /**
    * Validates all configuration aspects and provides detailed reporting
    */
@@ -20,7 +19,7 @@ export class ConfigValidator {
       validatedSections: [],
     };
 
-    const nodeEnv = env.NODE_ENV as EnvironmentType || EnvironmentType.Development;
+    const nodeEnv = (env.NODE_ENV as EnvironmentType) || EnvironmentType.Development;
 
     // Validate each configuration section
     this.validateEnvironmentSection(env, nodeEnv, result);
@@ -98,12 +97,12 @@ export class ConfigValidator {
 
     // CORS validation
     if (env.CORS_ORIGINS) {
-      const origins = env.CORS_ORIGINS.split(',').map(o => o.trim());
+      const origins = env.CORS_ORIGINS.split(',').map((o) => o.trim());
       if (nodeEnv === EnvironmentType.Production && origins.includes('*')) {
         result.securityIssues.push('CORS_ORIGINS should not include "*" in production');
       }
 
-      origins.forEach(origin => {
+      origins.forEach((origin) => {
         if (origin !== '*' && !isValidUrl(origin) && !/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
           result.errors.push(`Invalid CORS origin: ${origin}`);
         }
@@ -122,7 +121,8 @@ export class ConfigValidator {
       const maxSize = parseInt(env.MAX_FILE_SIZE, 10);
       if (isNaN(maxSize) || maxSize <= 0) {
         result.errors.push('MAX_FILE_SIZE must be a positive number');
-      } else if (maxSize > 100 * 1024 * 1024) { // 100MB
+      } else if (maxSize > 100 * 1024 * 1024) {
+        // 100MB
         result.warnings.push('MAX_FILE_SIZE is very large (>100MB), consider security implications');
       }
     }
@@ -171,7 +171,7 @@ export class ConfigValidator {
     if (env.DB_POOL_MIN && env.DB_POOL_MAX) {
       const min = parseInt(env.DB_POOL_MIN, 10);
       const max = parseInt(env.DB_POOL_MAX, 10);
-      
+
       if (!isNaN(min) && !isNaN(max) && min >= max) {
         result.errors.push('DB_POOL_MIN must be less than DB_POOL_MAX');
       }
@@ -195,10 +195,10 @@ export class ConfigValidator {
 
     // Plugin trust levels
     if (env.PLUGIN_TRUST_LEVELS) {
-      const levels = env.PLUGIN_TRUST_LEVELS.split(',').map(l => l.trim());
+      const levels = env.PLUGIN_TRUST_LEVELS.split(',').map((l) => l.trim());
       const validLevels = ['internal', 'verified', 'community'];
-      
-      levels.forEach(level => {
+
+      levels.forEach((level) => {
         if (!validLevels.includes(level)) {
           result.errors.push(`Invalid plugin trust level: ${level}. Must be one of: ${validLevels.join(', ')}`);
         }
@@ -293,7 +293,7 @@ export class ConfigValidator {
     required: string[],
     result: ValidationResult
   ): void {
-    required.forEach(variable => {
+    required.forEach((variable) => {
       if (!env[variable] || env[variable]!.trim() === '') {
         result.missingRequired.push(variable);
         result.errors.push(`Required environment variable ${variable} is not set`);
@@ -306,47 +306,47 @@ export class ConfigValidator {
    */
   static generateReport(validationResult: ValidationResult): string {
     const lines: string[] = [];
-    
+
     lines.push('='.repeat(80));
     lines.push('CONFIGURATION VALIDATION REPORT');
     lines.push('='.repeat(80));
-    
+
     lines.push(`Overall Status: ${validationResult.isValid ? '✅ VALID' : '❌ INVALID'}`);
     lines.push(`Validated Sections: ${validationResult.validatedSections.join(', ')}`);
     lines.push('');
 
     if (validationResult.errors.length > 0) {
       lines.push('❌ ERRORS:');
-      validationResult.errors.forEach(error => lines.push(`  - ${error}`));
+      validationResult.errors.forEach((error) => lines.push(`  - ${error}`));
       lines.push('');
     }
 
     if (validationResult.securityIssues.length > 0) {
       lines.push('🔒 SECURITY ISSUES:');
-      validationResult.securityIssues.forEach(issue => lines.push(`  - ${issue}`));
+      validationResult.securityIssues.forEach((issue) => lines.push(`  - ${issue}`));
       lines.push('');
     }
 
     if (validationResult.warnings.length > 0) {
       lines.push('⚠️ WARNINGS:');
-      validationResult.warnings.forEach(warning => lines.push(`  - ${warning}`));
+      validationResult.warnings.forEach((warning) => lines.push(`  - ${warning}`));
       lines.push('');
     }
 
     if (validationResult.missingRequired.length > 0) {
       lines.push('📋 MISSING REQUIRED VARIABLES:');
-      validationResult.missingRequired.forEach(variable => lines.push(`  - ${variable}`));
+      validationResult.missingRequired.forEach((variable) => lines.push(`  - ${variable}`));
       lines.push('');
     }
 
     if (validationResult.recommendations.length > 0) {
       lines.push('💡 RECOMMENDATIONS:');
-      validationResult.recommendations.forEach(rec => lines.push(`  - ${rec}`));
+      validationResult.recommendations.forEach((rec) => lines.push(`  - ${rec}`));
       lines.push('');
     }
 
     lines.push('='.repeat(80));
-    
+
     return lines.join('\n');
   }
 }

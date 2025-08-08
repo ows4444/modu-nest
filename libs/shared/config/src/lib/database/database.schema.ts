@@ -1,17 +1,7 @@
 import { EnvironmentType } from '@modu-nest/const';
 import { parseBoolean } from '@modu-nest/utils';
 import { Expose, Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-  Max,
-  IsEnum,
-  ValidateIf,
-  IsPort,
-} from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Min, Max, IsEnum, ValidateIf, IsPort } from 'class-validator';
 import {
   IsConnectionTimeout,
   IsConnectionPool,

@@ -17,7 +17,7 @@ export function IsConnectionTimeout(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'number') return false;
-          
+
           // Timeout should be between 1 second and 5 minutes
           return value >= 1000 && value <= 300000;
         },
@@ -42,9 +42,9 @@ export function IsConnectionPool(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any, args: ValidationArguments) {
           if (typeof value !== 'number') return false;
-          
+
           const propertyName = args.property;
-          
+
           if (propertyName === 'connectionPoolMin') {
             return value >= 1 && value <= 20;
           } else if (propertyName === 'connectionPoolMax') {
@@ -52,7 +52,7 @@ export function IsConnectionPool(validationOptions?: ValidationOptions) {
             const min = obj.connectionPoolMin || 1;
             return value >= min && value <= 100;
           }
-          
+
           return true;
         },
         defaultMessage(args: ValidationArguments) {
@@ -82,7 +82,7 @@ export function IsBackupRetention(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'number') return false;
-          
+
           // Retention should be between 1 day and 365 days (1 year)
           return value >= 1 && value <= 365;
         },
@@ -107,9 +107,10 @@ export function IsCronExpression(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'string') return false;
-          
+
           // Basic cron validation (minute hour day month dayOfWeek)
-          const cronRegex = /^(\*|[0-5]?\d|\*\/\d+)\s+(\*|[01]?\d|2[0-3]|\*\/\d+)\s+(\*|[0-2]?\d|3[01]|\*\/\d+)\s+(\*|[0]?\d|1[0-2]|\*\/\d+)\s+(\*|[0-6]|\*\/\d+)$/;
+          const cronRegex =
+            /^(\*|[0-5]?\d|\*\/\d+)\s+(\*|[01]?\d|2[0-3]|\*\/\d+)\s+(\*|[0-2]?\d|3[01]|\*\/\d+)\s+(\*|[0]?\d|1[0-2]|\*\/\d+)\s+(\*|[0-6]|\*\/\d+)$/;
           return cronRegex.test(value);
         },
         defaultMessage() {
@@ -133,7 +134,7 @@ export function IsQueryTimeout(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'number') return false;
-          
+
           // Query timeout should be between 1 second and 10 minutes
           return value >= 1000 && value <= 600000;
         },
@@ -158,7 +159,7 @@ export function IsCacheDuration(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'number') return false;
-          
+
           // Cache duration should be between 1 second and 1 hour
           return value >= 1000 && value <= 3600000;
         },
@@ -183,7 +184,7 @@ export function IsMetricsInterval(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'number') return false;
-          
+
           // Metrics interval should be between 30 seconds and 1 hour
           return value >= 30000 && value <= 3600000;
         },

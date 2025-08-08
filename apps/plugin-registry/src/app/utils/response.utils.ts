@@ -1,6 +1,6 @@
 /**
  * Response Utilities
- * 
+ *
  * Provides helper functions for creating standardized response objects.
  */
 
@@ -72,12 +72,12 @@ export function StandardResponse(message?: string) {
 
     descriptor.value = async function (...args: unknown[]) {
       const result = await originalMethod.apply(this, args);
-      
+
       // If result is already a standard response, return as-is
       if (result && typeof result === 'object' && 'success' in result) {
         return result as StandardResponse;
       }
-      
+
       // Wrap in standard response
       return createSuccessResponse(result, message);
     };

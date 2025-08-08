@@ -208,13 +208,13 @@ export class CrossPluginServiceManager {
    */
   async getServiceProvider(token: string): Promise<CrossPluginServiceProvider | undefined> {
     const startTime = performance.now();
-    
+
     return await this.registryMutex.runExclusive(async () => {
       // Check cache first
       const cacheKey = `token:${token}`;
       const cached = this.metricsCache.get(cacheKey);
-      const wasFromCache = cached && (Date.now() - cached.timestamp) < this.maxCacheAge;
-      
+      const wasFromCache = cached && Date.now() - cached.timestamp < this.maxCacheAge;
+
       let entry: ServiceRegistryEntry | undefined;
       if (wasFromCache) {
         entry = cached!.result;
@@ -226,7 +226,7 @@ export class CrossPluginServiceManager {
       }
 
       const resolutionTime = performance.now() - startTime;
-      
+
       // Record performance metrics
       this.recordResolutionPerformance({
         serviceName: entry?.serviceName || 'unknown',
@@ -248,8 +248,8 @@ export class CrossPluginServiceManager {
    * Get a versioned cross-plugin service provider with compatibility checking
    */
   async getVersionedServiceProvider(
-    serviceName: string, 
-    requestedVersion?: string, 
+    serviceName: string,
+    requestedVersion?: string,
     allowCompatible = true
   ): Promise<{
     provider?: CrossPluginServiceProvider;
@@ -257,19 +257,19 @@ export class CrossPluginServiceManager {
     serviceInfo?: ServiceVersionInfo;
   }> {
     const startTime = performance.now();
-    
+
     return await this.registryMutex.runExclusive(async () => {
       // Check cache first
       const cacheKey = `versioned:${serviceName}:${requestedVersion || 'latest'}:${allowCompatible}`;
       const cached = this.metricsCache.get(cacheKey);
-      const wasFromCache = cached && (Date.now() - cached.timestamp) < this.maxCacheAge;
-      
+      const wasFromCache = cached && Date.now() - cached.timestamp < this.maxCacheAge;
+
       let result: {
         provider?: CrossPluginServiceProvider;
         compatibilityResult: VersionCompatibilityResult;
         serviceInfo?: ServiceVersionInfo;
       };
-      
+
       if (wasFromCache) {
         result = cached!.result;
       } else {
@@ -278,7 +278,7 @@ export class CrossPluginServiceManager {
       }
 
       const resolutionTime = performance.now() - startTime;
-      
+
       // Record performance metrics
       this.recordResolutionPerformance({
         serviceName,
@@ -565,7 +565,12 @@ export class CrossPluginServiceManager {
 
       // Check for version conflicts
       for (const [existingVer, existingEntry] of serviceVersions.entries()) {
-        const compatibility = this.checkVersionCompatibility(version, existingVer, compatibleVersions, existingEntry.compatibleVersions);
+        const compatibility = this.checkVersionCompatibility(
+          version,
+          existingVer,
+          compatibleVersions,
+          existingEntry.compatibleVersions
+        );
         if (compatibility.level === 'incompatible') {
           this.logger.warn(`Incompatible versions detected: ${config.serviceName} v${version} vs v${existingVer}`);
         }
@@ -583,13 +588,15 @@ export class CrossPluginServiceManager {
       pluginName,
       serviceName: config.serviceName,
       registrationTime: new Date(),
-      deprecationInfo: config.deprecated ? {
-        isDeprecated: true,
-        since: config.deprecated.since,
-        removeIn: config.deprecated.removeIn,
-        replacement: config.deprecated.replacement,
-        reason: config.deprecated.reason,
-      } : undefined,
+      deprecationInfo: config.deprecated
+        ? {
+            isDeprecated: true,
+            since: config.deprecated.since,
+            removeIn: config.deprecated.removeIn,
+            replacement: config.deprecated.replacement,
+            reason: config.deprecated.reason,
+          }
+        : undefined,
     };
 
     // Register in all maps
@@ -619,7 +626,7 @@ export class CrossPluginServiceManager {
     serviceInfo?: ServiceVersionInfo;
   } {
     const serviceVersions = this.versionRegistry.get(serviceName);
-    
+
     if (!serviceVersions || serviceVersions.size === 0) {
       return {
         compatibilityResult: {
@@ -673,7 +680,7 @@ export class CrossPluginServiceManager {
           [requestedVersion],
           entry.compatibleVersions
         );
-        
+
         if (compatibility.isCompatible) {
           return {
             provider: entry.provider,
@@ -782,7 +789,7 @@ export class CrossPluginServiceManager {
    * Parse semantic version string
    */
   private parseVersion(version: string): { major: number; minor: number; patch: number } {
-    const parts = version.split('.').map(part => parseInt(part.split('-')[0], 10));
+    const parts = version.split('.').map((part) => parseInt(part.split('-')[0], 10));
     return {
       major: parts[0] || 0,
       minor: parts[1] || 0,
@@ -850,7 +857,7 @@ export class CrossPluginServiceManager {
   }> {
     return await this.registryMutex.runExclusive(async () => {
       const serviceVersions = this.versionRegistry.get(serviceName);
-      
+
       if (!serviceVersions || serviceVersions.size === 0) {
         return {
           versions: [],
@@ -862,7 +869,7 @@ export class CrossPluginServiceManager {
 
       const versions = Array.from(serviceVersions.keys());
       const latestVersion = this.getLatestVersion(serviceVersions).version;
-      const deprecatedVersions = versions.filter(v => {
+      const deprecatedVersions = versions.filter((v) => {
         const entry = serviceVersions.get(v);
         return entry?.deprecationInfo?.isDeprecated;
       });
@@ -924,8 +931,8 @@ export class CrossPluginServiceManager {
     recentErrors: string[];
   }> {
     return await this.registryMutex.runExclusive(() => {
-      const serviceRecords = this.performanceRecords.filter(r => r.serviceName === serviceName);
-      
+      const serviceRecords = this.performanceRecords.filter((r) => r.serviceName === serviceName);
+
       if (serviceRecords.length === 0) {
         return {
           totalRequests: 0,
@@ -938,18 +945,19 @@ export class CrossPluginServiceManager {
         };
       }
 
-      const successful = serviceRecords.filter(r => r.success);
-      const failed = serviceRecords.filter(r => !r.success);
-      const fromCache = serviceRecords.filter(r => r.wasFromCache);
-      
+      const successful = serviceRecords.filter((r) => r.success);
+      const failed = serviceRecords.filter((r) => !r.success);
+      const fromCache = serviceRecords.filter((r) => r.wasFromCache);
+
       const compatibilityBreakdown: Record<string, number> = {};
       for (const record of serviceRecords) {
-        compatibilityBreakdown[record.compatibilityLevel] = (compatibilityBreakdown[record.compatibilityLevel] || 0) + 1;
+        compatibilityBreakdown[record.compatibilityLevel] =
+          (compatibilityBreakdown[record.compatibilityLevel] || 0) + 1;
       }
 
       const recentErrors = failed
         .slice(-10)
-        .map(r => r.errorReason || 'Unknown error')
+        .map((r) => r.errorReason || 'Unknown error')
         .filter((error, index, arr) => arr.indexOf(error) === index);
 
       const totalResolutionTime = serviceRecords.reduce((sum, r) => sum + r.resolutionTime, 0);
@@ -980,7 +988,7 @@ export class CrossPluginServiceManager {
       this.logger.warn(`Token collision detected, regenerating: ${token} -> ${newToken}`);
       finalToken = newToken;
     }
-    
+
     // Create a basic registry entry for backward compatibility
     const entry: ServiceRegistryEntry = {
       provider,
@@ -991,7 +999,7 @@ export class CrossPluginServiceManager {
       serviceName: 'unknown',
       registrationTime: new Date(),
     };
-    
+
     this.serviceRegistry.set(finalToken, entry);
     return finalToken;
   }
@@ -1065,7 +1073,7 @@ export class CrossPluginServiceManager {
       exists: !!provider,
       isGlobal: this.globalTokens.has(token),
       validation,
-      provider: provider || undefined,
+      provider: provider ? provider.provider : undefined,
     };
   }
 
@@ -1142,12 +1150,12 @@ export class CrossPluginServiceManager {
   private recordResolutionPerformance(record: ResolutionPerformanceRecord): void {
     // Add to performance records
     this.performanceRecords.push(record);
-    
+
     // Limit memory usage by removing old records
     if (this.performanceRecords.length > this.maxPerformanceRecords) {
       this.performanceRecords.splice(0, this.performanceRecords.length - this.maxPerformanceRecords);
     }
-    
+
     // Clean old cache entries periodically
     if (this.performanceRecords.length % 100 === 0) {
       this.cleanOldCacheEntries();
@@ -1159,43 +1167,41 @@ export class CrossPluginServiceManager {
    */
   private calculateMetrics(): ServiceDiscoveryMetrics {
     const now = Date.now();
-    const successful = this.performanceRecords.filter(r => r.success);
-    const failed = this.performanceRecords.filter(r => !r.success);
-    const fromCache = this.performanceRecords.filter(r => r.wasFromCache);
-    
+    const successful = this.performanceRecords.filter((r) => r.success);
+    const failed = this.performanceRecords.filter((r) => !r.success);
+    const fromCache = this.performanceRecords.filter((r) => r.wasFromCache);
+
     // Calculate total resolution time
     const totalResolutionTime = this.performanceRecords.reduce((sum, r) => sum + r.resolutionTime, 0);
-    
+
     // Group by service
     const resolutionsByService: Record<string, number> = {};
     const resolutionTimesByService: Record<string, number[]> = {};
-    
+
     for (const record of this.performanceRecords) {
       resolutionsByService[record.serviceName] = (resolutionsByService[record.serviceName] || 0) + 1;
-      
+
       if (!resolutionTimesByService[record.serviceName]) {
         resolutionTimesByService[record.serviceName] = [];
       }
       resolutionTimesByService[record.serviceName].push(record.resolutionTime);
     }
-    
+
     // Group errors by reason
     const errorsByReason: Record<string, number> = {};
     for (const record of failed) {
       const reason = record.errorReason || 'Unknown error';
       errorsByReason[reason] = (errorsByReason[reason] || 0) + 1;
     }
-    
+
     // Count version compatibility checks and deprecation warnings
-    const versionCompatibilityChecks = this.performanceRecords.filter(
-      r => r.compatibilityLevel !== 'exact'
-    ).length;
-    
-    const deprecationWarnings = this.performanceRecords.filter(r => {
+    const versionCompatibilityChecks = this.performanceRecords.filter((r) => r.compatibilityLevel !== 'exact').length;
+
+    const deprecationWarnings = this.performanceRecords.filter((r) => {
       const serviceName = r.serviceName;
       const serviceVersions = this.versionRegistry.get(serviceName);
       if (!serviceVersions) return false;
-      
+
       const entry = serviceVersions.get(r.resolvedVersion);
       return entry?.deprecationInfo?.isDeprecated || false;
     }).length;
@@ -1204,7 +1210,8 @@ export class CrossPluginServiceManager {
       totalRequests: this.performanceRecords.length,
       successfulResolutions: successful.length,
       failedResolutions: failed.length,
-      averageResolutionTime: this.performanceRecords.length > 0 ? totalResolutionTime / this.performanceRecords.length : 0,
+      averageResolutionTime:
+        this.performanceRecords.length > 0 ? totalResolutionTime / this.performanceRecords.length : 0,
       cacheHitRate: this.performanceRecords.length > 0 ? (fromCache.length / this.performanceRecords.length) * 100 : 0,
       versionCompatibilityChecks,
       deprecationWarnings,
@@ -1221,17 +1228,17 @@ export class CrossPluginServiceManager {
   private cleanOldCacheEntries(): void {
     const now = Date.now();
     const entriesToDelete: string[] = [];
-    
+
     for (const [key, entry] of this.metricsCache.entries()) {
       if (now - entry.timestamp > this.maxCacheAge) {
         entriesToDelete.push(key);
       }
     }
-    
+
     for (const key of entriesToDelete) {
       this.metricsCache.delete(key);
     }
-    
+
     if (entriesToDelete.length > 0) {
       this.logger.debug(`Cleaned ${entriesToDelete.length} expired cache entries`);
     }

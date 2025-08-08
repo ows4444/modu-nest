@@ -78,11 +78,11 @@ export class PluginDependencyResolver {
    */
   configureHealthOptions(options: Partial<DependencyHealthOptions>): void {
     Object.assign(this.healthOptions, options);
-    
+
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer);
     }
-    
+
     if (this.healthOptions.enabled) {
       this.startHealthChecking();
     }
@@ -101,12 +101,12 @@ export class PluginDependencyResolver {
   getPluginDependencyHealth(pluginName: string): DependencyHealthCheck[] {
     const results: DependencyHealthCheck[] = [];
     const dependencies = this.activeDependencies.get(pluginName);
-    
+
     if (!dependencies) {
       return results;
     }
 
-    dependencies.forEach(dep => {
+    dependencies.forEach((dep) => {
       const healthKey = `${pluginName}:${dep}`;
       const health = this.dependencyHealthChecks.get(healthKey);
       if (health) {
@@ -367,7 +367,7 @@ export class PluginDependencyResolver {
   }
 
   private initializeHealthChecks(pluginName: string, dependencies: string[]): void {
-    dependencies.forEach(dep => {
+    dependencies.forEach((dep) => {
       const healthKey = `${pluginName}:${dep}`;
       if (!this.dependencyHealthChecks.has(healthKey)) {
         this.dependencyHealthChecks.set(healthKey, {
@@ -387,7 +387,7 @@ export class PluginDependencyResolver {
     }
 
     const healthChecks = Array.from(this.dependencyHealthChecks.entries());
-    const checkPromises = healthChecks.map(([healthKey, healthCheck]) => 
+    const checkPromises = healthChecks.map(([healthKey, healthCheck]) =>
       this.performSingleHealthCheck(healthKey, healthCheck)
     );
 
@@ -403,7 +403,7 @@ export class PluginDependencyResolver {
 
   private async performSingleHealthCheck(healthKey: string, healthCheck: DependencyHealthCheck): Promise<void> {
     const { pluginName, dependency } = healthCheck;
-    
+
     try {
       // Check if dependency is still loaded and functional
       const dependencyState = this.getCurrentPluginState(dependency);
@@ -413,16 +413,19 @@ export class PluginDependencyResolver {
       if (isHealthy) {
         const pluginInstance = await this.getPluginInstance(dependency);
         const isResponding = await this.checkPluginResponsiveness(pluginInstance);
-        
+
         if (isResponding) {
           this.updateHealthCheckSuccess(healthKey, healthCheck);
         } else {
-          await this.updateHealthCheckFailure(healthKey, healthCheck, new Error('Plugin not responding to health check'));
+          await this.updateHealthCheckFailure(
+            healthKey,
+            healthCheck,
+            new Error('Plugin not responding to health check')
+          );
         }
       } else {
         await this.updateHealthCheckFailure(healthKey, healthCheck, new Error(`Plugin state is ${dependencyState}`));
       }
-
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error(String(error));
       await this.updateHealthCheckFailure(healthKey, healthCheck, errorObj);
@@ -431,7 +434,7 @@ export class PluginDependencyResolver {
 
   private updateHealthCheckSuccess(healthKey: string, healthCheck: DependencyHealthCheck): void {
     const wasUnhealthy = !healthCheck.isHealthy;
-    
+
     this.dependencyHealthChecks.set(healthKey, {
       ...healthCheck,
       lastCheck: new Date(),
@@ -451,7 +454,11 @@ export class PluginDependencyResolver {
     }
   }
 
-  private async updateHealthCheckFailure(healthKey: string, healthCheck: DependencyHealthCheck, error: Error): Promise<void> {
+  private async updateHealthCheckFailure(
+    healthKey: string,
+    healthCheck: DependencyHealthCheck,
+    error: Error
+  ): Promise<void> {
     const consecutiveFailures = healthCheck.consecutiveFailures + 1;
     const isHealthy = consecutiveFailures < this.healthOptions.maxConsecutiveFailures;
 
@@ -463,7 +470,9 @@ export class PluginDependencyResolver {
       lastError: error,
     });
 
-    this.logger.warn(`Dependency health check failed for ${healthCheck.dependency} (plugin: ${healthCheck.pluginName}): ${error.message} (failures: ${consecutiveFailures})`);
+    this.logger.warn(
+      `Dependency health check failed for ${healthCheck.dependency} (plugin: ${healthCheck.pluginName}): ${error.message} (failures: ${consecutiveFailures})`
+    );
 
     // Emit failure event
     this.eventEmitter.emit('plugin.dependency.health.failed', {
@@ -477,7 +486,9 @@ export class PluginDependencyResolver {
 
     // If dependency is now considered unhealthy, emit critical event
     if (!isHealthy && healthCheck.isHealthy) {
-      this.logger.error(`Dependency ${healthCheck.dependency} for plugin ${healthCheck.pluginName} is now unhealthy after ${consecutiveFailures} failures`);
+      this.logger.error(
+        `Dependency ${healthCheck.dependency} for plugin ${healthCheck.pluginName} is now unhealthy after ${consecutiveFailures} failures`
+      );
       this.eventEmitter.emit('plugin.dependency.unhealthy', {
         pluginName: healthCheck.pluginName,
         dependency: healthCheck.dependency,
@@ -502,7 +513,7 @@ export class PluginDependencyResolver {
     // Simulate a responsiveness check with timeout
     return new Promise((resolve) => {
       const timeout = setTimeout(() => resolve(false), this.healthOptions.healthCheckTimeout);
-      
+
       // Simulate health check - in real implementation, this would call plugin health endpoint
       setTimeout(() => {
         clearTimeout(timeout);
@@ -514,7 +525,7 @@ export class PluginDependencyResolver {
   private cleanupStaleHealthChecks(): void {
     const activePlugins = new Set(this.activeDependencies.keys());
     const healthCheckEntries = Array.from(this.dependencyHealthChecks.entries());
-    
+
     for (const [healthKey, healthCheck] of healthCheckEntries) {
       if (!activePlugins.has(healthCheck.pluginName)) {
         this.dependencyHealthChecks.delete(healthKey);
@@ -531,7 +542,7 @@ export class PluginDependencyResolver {
       clearInterval(this.healthCheckTimer);
       this.healthCheckTimer = undefined;
     }
-    
+
     this.dependencyHealthChecks.clear();
     this.activeDependencies.clear();
     this.logger.debug('PluginDependencyResolver destroyed and resources cleaned up');

@@ -27,17 +27,17 @@ export interface BoundLifecycleHook {
 @Injectable()
 export class PluginLifecycleHookDiscoveryService {
   private readonly logger = new Logger(PluginLifecycleHookDiscoveryService.name);
-  
+
   // Cache discovered hooks to avoid repeated reflection
   private readonly hookCache = new Map<string, PluginHookRegistry>();
-  
+
   // Supported lifecycle hook types
   private readonly supportedHooks: PluginLifecycleHook[] = [
     'beforeLoad',
-    'afterLoad', 
+    'afterLoad',
     'beforeUnload',
     'afterUnload',
-    'onError'
+    'onError',
   ];
 
   /**
@@ -45,7 +45,7 @@ export class PluginLifecycleHookDiscoveryService {
    */
   discoverHooks(plugin: LoadedPlugin): Map<PluginLifecycleHook, BoundLifecycleHook[]> {
     const pluginName = plugin.manifest.name;
-    
+
     // Check cache first
     const cached = this.hookCache.get(pluginName);
     if (cached && this.isCacheValid(cached, plugin.manifest)) {
@@ -55,10 +55,10 @@ export class PluginLifecycleHookDiscoveryService {
 
     // Discover hooks using optimized approach
     const discoveredHooks = this.performHookDiscovery(plugin);
-    
+
     // Cache the discovered hooks
     this.cacheHooks(pluginName, discoveredHooks, plugin.manifest);
-    
+
     return discoveredHooks;
   }
 
@@ -67,12 +67,12 @@ export class PluginLifecycleHookDiscoveryService {
    */
   processManifestHooks(plugin: LoadedPlugin): Map<PluginLifecycleHook, BoundLifecycleHook[]> {
     const pluginName = plugin.manifest.name;
-    
+
     // Check if manifest contains pre-processed hook metadata
     if (plugin.manifest.events?.lifecycle) {
       return this.loadHooksFromManifest(plugin);
     }
-    
+
     // Fall back to reflection-based discovery
     return this.discoverHooks(plugin);
   }
@@ -83,7 +83,7 @@ export class PluginLifecycleHookDiscoveryService {
   private loadHooksFromManifest(plugin: LoadedPlugin): Map<PluginLifecycleHook, BoundLifecycleHook[]> {
     const hooks = new Map<PluginLifecycleHook, BoundLifecycleHook[]>();
     const manifest = plugin.manifest;
-    
+
     // This would be populated during build phase
     const lifecycleConfig = manifest.events?.lifecycle;
     if (!lifecycleConfig) {
@@ -109,10 +109,10 @@ export class PluginLifecycleHookDiscoveryService {
     }
 
     const instance = plugin.instance as Record<string, unknown>;
-    
+
     // Optimized discovery: focus on likely hook locations
     const exportEntries = Object.entries(instance);
-    
+
     for (const [exportName, exportValue] of exportEntries) {
       if (this.shouldSkipExport(exportValue)) {
         continue;
@@ -132,12 +132,12 @@ export class PluginLifecycleHookDiscoveryService {
   private shouldSkipExport(exportValue: unknown): boolean {
     if (!exportValue) return true;
     if (typeof exportValue !== 'object' && typeof exportValue !== 'function') return true;
-    
+
     // Skip common non-hook exports
     if (typeof exportValue === 'string' || typeof exportValue === 'number' || typeof exportValue === 'boolean') {
       return true;
     }
-    
+
     return false;
   }
 
@@ -146,7 +146,7 @@ export class PluginLifecycleHookDiscoveryService {
    */
   private scanExportForHooks(exportName: string, exportValue: unknown): LifecycleHookMetadata[] {
     const discoveredHooks: LifecycleHookMetadata[] = [];
-    
+
     // Get the prototype or object to scan
     const target = typeof exportValue === 'function' ? exportValue.prototype : exportValue;
     if (!target || typeof target !== 'object') {
@@ -155,10 +155,10 @@ export class PluginLifecycleHookDiscoveryService {
 
     // Get all method names efficiently
     const methodNames = this.getAllMethodNames(target);
-    
+
     for (const methodName of methodNames) {
       if (methodName === 'constructor') continue;
-      
+
       try {
         const method = (target as any)[methodName];
         if (typeof method !== 'function') continue;
@@ -181,19 +181,20 @@ export class PluginLifecycleHookDiscoveryService {
    */
   private getAllMethodNames(obj: object): string[] {
     const names = new Set<string>();
-    
+
     // Get own property names
-    Object.getOwnPropertyNames(obj).forEach(name => names.add(name));
-    
+    Object.getOwnPropertyNames(obj).forEach((name) => names.add(name));
+
     // Walk the prototype chain (but limit depth to avoid going too deep)
     let current = Object.getPrototypeOf(obj);
     let depth = 0;
-    while (current && depth < 3) { // Limit depth to 3 levels
-      Object.getOwnPropertyNames(current).forEach(name => names.add(name));
+    while (current && depth < 3) {
+      // Limit depth to 3 levels
+      Object.getOwnPropertyNames(current).forEach((name) => names.add(name));
       current = Object.getPrototypeOf(current);
       depth++;
     }
-    
+
     return Array.from(names);
   }
 
@@ -204,7 +205,7 @@ export class PluginLifecycleHookDiscoveryService {
     for (const hookType of this.supportedHooks) {
       const metadataKey = `plugin:hook:${hookType}`;
       const hasHook = Reflect.getMetadata(metadataKey, method);
-      
+
       if (hasHook) {
         return {
           hookType,
@@ -216,7 +217,7 @@ export class PluginLifecycleHookDiscoveryService {
         };
       }
     }
-    
+
     return null;
   }
 
@@ -224,8 +225,7 @@ export class PluginLifecycleHookDiscoveryService {
    * Check if a function is async
    */
   private isAsyncFunction(fn: Function): boolean {
-    return fn.constructor.name === 'AsyncFunction' || 
-           fn.toString().startsWith('async ');
+    return fn.constructor.name === 'AsyncFunction' || fn.toString().startsWith('async ');
   }
 
   /**
@@ -284,16 +284,19 @@ export class PluginLifecycleHookDiscoveryService {
   /**
    * Register a bound hook in the hooks map
    */
-  private registerBoundHook(hooks: Map<PluginLifecycleHook, BoundLifecycleHook[]>, boundHook: BoundLifecycleHook): void {
+  private registerBoundHook(
+    hooks: Map<PluginLifecycleHook, BoundLifecycleHook[]>,
+    boundHook: BoundLifecycleHook
+  ): void {
     const hookType = boundHook.metadata.hookType;
-    
+
     if (!hooks.has(hookType)) {
       hooks.set(hookType, []);
     }
-    
+
     const hookList = hooks.get(hookType)!;
     hookList.push(boundHook);
-    
+
     // Sort by priority if specified
     hookList.sort((a, b) => (b.metadata.priority || 0) - (a.metadata.priority || 0));
   }
@@ -302,12 +305,12 @@ export class PluginLifecycleHookDiscoveryService {
    * Cache discovered hooks
    */
   private cacheHooks(
-    pluginName: string, 
+    pluginName: string,
     hooks: Map<PluginLifecycleHook, BoundLifecycleHook[]>,
     manifest: PluginManifest
   ): void {
     const metadata = this.extractMetadataFromHooks(hooks);
-    
+
     this.hookCache.set(pluginName, {
       pluginName,
       hooks,
@@ -323,13 +326,13 @@ export class PluginLifecycleHookDiscoveryService {
    */
   private extractMetadataFromHooks(hooks: Map<PluginLifecycleHook, BoundLifecycleHook[]>): LifecycleHookMetadata[] {
     const metadata: LifecycleHookMetadata[] = [];
-    
+
     for (const [_, boundHooks] of hooks) {
       for (const boundHook of boundHooks) {
         metadata.push(boundHook.metadata);
       }
     }
-    
+
     return metadata;
   }
 
@@ -340,11 +343,11 @@ export class PluginLifecycleHookDiscoveryService {
     // Cache for 30 minutes by default
     const cacheAge = Date.now() - cached.cacheTime.getTime();
     const maxCacheAge = 30 * 60 * 1000;
-    
+
     if (cacheAge > maxCacheAge) {
       return false;
     }
-    
+
     // Additional validation could check manifest version, file modification time, etc.
     return true;
   }
@@ -358,12 +361,10 @@ export class PluginLifecycleHookDiscoveryService {
     metadata: LifecycleHookMetadata[]
   ): void {
     const totalHooks = Array.from(hooks.values()).reduce((sum, handlers) => sum + handlers.length, 0);
-    
+
     if (totalHooks > 0) {
       this.logger.debug(
-        `Discovered ${totalHooks} lifecycle hook(s) for plugin '${pluginName}': ${
-          Array.from(hooks.keys()).join(', ')
-        }`
+        `Discovered ${totalHooks} lifecycle hook(s) for plugin '${pluginName}': ${Array.from(hooks.keys()).join(', ')}`
       );
     }
   }

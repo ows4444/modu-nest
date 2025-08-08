@@ -62,7 +62,7 @@ export function addDays(date: Date, days: number): Date {
  * Checks if a timestamp is expired based on TTL
  */
 export function isExpired(timestamp: number, ttlMs: number): boolean {
-  return Date.now() >= (timestamp + ttlMs);
+  return Date.now() >= timestamp + ttlMs;
 }
 
 /**
@@ -147,18 +147,18 @@ export function formatDuration(ms: number): string {
   if (ms < 1000) {
     return `${ms}ms`;
   }
-  
+
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) {
     return `${seconds}s`;
   }
-  
+
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) {
     const remainingSeconds = seconds % 60;
     return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
   }
-  
+
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
@@ -171,12 +171,12 @@ export function getRelativeTime(date: Date, now: Date = new Date()): string {
   const diffMs = date.getTime() - now.getTime();
   const absDiffMs = Math.abs(diffMs);
   const isPast = diffMs < 0;
-  
+
   const seconds = Math.floor(absDiffMs / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  
+
   if (seconds < 60) {
     return isPast ? 'just now' : 'in a moment';
   } else if (minutes < 60) {

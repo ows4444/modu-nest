@@ -18,22 +18,22 @@ export function IsSecurePassword(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'string') return false;
-          
+
           // Minimum 12 characters
           if (value.length < 12) return false;
-          
+
           // Contains uppercase letter
           if (!/[A-Z]/.test(value)) return false;
-          
+
           // Contains lowercase letter
           if (!/[a-z]/.test(value)) return false;
-          
+
           // Contains number
           if (!/\d/.test(value)) return false;
-          
+
           // Contains special character
           if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) return false;
-          
+
           return true;
         },
         defaultMessage() {
@@ -57,7 +57,7 @@ export function IsJwtExpiration(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'string') return false;
-          
+
           // Match patterns like '1h', '30m', '7d', '1y'
           return /^\d+[smhdy]$/.test(value);
         },
@@ -82,13 +82,13 @@ export function IsCorsOrigins(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (!Array.isArray(value)) return false;
-          
-          return value.every(origin => {
+
+          return value.every((origin) => {
             if (typeof origin !== 'string') return false;
-            
+
             // Allow '*' for all origins (not recommended for production)
             if (origin === '*') return true;
-            
+
             // Must be valid URL or localhost
             return isValidUrl(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin);
           });
@@ -137,10 +137,10 @@ export function IsFileExtensions(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (!Array.isArray(value)) return false;
-          
-          return value.every(ext => {
+
+          return value.every((ext) => {
             if (typeof ext !== 'string') return false;
-            
+
             // Must start with . and contain only alphanumeric characters
             return /^\.[a-zA-Z0-9]+$/.test(ext);
           });
@@ -166,10 +166,10 @@ export function IsSafePath(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'string') return false;
-          
+
           // Check for directory traversal attempts
           if (value.includes('..') || value.includes('~')) return false;
-          
+
           // Must be absolute path or relative without traversal
           return /^(\/[^\/\0]+)*\/?$/.test(value) || /^[^\/\0][^\/\0]*$/.test(value);
         },
@@ -194,7 +194,7 @@ export function IsHashRounds(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (typeof value !== 'number') return false;
-          
+
           // Reasonable range: 10-15 rounds
           return value >= 10 && value <= 15;
         },
@@ -219,9 +219,9 @@ export function IsPluginTrustLevels(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any) {
           if (!Array.isArray(value)) return false;
-          
+
           const validLevels = ['internal', 'verified', 'community'];
-          return value.every(level => validLevels.includes(level));
+          return value.every((level) => validLevels.includes(level));
         },
         defaultMessage() {
           return 'Plugin trust levels must be "internal", "verified", or "community"';
@@ -244,9 +244,9 @@ export function IsRateLimit(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any, args: ValidationArguments) {
           if (typeof value !== 'number') return false;
-          
+
           const propertyName = args.property;
-          
+
           if (propertyName === 'rateLimitWindowMs') {
             // Window should be between 1 minute and 1 hour
             return value >= 60000 && value <= 3600000;
@@ -254,7 +254,7 @@ export function IsRateLimit(validationOptions?: ValidationOptions) {
             // Max requests should be reasonable
             return value >= 1 && value <= 10000;
           }
-          
+
           return true;
         },
         defaultMessage(args: ValidationArguments) {

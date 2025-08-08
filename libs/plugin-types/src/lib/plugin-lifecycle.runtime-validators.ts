@@ -49,10 +49,10 @@ export class PluginLifecycleRuntimeValidator {
 
     for (let i = 0; i < data.length; i++) {
       const result = await this.validateLifecycleHook(data[i]);
-      result.errors.forEach(error => {
+      result.errors.forEach((error) => {
         allErrors.push(`Hook ${i + 1}: ${error}`);
       });
-      result.warnings.forEach(warning => {
+      result.warnings.forEach((warning) => {
         allWarnings.push(`Hook ${i + 1}: ${warning}`);
       });
     }
@@ -75,17 +75,17 @@ export class PluginLifecycleRuntimeValidator {
       const fieldPath = path ? `${path}.${error.property}` : error.property;
 
       if (error.constraints) {
-        Object.values(error.constraints).forEach(constraint => {
+        Object.values(error.constraints).forEach((constraint) => {
           formattedErrors.push(`${fieldPath}: ${constraint}`);
         });
       }
 
       if (error.children && error.children.length > 0) {
-        error.children.forEach(child => extractErrors(child, fieldPath));
+        error.children.forEach((child) => extractErrors(child, fieldPath));
       }
     };
 
-    errors.forEach(error => extractErrors(error));
+    errors.forEach((error) => extractErrors(error));
 
     return {
       isValid: formattedErrors.length === 0,

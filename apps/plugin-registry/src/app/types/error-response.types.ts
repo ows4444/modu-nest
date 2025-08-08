@@ -1,6 +1,6 @@
 /**
  * Standardized Error Response Types
- * 
+ *
  * Provides consistent error response format for all plugin registry endpoints.
  */
 

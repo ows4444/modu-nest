@@ -191,13 +191,13 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     if (!this.canTransition(pluginName, transition)) {
       this.logger.warn(`Invalid transition for plugin ${pluginName}: ${currentState} -[${transition}]-> ?`);
-      
+
       // If this is a failure transition, record it and potentially trigger recovery
       if (transition === PluginTransition.FAIL_LOADING && context) {
         this.recordFailure(pluginName, context as FailureContext);
         this.scheduleAutoRecovery(pluginName);
       }
-      
+
       return false;
     }
 
@@ -228,7 +228,7 @@ export class PluginStateMachine implements IPluginStateMachine {
     // Handle failure transitions and record failure context
     if (newState === PluginState.FAILED && context) {
       this.recordFailure(pluginName, context as FailureContext);
-      
+
       // Attempt automatic recovery if policy allows
       if (targetTransition.recoveryPolicy) {
         this.scheduleAutoRecovery(pluginName, targetTransition.recoveryPolicy);
@@ -327,7 +327,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
   async retryTransition(pluginName: string, context?: FailureContext): Promise<boolean> {
     const currentState = this.getCurrentState(pluginName);
-    
+
     if (currentState !== PluginState.FAILED) {
       this.logger.warn(`Cannot retry transition for plugin ${pluginName}: not in FAILED state`);
       return false;
@@ -335,7 +335,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     const history = this.failureHistory.get(pluginName) || [];
     const latestFailure = history[history.length - 1];
-    
+
     if (!latestFailure && !context) {
       this.logger.warn(`No failure context available for retry of plugin ${pluginName}`);
       return false;
@@ -352,7 +352,7 @@ export class PluginStateMachine implements IPluginStateMachine {
     }
 
     const policy = retryTransition.recoveryPolicy;
-    
+
     // Check if retry is allowed
     if (policy.conditions?.canRetry && !policy.conditions.canRetry(failureContext)) {
       this.logger.warn(`Retry conditions not met for plugin ${pluginName}`);
@@ -390,7 +390,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
   rollbackToState(pluginName: string, targetState: PluginState, context?: unknown): boolean {
     const currentState = this.getCurrentState(pluginName);
-    
+
     if (!currentState) {
       this.logger.warn(`Cannot rollback plugin ${pluginName}: no current state`);
       return false;
@@ -414,11 +414,11 @@ export class PluginStateMachine implements IPluginStateMachine {
           timestamp: new Date(),
           context,
         });
-        
+
         this.logger.log(`Plugin ${pluginName}: Rolled back from ${currentState} to ${targetState}`);
         return true;
       }
-      
+
       this.logger.warn(`No valid rollback path for plugin ${pluginName} from ${currentState} to ${targetState}`);
       return false;
     }
@@ -432,33 +432,33 @@ export class PluginStateMachine implements IPluginStateMachine {
 
   clearFailureHistory(pluginName: string): void {
     this.failureHistory.delete(pluginName);
-    
+
     // Clear any pending retry timer
     const timer = this.retryTimers.get(pluginName);
     if (timer) {
       clearTimeout(timer);
       this.retryTimers.delete(pluginName);
     }
-    
+
     this.logger.debug(`Cleared failure history for plugin ${pluginName}`);
   }
 
   private recordFailure(pluginName: string, failureContext: FailureContext): void {
     const history = this.failureHistory.get(pluginName) || [];
-    
+
     // Limit history size to prevent memory leaks
     const maxHistorySize = 10;
     if (history.length >= maxHistorySize) {
       history.shift();
     }
-    
+
     history.push({
       ...failureContext,
       timestamp: new Date(),
     });
-    
+
     this.failureHistory.set(pluginName, history);
-    
+
     this.logger.error(
       `Plugin ${pluginName} failure recorded (attempt ${failureContext.attempt}): ${failureContext.error.message}`
     );
@@ -479,7 +479,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     const history = this.failureHistory.get(pluginName) || [];
     const latestFailure = history[history.length - 1];
-    
+
     if (!latestFailure) {
       this.logger.warn(`No failure context available for auto-recovery of plugin ${pluginName}`);
       return;
@@ -493,7 +493,7 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     if (latestFailure.attempt >= policy.maxRetries) {
       this.logger.warn(`Auto-recovery: Maximum retries exceeded for plugin ${pluginName}, attempting rollback`);
-      
+
       if (policy.rollbackState) {
         this.rollbackToState(pluginName, policy.rollbackState, {
           reason: 'auto-recovery-rollback',

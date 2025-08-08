@@ -14,7 +14,7 @@ export class EnvironmentChecker {
    */
   static performEnvironmentCheck(): EnvironmentCheckResult {
     const result: EnvironmentCheckResult = {
-      environment: process.env.NODE_ENV as EnvironmentType || EnvironmentType.Development,
+      environment: (process.env.NODE_ENV as EnvironmentType) || EnvironmentType.Development,
       envFileStatus: this.checkEnvFiles(),
       systemChecks: this.performSystemChecks(),
       securityChecks: this.performSecurityChecks(),
@@ -28,13 +28,7 @@ export class EnvironmentChecker {
   }
 
   private static checkEnvFiles(): EnvFileStatus {
-    const envFiles = [
-      '.env',
-      '.env.local',
-      '.env.development',
-      '.env.production',
-      '.env.test',
-    ];
+    const envFiles = ['.env', '.env.local', '.env.development', '.env.production', '.env.test'];
 
     const status: EnvFileStatus = {
       found: [],
@@ -43,12 +37,12 @@ export class EnvironmentChecker {
       unreadable: [],
     };
 
-    envFiles.forEach(file => {
+    envFiles.forEach((file) => {
       const filePath = resolve(process.cwd(), file);
-      
+
       if (existsSync(filePath)) {
         status.found.push(file);
-        
+
         try {
           readFileSync(filePath, 'utf8');
           status.readable.push(file);
@@ -98,7 +92,7 @@ export class EnvironmentChecker {
   private static checkNodeVersion(): boolean {
     const version = process.version;
     const majorVersion = parseInt(version.slice(1).split('.')[0], 10);
-    
+
     // Require Node.js 18 or higher
     return majorVersion >= 18;
   }
@@ -127,7 +121,7 @@ export class EnvironmentChecker {
     // Basic network connectivity check
     return {
       canReachInternet: true, // Would need actual network test
-      dnsResolution: true,    // Would need actual DNS test
+      dnsResolution: true, // Would need actual DNS test
       localPorts: this.getLocalPorts(),
     };
   }
@@ -140,7 +134,7 @@ export class EnvironmentChecker {
       parseInt(process.env.REDIS_PORT || '6379', 10),
     ];
 
-    return commonPorts.filter(port => !isNaN(port));
+    return commonPorts.filter((port) => !isNaN(port));
   }
 
   private static checkPrivilegedPort(): boolean {
@@ -149,27 +143,16 @@ export class EnvironmentChecker {
   }
 
   private static checkTlsConfiguration(): boolean {
-    return !!(
-      process.env.ENABLE_HTTPS === 'true' &&
-      process.env.SSL_KEY_PATH &&
-      process.env.SSL_CERT_PATH
-    );
+    return !!(process.env.ENABLE_HTTPS === 'true' && process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH);
   }
 
   private static checkSecretsInEnvironment(): string[] {
-    const secretPatterns = [
-      /password/i,
-      /secret/i,
-      /key/i,
-      /token/i,
-      /auth/i,
-      /credential/i,
-    ];
+    const secretPatterns = [/password/i, /secret/i, /key/i, /token/i, /auth/i, /credential/i];
 
     const suspiciousVars: string[] = [];
 
-    Object.keys(process.env).forEach(key => {
-      if (secretPatterns.some(pattern => pattern.test(key))) {
+    Object.keys(process.env).forEach((key) => {
+      if (secretPatterns.some((pattern) => pattern.test(key))) {
         const value = process.env[key] || '';
         // Check if the value looks like it might be hardcoded (not a reference)
         if (value.length > 10 && !value.startsWith('${') && !value.startsWith('/')) {
@@ -270,13 +253,15 @@ export class EnvironmentChecker {
    */
   static generateEnvironmentReport(result: EnvironmentCheckResult): string {
     const lines: string[] = [];
-    
+
     lines.push('='.repeat(80));
     lines.push('ENVIRONMENT CHECK REPORT');
     lines.push('='.repeat(80));
-    
+
     lines.push(`Environment: ${result.environment}`);
-    lines.push(`Node.js Version: ${result.systemChecks.nodeVersion} ${result.systemChecks.nodeVersionSupported ? '✅' : '❌'}`);
+    lines.push(
+      `Node.js Version: ${result.systemChecks.nodeVersion} ${result.systemChecks.nodeVersionSupported ? '✅' : '❌'}`
+    );
     lines.push(`Platform: ${result.systemChecks.platform} (${result.systemChecks.architecture})`);
     lines.push('');
 
@@ -305,24 +290,24 @@ export class EnvironmentChecker {
 
     if (result.critical.length > 0) {
       lines.push('🚨 CRITICAL ISSUES:');
-      result.critical.forEach(issue => lines.push(`  - ${issue}`));
+      result.critical.forEach((issue) => lines.push(`  - ${issue}`));
       lines.push('');
     }
 
     if (result.warnings.length > 0) {
       lines.push('⚠️ WARNINGS:');
-      result.warnings.forEach(warning => lines.push(`  - ${warning}`));
+      result.warnings.forEach((warning) => lines.push(`  - ${warning}`));
       lines.push('');
     }
 
     if (result.recommendations.length > 0) {
       lines.push('💡 RECOMMENDATIONS:');
-      result.recommendations.forEach(rec => lines.push(`  - ${rec}`));
+      result.recommendations.forEach((rec) => lines.push(`  - ${rec}`));
       lines.push('');
     }
 
     lines.push('='.repeat(80));
-    
+
     return lines.join('\n');
   }
 }

@@ -21,10 +21,7 @@ import {
   PluginState,
   PluginTransition,
 } from './plugin-events';
-import { 
-  PluginEventValidator, 
-  EventValidationResult,
-} from './plugin-event-validators';
+import { PluginEventValidator, EventValidationResult } from './plugin-event-validators';
 
 /**
  * Event batching configuration
@@ -81,16 +78,19 @@ export class PluginEventEmitter
   private readonly logger = new Logger(PluginEventEmitter.name);
   private readonly middlewares: EventMiddleware[] = [];
   private readonly eventStats = new Map<string, { count: number; lastEmitted: Date }>();
-  
+
   // Batching and rate limiting properties
   private readonly eventBatches = new Map<string, BatchedEvent[]>();
   private readonly batchTimers = new Map<string, NodeJS.Timeout>();
-  private readonly rateLimiters = new Map<string, {
-    tokens: number;
-    lastRefill: number;
-    droppedEvents: number;
-  }>();
-  
+  private readonly rateLimiters = new Map<
+    string,
+    {
+      tokens: number;
+      lastRefill: number;
+      droppedEvents: number;
+    }
+  >();
+
   private readonly batchConfigs: Record<string, EventBatchConfig> = {
     'plugin.loading.progress': { maxBatchSize: 50, flushIntervalMs: 100, priority: 'low' },
     'plugin.cache': { maxBatchSize: 100, flushIntervalMs: 200, priority: 'low' },
@@ -98,7 +98,7 @@ export class PluginEventEmitter
     'plugin.validation.completed': { maxBatchSize: 10, flushIntervalMs: 1000, priority: 'medium' },
     'plugin.discovered': { maxBatchSize: 20, flushIntervalMs: 300, priority: 'medium' },
   };
-  
+
   private readonly rateLimitConfigs: Record<string, RateLimitConfig> = {
     'plugin.loading.progress': { maxEventsPerSecond: 100, burstLimit: 200, backpressureThreshold: 1000 },
     'plugin.cache': { maxEventsPerSecond: 200, burstLimit: 500, backpressureThreshold: 2000 },
@@ -110,7 +110,7 @@ export class PluginEventEmitter
   private backpressureActive = false;
   private totalEventsProcessed = 0;
   private totalEventsDropped = 0;
-  
+
   // Event validation properties
   private readonly eventValidator: PluginEventValidator;
   private validationEnabled = true;
@@ -125,16 +125,16 @@ export class PluginEventEmitter
   constructor() {
     super();
     this.setMaxListeners(100); // Allow up to 100 listeners per event
-    
+
     // Initialize event validator
     this.eventValidator = PluginEventValidator.getInstance();
 
     // Log event statistics periodically
     setInterval(() => this.logEventStats(), 300000); // Every 5 minutes
-    
+
     // Initialize rate limiters
     this.initializeRateLimiters();
-    
+
     // Cleanup old batches periodically
     setInterval(() => this.cleanupStaleBatches(), 30000); // Every 30 seconds
   }
@@ -161,13 +161,13 @@ export class PluginEventEmitter
           this.validationStats.validationErrors++;
           return false;
         }
-        
+
         // Log validation warnings
         if (validationResult.warnings.length > 0) {
           this.logger.warn(`Event validation warnings for ${event.type}:`, validationResult.warnings);
           this.validationStats.validationWarnings++;
         }
-        
+
         this.validationStats.totalValidated++;
       }
 
@@ -194,7 +194,6 @@ export class PluginEventEmitter
       this.totalEventsProcessed++;
       this.logger.debug(`Emitting event: ${processedEvent.type} for plugin: ${processedEvent.pluginName}`);
       return super.emit(processedEvent.type, processedEvent);
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -652,7 +651,9 @@ export class PluginEventEmitter
   setValidationMode(enabled: boolean, schemaOnly = false): void {
     this.validationEnabled = enabled;
     this.schemaValidationOnly = schemaOnly;
-    this.logger.debug(`Event validation ${enabled ? 'enabled' : 'disabled'}${enabled && schemaOnly ? ' (schema only)' : ''}`);
+    this.logger.debug(
+      `Event validation ${enabled ? 'enabled' : 'disabled'}${enabled && schemaOnly ? ' (schema only)' : ''}`
+    );
   }
 
   getValidationStats(): any {
@@ -707,12 +708,12 @@ export class PluginEventEmitter
       return true;
     } else {
       limiter.droppedEvents++;
-      
+
       // Activate backpressure if needed
       if (limiter.droppedEvents > config.backpressureThreshold && !this.backpressureActive) {
         this.activateBackpressure(eventType);
       }
-      
+
       return false;
     }
   }
@@ -720,14 +721,14 @@ export class PluginEventEmitter
   private activateBackpressure(eventType: string): void {
     this.backpressureActive = true;
     this.logger.warn(`Backpressure activated for event type: ${eventType}`);
-    
+
     // Emit backpressure event
     super.emit('backpressure.activated', {
       eventType,
       timestamp: new Date(),
       totalDropped: this.totalEventsDropped,
     });
-    
+
     // Deactivate backpressure after a cooldown period
     setTimeout(() => {
       this.backpressureActive = false;
@@ -747,7 +748,7 @@ export class PluginEventEmitter
   private addToBatch<T extends PluginEvent>(event: T, config: EventBatchConfig): boolean {
     const eventType = event.type;
     let batch = this.eventBatches.get(eventType);
-    
+
     if (!batch) {
       batch = [];
       this.eventBatches.set(eventType, batch);
@@ -763,7 +764,7 @@ export class PluginEventEmitter
     };
 
     batch.push(batchedEvent);
-    
+
     // Sort by priority (highest first)
     batch.sort((a, b) => b.priority - a.priority);
 
@@ -797,7 +798,7 @@ export class PluginEventEmitter
     }
 
     // Process events in batch
-    const processedEvents = batch.map(batchedEvent => batchedEvent.event);
+    const processedEvents = batch.map((batchedEvent) => batchedEvent.event);
     this.totalEventsProcessed += processedEvents.length;
 
     // Emit batch event
@@ -817,7 +818,7 @@ export class PluginEventEmitter
         this.logger.error(
           `Error emitting batched event ${eventType}: ${error instanceof Error ? error.message : String(error)}`
         );
-        
+
         // Retry failed events up to 3 times
         if (batchedEvent.retries < 3) {
           batchedEvent.retries++;
@@ -834,15 +835,13 @@ export class PluginEventEmitter
 
   private scheduleEventRetry(batchedEvent: BatchedEvent, config: EventBatchConfig): void {
     const delay = Math.min(1000 * Math.pow(2, batchedEvent.retries), 10000); // Exponential backoff, max 10s
-    
+
     setTimeout(() => {
       try {
         super.emit(batchedEvent.event.type, batchedEvent.event);
         this.totalEventsProcessed++;
       } catch (error) {
-        this.logger.error(
-          `Failed to retry event ${batchedEvent.event.type} after ${batchedEvent.retries} attempts`
-        );
+        this.logger.error(`Failed to retry event ${batchedEvent.event.type} after ${batchedEvent.retries} attempts`);
       }
     }, delay);
   }
@@ -868,7 +867,7 @@ export class PluginEventEmitter
   // Enhanced statistics and monitoring
   getBatchingStats(): Record<string, any> {
     const stats: Record<string, any> = {};
-    
+
     for (const [eventType, batch] of this.eventBatches.entries()) {
       stats[eventType] = {
         queuedEvents: batch.length,
@@ -887,7 +886,7 @@ export class PluginEventEmitter
 
   getRateLimitingStats(): Record<string, any> {
     const stats: Record<string, any> = {};
-    
+
     for (const [eventType, limiter] of this.rateLimiters.entries()) {
       const config = this.rateLimitConfigs[eventType];
       stats[eventType] = {
@@ -954,7 +953,7 @@ export class PluginEventEmitter
     for (const [eventType, stats] of this.eventStats.entries()) {
       this.logger.debug(`  ${eventType}: ${stats.count} events (last: ${stats.lastEmitted.toISOString()})`);
     }
-    
+
     // Log batching and rate limiting stats
     this.logger.debug('Batching Statistics:', this.getBatchingStats());
     this.logger.debug('Rate Limiting Statistics:', this.getRateLimitingStats());

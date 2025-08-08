@@ -24,7 +24,7 @@ export const databaseLoader = registerAs(DATABASE_CONFIG, (): DatabaseConfig => 
     const errorMessages = errors
       .flatMap((error) => {
         const constraints = error.constraints ?? { [error.property]: 'Invalid value' };
-        return Object.values(constraints).map(message => `${error.property}: ${message}`);
+        return Object.values(constraints).map((message) => `${error.property}: ${message}`);
       })
       .join('\n- ');
 
@@ -99,37 +99,37 @@ export const databaseLoader = registerAs(DATABASE_CONFIG, (): DatabaseConfig => 
     username: config.DB_USERNAME,
     password: config.DB_PASSWORD,
     database: config.DB_DATABASE,
-    
+
     connectionPoolMin: config.DB_POOL_MIN,
     connectionPoolMax: config.DB_POOL_MAX,
     connectionTimeoutMs: config.DB_CONNECTION_TIMEOUT,
     idleTimeoutMs: config.DB_IDLE_TIMEOUT,
-    
+
     ssl: config.DB_SSL,
     sslRejectUnauthorized: config.DB_SSL_REJECT_UNAUTHORIZED,
     sslCaPath: config.DB_SSL_CA_PATH,
     sslCertPath: config.DB_SSL_CERT_PATH,
     sslKeyPath: config.DB_SSL_KEY_PATH,
-    
+
     maxQueryExecutionTime: config.DB_MAX_QUERY_EXECUTION_TIME,
     logQueries: config.DB_LOG_QUERIES,
     logSlowQueries: config.DB_LOG_SLOW_QUERIES,
     slowQueryThreshold: config.DB_SLOW_QUERY_THRESHOLD,
-    
+
     enableBackup: config.DB_ENABLE_BACKUP,
     backupPath: config.DB_BACKUP_PATH,
     backupRetentionDays: config.DB_BACKUP_RETENTION_DAYS,
     backupSchedule: config.DB_BACKUP_SCHEDULE,
-    
+
     migrationsPath: config.DB_MIGRATIONS_PATH,
     runMigrationsOnStart: config.DB_RUN_MIGRATIONS_ON_START,
-    
+
     synchronize: config.DB_SYNCHRONIZE,
     dropSchema: config.DB_DROP_SCHEMA,
-    
+
     enableCache: config.DB_ENABLE_CACHE,
     cacheDuration: config.DB_CACHE_DURATION,
-    
+
     enableMetrics: config.DB_ENABLE_METRICS,
     metricsInterval: config.DB_METRICS_INTERVAL,
   };

@@ -11,19 +11,19 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  
+
   if (typeof error === 'string') {
     return error;
   }
-  
+
   if (error && typeof error === 'object') {
     if ('message' in error && typeof (error as any).message === 'string') {
       return (error as any).message;
     }
-    
+
     return JSON.stringify(error);
   }
-  
+
   return String(error);
 }
 
@@ -34,11 +34,11 @@ export function getErrorStack(error: unknown): string | undefined {
   if (error instanceof Error) {
     return error.stack;
   }
-  
+
   if (error && typeof error === 'object' && 'stack' in error) {
     return String((error as any).stack);
   }
-  
+
   return undefined;
 }
 
@@ -80,7 +80,7 @@ export function withErrorHandling<T extends (...args: any[]) => any>(
   return ((...args: any[]) => {
     try {
       const result = fn(...args);
-      
+
       if (result instanceof Promise) {
         return result.catch((error) => {
           if (errorHandler) {
@@ -89,7 +89,7 @@ export function withErrorHandling<T extends (...args: any[]) => any>(
           throw error;
         });
       }
-      
+
       return result;
     } catch (error) {
       if (errorHandler) {
@@ -153,7 +153,7 @@ export async function retryWithBackoff<T>(
         throw error;
       }
 
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
       delay = Math.min(delay * backoffMultiplier, maxDelay);
     }
   }
@@ -165,14 +165,10 @@ export async function retryWithBackoff<T>(
  * Creates an error with additional context
  */
 export class ContextualError extends Error {
-  constructor(
-    message: string,
-    public readonly context: Record<string, any>,
-    public readonly originalError?: Error
-  ) {
+  constructor(message: string, public readonly context: Record<string, any>, public readonly originalError?: Error) {
     super(message);
     this.name = 'ContextualError';
-    
+
     if (originalError) {
       this.stack = originalError.stack;
     }
@@ -184,11 +180,13 @@ export class ContextualError extends Error {
       message: this.message,
       context: this.context,
       stack: this.stack,
-      originalError: this.originalError ? {
-        name: this.originalError.name,
-        message: this.originalError.message,
-        stack: this.originalError.stack,
-      } : undefined,
+      originalError: this.originalError
+        ? {
+            name: this.originalError.name,
+            message: this.originalError.message,
+            stack: this.originalError.stack,
+          }
+        : undefined,
     };
   }
 }
@@ -197,10 +195,7 @@ export class ContextualError extends Error {
  * Aggregates multiple errors into a single error
  */
 export class AggregateError extends Error {
-  constructor(
-    public readonly errors: Error[],
-    message?: string
-  ) {
+  constructor(public readonly errors: Error[], message?: string) {
     super(message || `Multiple errors occurred (${errors.length})`);
     this.name = 'AggregateError';
   }
@@ -209,7 +204,7 @@ export class AggregateError extends Error {
     return {
       name: this.name,
       message: this.message,
-      errors: this.errors.map(error => ({
+      errors: this.errors.map((error) => ({
         name: error.name,
         message: error.message,
         stack: error.stack,
@@ -229,7 +224,7 @@ export function formatErrorForLogging(error: unknown): {
 } {
   const message = getErrorMessage(error);
   const stack = getErrorStack(error);
-  
+
   let context: any;
   if (error instanceof ContextualError) {
     context = error.context;
@@ -238,7 +233,7 @@ export function formatErrorForLogging(error: unknown): {
   } else if (isHttpException(error)) {
     context = { statusCode: error.getStatus() };
   }
-  
+
   return { message, stack, context };
 }
 
@@ -251,20 +246,13 @@ export function isRetryableError(error: unknown): boolean {
     // Retry on 5xx errors and some 4xx errors
     return status >= 500 || status === HttpStatus.TOO_MANY_REQUESTS;
   }
-  
+
   if (error instanceof Error) {
     // Common retryable error patterns
-    const retryablePatterns = [
-      /timeout/i,
-      /connection/i,
-      /network/i,
-      /econnreset/i,
-      /enotfound/i,
-      /etimedout/i,
-    ];
-    
-    return retryablePatterns.some(pattern => pattern.test(error.message));
+    const retryablePatterns = [/timeout/i, /connection/i, /network/i, /econnreset/i, /enotfound/i, /etimedout/i];
+
+    return retryablePatterns.some((pattern) => pattern.test(error.message));
   }
-  
+
   return false;
 }

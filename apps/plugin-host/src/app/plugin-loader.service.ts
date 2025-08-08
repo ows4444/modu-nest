@@ -64,7 +64,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     Array<{ target: EventTarget | NodeJS.EventEmitter; event: string; listener: Function }>
   >();
   private readonly pluginInstances = new Map<string, Set<object>>();
-  
+
   // Plugin failure tracking
   private readonly pluginFailureCounts = new Map<string, number>();
 
@@ -472,7 +472,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     const cachedManifest = this.adaptiveManifestCache.getCachedManifest(manifestPath, {
       pluginPath,
     });
-    
+
     if (cachedManifest) {
       this.logger.debug(`Using cached manifest: ${manifestPath}`);
       return cachedManifest;
@@ -748,7 +748,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private async handlePluginLoadError(pluginName: string, error: Error, loadStartTime: number): Promise<void> {
     // Increment failure count for circuit breaker configuration
     this.incrementPluginFailureCount(pluginName);
-    
+
     this.metricsService?.recordPluginLoadError(pluginName, error);
 
     this.eventEmitter.emitPluginLoadFailed(pluginName, error, 'loading');
@@ -1371,7 +1371,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
     // Streamlined hook discovery with improved performance
     const exports = Object.entries(plugin.instance as Record<string, unknown>);
-    
+
     for (const [exportName, exportValue] of exports) {
       if (this.shouldSkipExportForHooks(exportValue)) {
         continue;
@@ -1384,7 +1384,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     const totalHooks = Array.from(hooks.values()).reduce((sum, handlers) => sum + handlers.length, 0);
     if (totalHooks > 0) {
       this.logger.debug(`Discovered ${totalHooks} lifecycle hooks for plugin: ${plugin.manifest.name}`);
-      
+
       // Cache the discovered hooks for future use
       this.cacheDiscoveredHooks(plugin.manifest.name, hooks);
     }
@@ -1403,23 +1403,28 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    * Discover hooks in a specific export
    */
   private discoverHooksInExport(
-    exportName: string, 
-    exportValue: unknown, 
+    exportName: string,
+    exportValue: unknown,
     lifecycleHooks: PluginLifecycleHook[]
   ): Array<{ hookType: PluginLifecycleHook; method: Function; exportName: string; methodName: string }> {
-    const discovered: Array<{ hookType: PluginLifecycleHook; method: Function; exportName: string; methodName: string }> = [];
-    
+    const discovered: Array<{
+      hookType: PluginLifecycleHook;
+      method: Function;
+      exportName: string;
+      methodName: string;
+    }> = [];
+
     const prototype = typeof exportValue === 'function' ? exportValue.prototype : exportValue;
     if (!prototype) return discovered;
 
     // Optimized method discovery - filter non-functions upfront
-    const methodNames = Object.getOwnPropertyNames(prototype).filter(name => {
+    const methodNames = Object.getOwnPropertyNames(prototype).filter((name) => {
       return name !== 'constructor' && typeof (prototype as any)[name] === 'function';
     });
 
     for (const methodName of methodNames) {
       const method = (prototype as any)[methodName];
-      
+
       // Check for lifecycle hooks using optimized lookup
       for (const hookType of lifecycleHooks) {
         if (Reflect.getMetadata(`plugin:hook:${hookType}`, method)) {
@@ -1457,7 +1462,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
             hooks.set(hookType, []);
           }
           hooks.get(hookType)!.push(boundMethod);
-          
+
           this.logger.debug(
             `Found lifecycle hook '${hookType}' in method '${exportName}.${methodName}' for plugin: ${pluginName}`
           );
@@ -1472,8 +1477,8 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    * Bind hook method to its proper instance
    */
   private bindHookMethodToInstance(
-    method: Function, 
-    exportName: string, 
+    method: Function,
+    exportName: string,
     pluginInstance: Record<string, unknown>,
     hookType: string
   ): Function | null {
@@ -1516,7 +1521,10 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   /**
    * Convert cached hooks to function map
    */
-  private convertCachedHooksToFunctionMap(cachedHooks: any, plugin: LoadedPlugin): Map<PluginLifecycleHook, Function[]> {
+  private convertCachedHooksToFunctionMap(
+    cachedHooks: any,
+    plugin: LoadedPlugin
+  ): Map<PluginLifecycleHook, Function[]> {
     // This is a placeholder for cache conversion logic
     // For now, fall back to direct discovery
     return new Map();
