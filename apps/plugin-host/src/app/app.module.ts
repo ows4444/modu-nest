@@ -1,6 +1,11 @@
 import { Module, OnModuleInit, DynamicModule, Logger } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
+import { PluginController } from './controllers/plugin.controller';
+import { MetricsController } from './controllers/metrics.controller';
+import { HealthController } from './controllers/health.controller';
+import { CacheController } from './controllers/cache.controller';
+import { RegistryController } from './controllers/registry.controller';
 import { PluginLoaderService } from './plugin-loader.service';
 import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
@@ -40,7 +45,14 @@ export class AppModule implements OnModuleInit {
     return {
       module: AppModule,
       imports: [...baseImports, ...pluginModules],
-      controllers: [AppController],
+      controllers: [
+        AppController,
+        PluginController,
+        MetricsController,
+        HealthController,
+        CacheController,
+        RegistryController,
+      ],
       providers: [
         {
           provide: PluginLoaderService,

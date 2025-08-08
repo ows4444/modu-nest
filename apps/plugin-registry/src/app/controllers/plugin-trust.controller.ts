@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { PluginRegistryService } from '../services/plugin-registry.service';
-import { SecurityEventLoggerService } from '../services/security-event-logger.service';
+// import { SecurityEventLoggerService } from '../services/security-event-logger.service';
 import { RateLimitingGuard, RateLimit } from '../guards/rate-limiting.guard';
 import {
   PluginTrustEnforcementGuard,
@@ -58,8 +58,7 @@ export class ValidateCapabilityDto {
 @ApiBearerAuth()
 export class PluginTrustController {
   constructor(
-    private readonly pluginRegistryService: PluginRegistryService,
-    private readonly securityLogger: SecurityEventLoggerService
+    private readonly pluginRegistryService: PluginRegistryService //private readonly _securityLogger: SecurityEventLoggerService
   ) {}
 
   @Get('levels')
