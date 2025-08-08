@@ -22,6 +22,27 @@ export interface CrossPluginServiceConfig {
   token: string;
   global?: boolean;
   description?: string;
+  version?: string;
+  compatibleVersions?: string[];
+  deprecated?: {
+    since: string;
+    removeIn: string;
+    replacement?: string;
+    reason?: string;
+  };
+}
+
+export interface ServiceVersionInfo {
+  version: string;
+  isCompatible: boolean;
+  compatibilityLevel: 'exact' | 'compatible' | 'incompatible';
+  deprecationInfo?: {
+    isDeprecated: boolean;
+    since: string;
+    removeIn: string;
+    replacement?: string;
+    reason?: string;
+  };
 }
 
 export interface PluginModuleMeta {

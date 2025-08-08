@@ -6,6 +6,8 @@ import {
   StateTransition,
   PluginStateChangeEvent,
   StateChangeListener,
+  RecoveryPolicy,
+  FailureContext,
 } from './plugin-state-machine.interface';
 
 @Injectable()
@@ -13,6 +15,9 @@ export class PluginStateMachine implements IPluginStateMachine {
   private readonly logger = new Logger(PluginStateMachine.name);
   private readonly pluginStates = new Map<string, PluginState>();
   private readonly listeners: StateChangeListener[] = [];
+  private readonly failureHistory = new Map<string, FailureContext[]>();
+  private readonly retryTimers = new Map<string, NodeJS.Timeout>();
+  private readonly previousStates = new Map<string, PluginState>();
 
   private readonly stateTransitions: StateTransition[] = [
     // From DISCOVERED
@@ -20,6 +25,12 @@ export class PluginStateMachine implements IPluginStateMachine {
       from: PluginState.DISCOVERED,
       to: PluginState.LOADING,
       transition: PluginTransition.START_LOADING,
+      recoveryPolicy: {
+        maxRetries: 3,
+        retryDelayMs: 1000,
+        exponentialBackoff: true,
+        rollbackState: PluginState.DISCOVERED,
+      },
     },
     {
       from: PluginState.DISCOVERED,
@@ -37,6 +48,19 @@ export class PluginStateMachine implements IPluginStateMachine {
       from: PluginState.LOADING,
       to: PluginState.FAILED,
       transition: PluginTransition.FAIL_LOADING,
+      recoveryPolicy: {
+        maxRetries: 5,
+        retryDelayMs: 2000,
+        exponentialBackoff: true,
+        rollbackState: PluginState.DISCOVERED,
+        conditions: {
+          canRetry: (context) => {
+            const failure = context as FailureContext;
+            return failure?.attempt < 3 && !failure?.error.message.includes('CRITICAL');
+          },
+          canRollback: () => true,
+        },
+      },
     },
 
     // From LOADED
@@ -48,19 +72,57 @@ export class PluginStateMachine implements IPluginStateMachine {
     {
       from: PluginState.LOADED,
       to: PluginState.LOADING,
-      transition: PluginTransition.START_LOADING, // For reload scenarios
+      transition: PluginTransition.START_LOADING,
+      recoveryPolicy: {
+        maxRetries: 2,
+        retryDelayMs: 500,
+        exponentialBackoff: false,
+        rollbackState: PluginState.LOADED,
+      },
     },
 
-    // From FAILED
+    // From FAILED - Enhanced recovery options
     {
       from: PluginState.FAILED,
       to: PluginState.LOADING,
-      transition: PluginTransition.START_LOADING, // For retry scenarios
+      transition: PluginTransition.RETRY,
+      recoveryPolicy: {
+        maxRetries: 3,
+        retryDelayMs: 5000,
+        exponentialBackoff: true,
+        conditions: {
+          canRetry: (context) => {
+            const failure = context as FailureContext;
+            return failure?.attempt < 5;
+          },
+        },
+      },
+    },
+    {
+      from: PluginState.FAILED,
+      to: PluginState.DISCOVERED,
+      transition: PluginTransition.ROLLBACK,
     },
     {
       from: PluginState.FAILED,
       to: PluginState.UNLOADED,
       transition: PluginTransition.UNLOAD,
+    },
+    {
+      from: PluginState.FAILED,
+      to: PluginState.LOADING,
+      transition: PluginTransition.RECOVER,
+      recoveryPolicy: {
+        maxRetries: 1,
+        retryDelayMs: 10000,
+        exponentialBackoff: false,
+        conditions: {
+          canRetry: (context) => {
+            const failure = context as FailureContext;
+            return !failure?.recoveryAttempted;
+          },
+        },
+      },
     },
 
     // From UNLOADED
@@ -72,7 +134,13 @@ export class PluginStateMachine implements IPluginStateMachine {
     {
       from: PluginState.UNLOADED,
       to: PluginState.LOADING,
-      transition: PluginTransition.START_LOADING, // Direct loading scenarios
+      transition: PluginTransition.START_LOADING,
+      recoveryPolicy: {
+        maxRetries: 3,
+        retryDelayMs: 1000,
+        exponentialBackoff: true,
+        rollbackState: PluginState.UNLOADED,
+      },
     },
   ];
 
@@ -100,6 +168,11 @@ export class PluginStateMachine implements IPluginStateMachine {
   transition(pluginName: string, transition: PluginTransition, context?: unknown): boolean {
     const currentState = this.pluginStates.get(pluginName);
 
+    // Store previous state for rollback
+    if (currentState) {
+      this.previousStates.set(pluginName, currentState);
+    }
+
     // Handle initial discovery
     if (!currentState && transition === PluginTransition.REDISCOVER) {
       const newState = PluginState.DISCOVERED;
@@ -118,6 +191,13 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     if (!this.canTransition(pluginName, transition)) {
       this.logger.warn(`Invalid transition for plugin ${pluginName}: ${currentState} -[${transition}]-> ?`);
+      
+      // If this is a failure transition, record it and potentially trigger recovery
+      if (transition === PluginTransition.FAIL_LOADING && context) {
+        this.recordFailure(pluginName, context as FailureContext);
+        this.scheduleAutoRecovery(pluginName);
+      }
+      
       return false;
     }
 
@@ -144,6 +224,16 @@ export class PluginStateMachine implements IPluginStateMachine {
 
     this.notifyListeners(event);
     this.logger.debug(`Plugin ${pluginName}: ${currentState} -[${transition}]-> ${newState}`);
+
+    // Handle failure transitions and record failure context
+    if (newState === PluginState.FAILED && context) {
+      this.recordFailure(pluginName, context as FailureContext);
+      
+      // Attempt automatic recovery if policy allows
+      if (targetTransition.recoveryPolicy) {
+        this.scheduleAutoRecovery(pluginName, targetTransition.recoveryPolicy);
+      }
+    }
 
     return true;
   }
@@ -233,5 +323,200 @@ export class PluginStateMachine implements IPluginStateMachine {
     }
 
     return true;
+  }
+
+  async retryTransition(pluginName: string, context?: FailureContext): Promise<boolean> {
+    const currentState = this.getCurrentState(pluginName);
+    
+    if (currentState !== PluginState.FAILED) {
+      this.logger.warn(`Cannot retry transition for plugin ${pluginName}: not in FAILED state`);
+      return false;
+    }
+
+    const history = this.failureHistory.get(pluginName) || [];
+    const latestFailure = history[history.length - 1];
+    
+    if (!latestFailure && !context) {
+      this.logger.warn(`No failure context available for retry of plugin ${pluginName}`);
+      return false;
+    }
+
+    const failureContext = context || latestFailure;
+    const retryTransition = this.stateTransitions.find(
+      (t) => t.from === PluginState.FAILED && t.transition === PluginTransition.RETRY
+    );
+
+    if (!retryTransition?.recoveryPolicy) {
+      this.logger.warn(`No recovery policy found for retry of plugin ${pluginName}`);
+      return false;
+    }
+
+    const policy = retryTransition.recoveryPolicy;
+    
+    // Check if retry is allowed
+    if (policy.conditions?.canRetry && !policy.conditions.canRetry(failureContext)) {
+      this.logger.warn(`Retry conditions not met for plugin ${pluginName}`);
+      return false;
+    }
+
+    if (failureContext.attempt >= policy.maxRetries) {
+      this.logger.warn(`Maximum retries exceeded for plugin ${pluginName}`);
+      return false;
+    }
+
+    // Calculate delay with exponential backoff
+    let delay = policy.retryDelayMs;
+    if (policy.exponentialBackoff) {
+      delay *= Math.pow(2, failureContext.attempt - 1);
+    }
+
+    this.logger.log(`Retrying plugin ${pluginName} after ${delay}ms (attempt ${failureContext.attempt + 1})`);
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const success = this.transition(pluginName, PluginTransition.RETRY, {
+          ...failureContext,
+          attempt: failureContext.attempt + 1,
+          timestamp: new Date(),
+        });
+
+        this.retryTimers.delete(pluginName);
+        resolve(success);
+      }, delay);
+
+      this.retryTimers.set(pluginName, timer);
+    });
+  }
+
+  rollbackToState(pluginName: string, targetState: PluginState, context?: unknown): boolean {
+    const currentState = this.getCurrentState(pluginName);
+    
+    if (!currentState) {
+      this.logger.warn(`Cannot rollback plugin ${pluginName}: no current state`);
+      return false;
+    }
+
+    // Find rollback transition
+    const rollbackTransition = this.stateTransitions.find(
+      (t) => t.from === currentState && t.to === targetState && t.transition === PluginTransition.ROLLBACK
+    );
+
+    if (!rollbackTransition) {
+      // Try to rollback using previous state
+      const previousState = this.previousStates.get(pluginName);
+      if (previousState && previousState === targetState) {
+        this.pluginStates.set(pluginName, targetState);
+        this.notifyListeners({
+          pluginName,
+          fromState: currentState,
+          toState: targetState,
+          transition: PluginTransition.ROLLBACK,
+          timestamp: new Date(),
+          context,
+        });
+        
+        this.logger.log(`Plugin ${pluginName}: Rolled back from ${currentState} to ${targetState}`);
+        return true;
+      }
+      
+      this.logger.warn(`No valid rollback path for plugin ${pluginName} from ${currentState} to ${targetState}`);
+      return false;
+    }
+
+    return this.transition(pluginName, PluginTransition.ROLLBACK, context);
+  }
+
+  getFailureHistory(pluginName: string): FailureContext[] {
+    return this.failureHistory.get(pluginName) || [];
+  }
+
+  clearFailureHistory(pluginName: string): void {
+    this.failureHistory.delete(pluginName);
+    
+    // Clear any pending retry timer
+    const timer = this.retryTimers.get(pluginName);
+    if (timer) {
+      clearTimeout(timer);
+      this.retryTimers.delete(pluginName);
+    }
+    
+    this.logger.debug(`Cleared failure history for plugin ${pluginName}`);
+  }
+
+  private recordFailure(pluginName: string, failureContext: FailureContext): void {
+    const history = this.failureHistory.get(pluginName) || [];
+    
+    // Limit history size to prevent memory leaks
+    const maxHistorySize = 10;
+    if (history.length >= maxHistorySize) {
+      history.shift();
+    }
+    
+    history.push({
+      ...failureContext,
+      timestamp: new Date(),
+    });
+    
+    this.failureHistory.set(pluginName, history);
+    
+    this.logger.error(
+      `Plugin ${pluginName} failure recorded (attempt ${failureContext.attempt}): ${failureContext.error.message}`
+    );
+  }
+
+  private scheduleAutoRecovery(pluginName: string, policy?: RecoveryPolicy): void {
+    if (!policy) {
+      const retryTransition = this.stateTransitions.find(
+        (t) => t.from === PluginState.FAILED && t.transition === PluginTransition.RETRY
+      );
+      policy = retryTransition?.recoveryPolicy;
+    }
+
+    if (!policy) {
+      this.logger.debug(`No recovery policy available for plugin ${pluginName}`);
+      return;
+    }
+
+    const history = this.failureHistory.get(pluginName) || [];
+    const latestFailure = history[history.length - 1];
+    
+    if (!latestFailure) {
+      this.logger.warn(`No failure context available for auto-recovery of plugin ${pluginName}`);
+      return;
+    }
+
+    // Check if we can retry
+    if (policy.conditions?.canRetry && !policy.conditions.canRetry(latestFailure)) {
+      this.logger.debug(`Auto-recovery conditions not met for plugin ${pluginName}`);
+      return;
+    }
+
+    if (latestFailure.attempt >= policy.maxRetries) {
+      this.logger.warn(`Auto-recovery: Maximum retries exceeded for plugin ${pluginName}, attempting rollback`);
+      
+      if (policy.rollbackState) {
+        this.rollbackToState(pluginName, policy.rollbackState, {
+          reason: 'auto-recovery-rollback',
+          originalFailure: latestFailure,
+        });
+      }
+      return;
+    }
+
+    // Schedule retry
+    let delay = policy.retryDelayMs;
+    if (policy.exponentialBackoff) {
+      delay *= Math.pow(2, latestFailure.attempt);
+    }
+
+    this.logger.log(`Scheduling auto-recovery for plugin ${pluginName} in ${delay}ms`);
+
+    const timer = setTimeout(() => {
+      this.retryTransition(pluginName, latestFailure).catch((error) => {
+        this.logger.error(`Auto-recovery failed for plugin ${pluginName}: ${error.message}`);
+      });
+    }, delay);
+
+    this.retryTimers.set(pluginName, timer);
   }
 }

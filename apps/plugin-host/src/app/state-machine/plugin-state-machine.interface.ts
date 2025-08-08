@@ -12,6 +12,9 @@ export enum PluginTransition {
   FAIL_LOADING = 'fail_loading',
   UNLOAD = 'unload',
   REDISCOVER = 'rediscover',
+  RETRY = 'retry',
+  ROLLBACK = 'rollback',
+  RECOVER = 'recover',
 }
 
 export interface StateTransition {
@@ -19,6 +22,26 @@ export interface StateTransition {
   to: PluginState;
   transition: PluginTransition;
   condition?: (context?: unknown) => boolean;
+  recoveryPolicy?: RecoveryPolicy;
+}
+
+export interface RecoveryPolicy {
+  maxRetries: number;
+  retryDelayMs: number;
+  exponentialBackoff: boolean;
+  rollbackState?: PluginState;
+  conditions?: {
+    canRetry?: (context?: unknown) => boolean;
+    canRollback?: (context?: unknown) => boolean;
+  };
+}
+
+export interface FailureContext {
+  error: Error;
+  attempt: number;
+  timestamp: Date;
+  previousState?: PluginState;
+  recoveryAttempted?: boolean;
 }
 
 export interface IPluginStateMachine {
@@ -29,6 +52,10 @@ export interface IPluginStateMachine {
   getValidTransitions(pluginName: string): PluginTransition[];
   reset(pluginName: string): void;
   resetAll(): void;
+  retryTransition(pluginName: string, context?: FailureContext): Promise<boolean>;
+  rollbackToState(pluginName: string, targetState: PluginState, context?: unknown): boolean;
+  getFailureHistory(pluginName: string): FailureContext[];
+  clearFailureHistory(pluginName: string): void;
 }
 
 export interface PluginStateChangeEvent {
