@@ -1,5 +1,6 @@
 import { DynamicModule } from '@nestjs/common';
 import { PluginManifest, LoadedPlugin } from '@modu-nest/plugin-types';
+import { PluginStateMachine } from '../state-machine';
 
 export interface IPluginLoadingStrategy {
   /**
@@ -90,7 +91,7 @@ export interface PluginLoaderContext {
   /**
    * Get plugin state machine for advanced state management
    */
-  getStateMachine(): import('../state-machine').PluginStateMachine;
+  getStateMachine(): PluginStateMachine;
 
   /**
    * Get loaded plugins map

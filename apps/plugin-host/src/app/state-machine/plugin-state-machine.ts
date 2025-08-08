@@ -1,14 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   IPluginStateMachine,
-  PluginState,
-  PluginTransition,
   StateTransition,
   PluginStateChangeEvent,
   StateChangeListener,
   RecoveryPolicy,
   FailureContext,
 } from './plugin-state-machine.interface';
+import { PluginState, PluginTransition } from '@modu-nest/plugin-types';
 
 @Injectable()
 export class PluginStateMachine implements IPluginStateMachine {

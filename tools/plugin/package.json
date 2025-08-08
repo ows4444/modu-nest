@@ -47,7 +47,8 @@
     "@nx/devkit": "21.3.7",
     "tslib": "^2.3.0",
     "axios": "^1.6.0",
-    "form-data": "^4.0.4"
+    "form-data": "^4.0.4",
+    "@modu-nest/plugin-types": "0.0.1"
   },
   "generators": "./generators.json",
   "files": [

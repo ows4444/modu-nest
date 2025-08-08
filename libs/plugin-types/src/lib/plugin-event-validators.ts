@@ -79,7 +79,7 @@ export class BasePluginEventValidator implements BasePluginEvent {
  */
 export class PluginDiscoveredEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.discovered' = 'plugin.discovered';
+  type = 'plugin.discovered' as const;
 
   @IsString()
   pluginPath: string;
@@ -96,7 +96,7 @@ export class PluginDiscoveredEventValidator extends BasePluginEventValidator {
 
 export class PluginLoadingStartedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.loading.started' = 'plugin.loading.started';
+  type = 'plugin.loading.started' as const;
 
   @IsString()
   loadingStrategy: string;
@@ -114,7 +114,7 @@ export class PluginLoadingStartedEventValidator extends BasePluginEventValidator
 
 export class PluginLoadingProgressEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.loading.progress' = 'plugin.loading.progress';
+  type = 'plugin.loading.progress' as const;
 
   @IsEnum(['validation', 'dependency-resolution', 'instantiation', 'initialization'])
   phase: 'validation' | 'dependency-resolution' | 'instantiation' | 'initialization';
@@ -137,7 +137,7 @@ export class PluginLoadingProgressEventValidator extends BasePluginEventValidato
 
 export class PluginLoadedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.loaded' = 'plugin.loaded';
+  type = 'plugin.loaded' as const;
 
   @IsObject()
   plugin: any; // LoadedPlugin - using any to avoid circular dependencies
@@ -161,7 +161,7 @@ export class PluginLoadedEventValidator extends BasePluginEventValidator {
 
 export class PluginLoadFailedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.load.failed' = 'plugin.load.failed';
+  type = 'plugin.load.failed' as const;
 
   @IsObject()
   @Transform(({ value }) => (value instanceof Error ? value : new Error(String(value))))
@@ -185,7 +185,7 @@ export class PluginLoadFailedEventValidator extends BasePluginEventValidator {
 
 export class PluginUnloadedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.unloaded' = 'plugin.unloaded';
+  type = 'plugin.unloaded' as const;
 
   @IsEnum(['manual', 'error', 'shutdown', 'dependency-conflict'])
   reason: 'manual' | 'error' | 'shutdown' | 'dependency-conflict';
@@ -207,7 +207,7 @@ export class PluginUnloadedEventValidator extends BasePluginEventValidator {
 
 export class PluginStateChangedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.state.changed' = 'plugin.state.changed';
+  type = 'plugin.state.changed' as const;
 
   @IsOptional()
   @IsEnum(PluginState)
@@ -229,7 +229,7 @@ export class PluginStateChangedEventValidator extends BasePluginEventValidator {
 
 export class PluginDependencyResolvedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.dependency.resolved' = 'plugin.dependency.resolved';
+  type = 'plugin.dependency.resolved' as const;
 
   @IsString()
   dependency: string;
@@ -247,7 +247,7 @@ export class PluginDependencyResolvedEventValidator extends BasePluginEventValid
 
 export class PluginDependencyFailedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.dependency.failed' = 'plugin.dependency.failed';
+  type = 'plugin.dependency.failed' as const;
 
   @IsString()
   dependency: string;
@@ -270,7 +270,7 @@ export class PluginDependencyFailedEventValidator extends BasePluginEventValidat
 
 export class PluginReloadedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.reloaded' = 'plugin.reloaded';
+  type = 'plugin.reloaded' as const;
 
   @IsOptional()
   @IsString()
@@ -296,7 +296,7 @@ export class PluginReloadedEventValidator extends BasePluginEventValidator {
  */
 export class PluginUploadStartedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.upload.started' = 'plugin.upload.started';
+  type = 'plugin.upload.started' as const;
 
   @IsNumber()
   @Transform(({ value }) => Number(value))
@@ -314,7 +314,7 @@ export class PluginUploadStartedEventValidator extends BasePluginEventValidator 
 
 export class PluginValidationStartedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.validation.started' = 'plugin.validation.started';
+  type = 'plugin.validation.started' as const;
 
   @IsEnum(['manifest', 'structure', 'security'])
   validationType: 'manifest' | 'structure' | 'security';
@@ -327,7 +327,7 @@ export class PluginValidationStartedEventValidator extends BasePluginEventValida
 
 export class PluginValidationCompletedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.validation.completed' = 'plugin.validation.completed';
+  type = 'plugin.validation.completed' as const;
 
   @IsEnum(['manifest', 'structure', 'security'])
   validationType: 'manifest' | 'structure' | 'security';
@@ -359,7 +359,7 @@ export class PluginValidationCompletedEventValidator extends BasePluginEventVali
 
 export class PluginStoredEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.stored' = 'plugin.stored';
+  type = 'plugin.stored' as const;
 
   @IsObject()
   metadata: any; // PluginMetadata - using any to avoid circular dependencies
@@ -376,7 +376,7 @@ export class PluginStoredEventValidator extends BasePluginEventValidator {
 
 export class PluginDownloadedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.downloaded' = 'plugin.downloaded';
+  type = 'plugin.downloaded' as const;
 
   @IsOptional()
   @IsString()
@@ -400,7 +400,7 @@ export class PluginDownloadedEventValidator extends BasePluginEventValidator {
 
 export class PluginDeletedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.deleted' = 'plugin.deleted';
+  type = 'plugin.deleted' as const;
 
   @IsString()
   reason: string;
@@ -416,7 +416,7 @@ export class PluginDeletedEventValidator extends BasePluginEventValidator {
  */
 export class PluginSecurityScanStartedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.security.scan.started' = 'plugin.security.scan.started';
+  type = 'plugin.security.scan.started' as const;
 
   @IsEnum(['imports', 'structure', 'manifest'])
   scanType: 'imports' | 'structure' | 'manifest';
@@ -429,7 +429,7 @@ export class PluginSecurityScanStartedEventValidator extends BasePluginEventVali
 
 export class PluginSecurityScanCompletedEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.security.scan.completed' = 'plugin.security.scan.completed';
+  type = 'plugin.security.scan.completed' as const;
 
   @IsEnum(['imports', 'structure', 'manifest'])
   scanType: 'imports' | 'structure' | 'manifest';
@@ -456,7 +456,7 @@ export class PluginSecurityScanCompletedEventValidator extends BasePluginEventVa
 
 export class PluginSecurityViolationEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.security.violation' = 'plugin.security.violation';
+  type = 'plugin.security.violation' as const;
 
   @IsString()
   violationType: string;
@@ -480,7 +480,7 @@ export class PluginSecurityViolationEventValidator extends BasePluginEventValida
  */
 export class PluginPerformanceEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.performance' = 'plugin.performance';
+  type = 'plugin.performance' as const;
 
   @IsEnum(['load-time', 'memory-usage', 'cpu-usage', 'response-time'])
   metric: 'load-time' | 'memory-usage' | 'cpu-usage' | 'response-time';
@@ -516,7 +516,7 @@ export class PluginPerformanceEventValidator extends BasePluginEventValidator {
  */
 export class PluginCircuitBreakerEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.circuit-breaker' = 'plugin.circuit-breaker';
+  type = 'plugin.circuit-breaker' as const;
 
   @IsEnum(['open', 'half-open', 'closed'])
   state: 'open' | 'half-open' | 'closed';
@@ -548,7 +548,7 @@ export class PluginCircuitBreakerEventValidator extends BasePluginEventValidator
  */
 export class PluginCacheEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.cache' = 'plugin.cache';
+  type = 'plugin.cache' as const;
 
   @IsEnum(['hit', 'miss', 'eviction', 'clear'])
   operation: 'hit' | 'miss' | 'eviction' | 'clear';
@@ -573,7 +573,7 @@ export class PluginCacheEventValidator extends BasePluginEventValidator {
  */
 export class PluginErrorEventValidator extends BasePluginEventValidator {
   @IsString()
-  type: 'plugin.error' = 'plugin.error';
+  type = 'plugin.error' as const;
 
   @IsObject()
   @Transform(({ value }) => (value instanceof Error ? value : new Error(String(value))))

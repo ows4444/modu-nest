@@ -18,6 +18,8 @@
     "name": "utils"
   },
   "dependencies": {
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "@nestjs/common": "^11.0.0",
+    "semver": "^7.7.2"
   }
 }

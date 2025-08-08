@@ -171,7 +171,7 @@ export function IsSafePath(validationOptions?: ValidationOptions) {
           if (value.includes('..') || value.includes('~')) return false;
 
           // Must be absolute path or relative without traversal
-          return /^(\/[^\/\0]+)*\/?$/.test(value) || /^[^\/\0][^\/\0]*$/.test(value);
+          return /^([^/\0]+\/)*$/.test(value) || /^[^/\0][^/\0]*$/.test(value);
         },
         defaultMessage() {
           return 'Path must be safe and not contain directory traversal attempts';

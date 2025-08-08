@@ -19,6 +19,8 @@ import {
   PluginCacheKeyBuilder,
   PluginEventEmitter,
   IPluginEventSubscriber,
+  PluginTransition,
+  PluginState,
 } from '@modu-nest/plugin-types';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { PluginMetricsService } from './plugin-metrics.service';
@@ -34,7 +36,7 @@ import {
   LoadingStrategyType,
   PluginLoadingStrategyFactory,
 } from './strategies';
-import { PluginStateMachine, PluginState, PluginTransition } from './state-machine';
+import { PluginStateMachine } from './state-machine';
 
 @Injectable()
 export class PluginLoaderService implements PluginLoaderContext, IPluginEventSubscriber {
