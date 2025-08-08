@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { MulterModule } from '@nestjs/platform-express';
 import { AppController } from './app.controller';
 import { PluginController } from './controllers/plugin.controller';
@@ -17,7 +17,9 @@ import { PluginBundleOptimizationService } from './services/plugin-bundle-optimi
 import { PluginStorageOrchestratorService } from './services/plugin-storage-orchestrator.service';
 import { PluginVersionManager } from './services/plugin-version-manager';
 import { PluginTrustManager } from './services/plugin-trust-manager';
+import { SecurityEventLoggerService } from './services/security-event-logger.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
+import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { SharedConfigModule } from '@modu-nest/config';
 import { RepositoryModule } from './modules/repository.module';
 
@@ -60,10 +62,15 @@ import { RepositoryModule } from './modules/repository.module';
     PluginStorageOrchestratorService,
     PluginVersionManager,
     PluginTrustManager,
+    SecurityEventLoggerService,
     PluginRegistryService,
     {
       provide: APP_INTERCEPTOR,
       useClass: ErrorHandlingInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
     },
   ],
   exports: [

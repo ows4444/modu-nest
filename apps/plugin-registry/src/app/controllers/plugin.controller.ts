@@ -23,6 +23,7 @@ import 'multer';
 import { PluginRegistryService } from '../services/plugin-registry.service';
 import { PluginRateLimitingService } from '../services/plugin-rate-limiting.service';
 import { PluginBundleOptimizationService } from '../services/plugin-bundle-optimization.service';
+import { SecurityEventLoggerService } from '../services/security-event-logger.service';
 import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import {
@@ -33,6 +34,19 @@ import {
   SearchRateLimit,
   AdminRateLimit,
 } from '../guards/rate-limiting.guard';
+import { createSuccessResponse } from '../utils/response.utils';
+import { 
+  PluginNotFoundException, 
+  PluginUploadException, 
+  PluginValidationException 
+} from '../exceptions/plugin-registry.exceptions';
+import { StandardSuccessResponse } from '../types/error-response.types';
+import { 
+  SecurityEventSeverity, 
+  SecurityEventCategory, 
+  SecurityEventAction,
+  BaseSecurityEvent 
+} from '../services/security-event-logger.service';
 
 @Controller('plugins')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -40,7 +54,8 @@ export class PluginController {
   constructor(
     private readonly pluginRegistryService: PluginRegistryService,
     private readonly rateLimitingService: PluginRateLimitingService,
-    private readonly bundleOptimizationService: PluginBundleOptimizationService
+    private readonly bundleOptimizationService: PluginBundleOptimizationService,
+    private readonly securityLogger: SecurityEventLoggerService
   ) {}
 
   @Post()
@@ -59,13 +74,68 @@ export class PluginController {
       },
     },
   })
-  async uploadPlugin(@UploadedFile() file: Express.Multer.File): Promise<PluginResponseDto> {
+  async uploadPlugin(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: Request
+  ): Promise<StandardSuccessResponse<PluginResponseDto>> {
     if (!file) {
-      throw new BadRequestException('No plugin file provided');
+      this.securityLogger.logSuspiciousActivity(
+        'Plugin upload attempted without file',
+        SecurityEventSeverity.MEDIUM,
+        { endpoint: '/plugins', method: 'POST' },
+        request
+      );
+      throw new PluginUploadException('No plugin file provided');
     }
 
-    const result = await this.pluginRegistryService.uploadPlugin(file.buffer);
-    return result as PluginResponseDto;
+    try {
+      // Log upload attempt
+      this.securityLogger.logSecurityEvent({
+        eventId: this.generateEventId(),
+        timestamp: new Date().toISOString(),
+        category: SecurityEventCategory.UPLOAD_SECURITY,
+        severity: SecurityEventSeverity.INFO,
+        action: SecurityEventAction.AUDIT,
+        description: `Plugin upload initiated: ${file.originalname} (${file.size} bytes)`,
+        source: 'plugin-registry',
+        actor: this.extractActorInfo(request),
+        resource: {
+          type: 'file',
+          identifier: file.originalname || 'unknown',
+        },
+        context: {
+          fileSize: file.size,
+          mimeType: file.mimetype,
+        },
+        correlationId: this.extractCorrelationId(request),
+      });
+
+      const result = await this.pluginRegistryService.uploadPlugin(file.buffer);
+      
+      // Log successful upload
+      this.securityLogger.logAdminOperationEvent(
+        'plugin-upload',
+        true,
+        (result as PluginResponseDto).name,
+        { fileSize: file.size, fileName: file.originalname },
+        request
+      );
+
+      return createSuccessResponse(result as PluginResponseDto, 'Plugin uploaded successfully');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Log failed upload
+      this.securityLogger.logAdminOperationEvent(
+        'plugin-upload',
+        false,
+        file.originalname,
+        { error: message, fileSize: file.size },
+        request
+      );
+
+      throw new PluginUploadException(message, { originalError: message });
+    }
   }
 
   @Get()
@@ -74,23 +144,34 @@ export class PluginController {
   async listPlugins(
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number
-  ): Promise<PluginListResponseDto> {
+  ): Promise<StandardSuccessResponse<PluginListResponseDto>> {
     // Set default pagination
     const defaultLimit = 50;
     const maxLimit = 100;
 
     if (limit && limit > maxLimit) {
-      throw new BadRequestException(`Limit cannot exceed ${maxLimit}`);
+      throw new PluginValidationException('pagination', { 
+        limit: [`Limit cannot exceed ${maxLimit}. Received: ${limit}`] 
+      });
     }
 
-    return this.pluginRegistryService.listPlugins(page, limit || defaultLimit);
+    const result = await this.pluginRegistryService.listPlugins(page || 1, limit || defaultLimit);
+    return createSuccessResponse(result, 'Plugins retrieved successfully');
   }
 
   @Get(':name')
   @UseGuards(RateLimitingGuard)
   @ApiRateLimit()
-  async getPlugin(@Param('name') name: string): Promise<PluginResponseDto> {
-    return this.pluginRegistryService.getPlugin(name);
+  async getPlugin(@Param('name') name: string): Promise<StandardSuccessResponse<PluginResponseDto>> {
+    try {
+      const result = await this.pluginRegistryService.getPlugin(name);
+      return createSuccessResponse(result, 'Plugin retrieved successfully');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new PluginNotFoundException(name);
+      }
+      throw error;
+    }
   }
 
   @Get(':name/download')
@@ -113,12 +194,52 @@ export class PluginController {
   @Delete(':name')
   @UseGuards(RateLimitingGuard)
   @AdminRateLimit()
-  async deletePlugin(@Param('name') name: string): Promise<PluginDeleteResponseDto> {
-    await this.pluginRegistryService.deletePlugin(name);
-    return {
-      message: `Plugin ${name} deleted successfully`,
-      deletedPlugin: name,
-    };
+  async deletePlugin(
+    @Param('name') name: string,
+    @Req() request: Request
+  ): Promise<StandardSuccessResponse<PluginDeleteResponseDto>> {
+    try {
+      // Log deletion attempt
+      this.securityLogger.logAdminOperationEvent(
+        'plugin-delete',
+        false, // Will update to true on success
+        name,
+        { operation: 'delete', pluginName: name },
+        request
+      );
+
+      await this.pluginRegistryService.deletePlugin(name);
+      
+      // Log successful deletion
+      this.securityLogger.logAdminOperationEvent(
+        'plugin-delete',
+        true,
+        name,
+        { operation: 'delete', pluginName: name },
+        request
+      );
+
+      const result: PluginDeleteResponseDto = {
+        message: `Plugin ${name} deleted successfully`,
+        deletedPlugin: name,
+      };
+      return createSuccessResponse(result, 'Plugin deleted successfully');
+    } catch (error) {
+      // Log failed deletion
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.securityLogger.logAdminOperationEvent(
+        'plugin-delete',
+        false,
+        name,
+        { operation: 'delete', pluginName: name, error: errorMessage },
+        request
+      );
+
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new PluginNotFoundException(name);
+      }
+      throw error;
+    }
   }
 
   @Get('cache/stats')
@@ -142,11 +263,14 @@ export class PluginController {
   @Get('search')
   @UseGuards(RateLimitingGuard)
   @SearchRateLimit()
-  async searchPlugins(@Query('q') query: string): Promise<PluginResponseDto[]> {
+  async searchPlugins(@Query('q') query: string): Promise<StandardSuccessResponse<PluginResponseDto[]>> {
     if (!query || query.trim().length === 0) {
-      throw new BadRequestException('Search query is required');
+      throw new PluginValidationException('search', { 
+        query: ['Search query is required and cannot be empty'] 
+      });
     }
-    return this.pluginRegistryService.searchPlugins(query.trim());
+    const result = await this.pluginRegistryService.searchPlugins(query.trim());
+    return createSuccessResponse(result, 'Plugin search completed successfully');
   }
 
   @Get('stats/detailed')
@@ -344,5 +468,25 @@ export class PluginController {
     }
 
     return '****';
+  }
+
+  /**
+   * Security logging helper methods
+   */
+  private generateEventId(): string {
+    return `evt-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  }
+
+  private extractActorInfo(request: Request): BaseSecurityEvent['actor'] {
+    return {
+      type: 'anonymous',
+      ipAddress: request.ip || request.socket?.remoteAddress,
+      userAgent: request.get('User-Agent'),
+    };
+  }
+
+  private extractCorrelationId(request: Request): string | undefined {
+    return request.headers['x-correlation-id'] as string || 
+           request.headers['x-request-id'] as string;
   }
 }
