@@ -1,5 +1,6 @@
 import { ExecutorContext, PromiseExecutor, logger } from '@nx/devkit';
 import { PluginBuildExecutorSchema } from './schema';
+import { PluginManifest } from '@modu-nest/plugin-types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
@@ -7,32 +8,6 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 
-interface PluginManifest {
-  name: string;
-  version: string;
-  description: string;
-  author: string;
-  license: string;
-  dependencies?: string[];
-  loadOrder?: number;
-  module: {
-    controllers?: string[];
-    providers?: string[];
-    exports?: string[];
-    imports?: string[];
-  };
-  guards?: {
-    name: string;
-    class: string;
-    description?: string;
-    dependencies?: string[];
-    exported?: boolean; // Whether this guard can be used by other plugins
-  }[];
-  guardDependencies?: {
-    pluginName: string;
-    guards: string[]; // List of guard names this plugin wants to use from the dependency
-  }[];
-}
 
 interface BuildResult {
   success: boolean;
