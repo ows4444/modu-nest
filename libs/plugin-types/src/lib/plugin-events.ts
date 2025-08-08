@@ -26,6 +26,9 @@ export enum PluginTransition {
   FAIL_LOADING = 'fail_loading',
   UNLOAD = 'unload',
   REDISCOVER = 'rediscover',
+  RETRY = 'retry',
+  ROLLBACK = 'rollback',
+  RECOVER = 'recover',
 }
 
 // Base event interface

@@ -1,21 +1,4 @@
-export enum PluginState {
-  DISCOVERED = 'discovered',
-  LOADING = 'loading',
-  LOADED = 'loaded',
-  FAILED = 'failed',
-  UNLOADED = 'unloaded',
-}
-
-export enum PluginTransition {
-  START_LOADING = 'start_loading',
-  COMPLETE_LOADING = 'complete_loading',
-  FAIL_LOADING = 'fail_loading',
-  UNLOAD = 'unload',
-  REDISCOVER = 'rediscover',
-  RETRY = 'retry',
-  ROLLBACK = 'rollback',
-  RECOVER = 'recover',
-}
+import { PluginState, PluginTransition } from '@modu-nest/plugin-types';
 
 export interface StateTransition {
   from: PluginState;
