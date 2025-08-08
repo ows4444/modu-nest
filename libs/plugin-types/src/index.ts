@@ -1,5 +1,13 @@
 // Core plugin interfaces and types
 export * from './lib/plugin-interfaces';
+export * from './lib/plugin-manifest.types';
+export * from './lib/plugin-security.types';
+export * from './lib/plugin-lifecycle.types';
+
+// Runtime validators for plugin types
+export * from './lib/plugin-manifest.runtime-validators';
+export * from './lib/plugin-security.runtime-validators';
+export * from './lib/plugin-lifecycle.runtime-validators';
 
 // Plugin provider module and controller decorators
 export * from './lib/plugin-types.module';
@@ -68,4 +76,5 @@ export * from './lib/plugin-version-utils';
 // Plugin event system
 export * from './lib/plugin-events';
 export * from './lib/plugin-event-emitter';
+export * from './lib/plugin-event-validators';
 export * from './lib/plugin-event-monitor.service';
