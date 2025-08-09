@@ -27,7 +27,8 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
-      }
+      },
+      "exclude": ["libs/plugin-context/*"]
     },
     {
       "plugin": "@nx/webpack/plugin",
@@ -61,6 +62,15 @@
         }
       },
       "exclude": ["libs/plugin-types/*"]
+    },
+    {
+      "plugin": "@nx/js/typescript",
+      "include": ["libs/plugin-context/*"],
+      "options": {
+        "typecheck": {
+          "targetName": "typecheck"
+        }
+      }
     }
   ],
   "targetDefaults": {
