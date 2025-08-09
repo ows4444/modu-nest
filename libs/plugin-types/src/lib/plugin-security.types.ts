@@ -48,6 +48,17 @@ export interface ServiceVersionInfo {
   };
 }
 
+export interface FileAccessPermissions {
+  allowedExtensions?: string[];
+  allowedPaths?: string[];
+  blockedPaths?: string[];
+  maxFileSize?: number;
+  canRead?: boolean;
+  canWrite?: boolean;
+  canDelete?: boolean;
+  canList?: boolean;
+}
+
 export interface PluginSecurity {
   trustLevel: 'internal' | 'verified' | 'community';
   signature?: {
@@ -69,6 +80,7 @@ export interface PluginSecurity {
       maxNetworkBandwidth?: number;
     };
   };
+  fileAccess?: FileAccessPermissions;
 }
 
 export interface LoadedGuard {

@@ -1,4 +1,5 @@
 import { PluginInjectable } from '@modu-nest/plugin-types';
+import { FileAccessService } from '@modu-nest/plugin-context';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { User, CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
 
@@ -6,7 +7,7 @@ import { User, CreateUserDto, UpdateUserDto } from '../interfaces/user.interface
 export class UserPluginService {
   private users: Map<string, User> = new Map();
 
-  constructor() {
+  constructor(private readonly fileAccessService: FileAccessService) {
     // Initialize with sample data
     this.initializeSampleData();
   }
@@ -125,5 +126,20 @@ export class UserPluginService {
   isUserAdmin(userId: string): boolean {
     const roles = this.getUserRoles(userId);
     return roles.includes('admin');
+  }
+
+  async exportUsers(): Promise<void> {
+    const users = this.getAllUsers();
+    const userData = JSON.stringify(users, null, 2);
+    await this.fileAccessService.writeFile('./plugins/user-export.json', userData, 'user-plugin');
+  }
+
+  async importUsers(): Promise<User[]> {
+    try {
+      const userData = await this.fileAccessService.readFile('./plugins/user-export.json', 'user-plugin');
+      return JSON.parse(userData);
+    } catch (error) {
+      return [];
+    }
   }
 }

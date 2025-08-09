@@ -7,10 +7,13 @@
       "path": "../../libs/shared/const"
     },
     {
-      "path": "../../libs/shared/config"
+      "path": "../../libs/plugin-types"
     },
     {
-      "path": "../../libs/plugin-types"
+      "path": "../../libs/plugin-context"
+    },
+    {
+      "path": "../../libs/shared/config"
     },
     {
       "path": "./tsconfig.app.json"

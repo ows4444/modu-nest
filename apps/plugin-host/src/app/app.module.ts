@@ -11,6 +11,7 @@ import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
+import { ModuNestPluginContextModule } from '@modu-nest/plugin-context';
 import {
   PluginGuardInterceptor,
   PluginGuardRegistryService,
@@ -34,6 +35,14 @@ export class AppModule implements OnModuleInit {
 
     // Add shared configuration module
     const baseImports = [
+      ModuNestPluginContextModule.forRoot({
+        defaultOptions: {
+          allowedExtensions: ['.json', '.txt', '.md', '.js', '.ts'],
+          maxFileSize: 10 * 1024 * 1024, // 10MB
+          allowedPaths: ['./plugins', './temp', './uploads'],
+          blockedPaths: ['/etc', '/usr', '/bin', '/sbin', '/var', '/boot', '/root', '/home'],
+        },
+      }),
       SharedConfigModule.forRoot({
         isGlobal: true,
         expandVariables: true,
