@@ -1,11 +1,13 @@
 // Core plugin interfaces and types
 export * from './lib/plugin-interfaces';
+export * from './lib/plugin-strict-interfaces';
 export * from './lib/plugin-manifest.types';
 export * from './lib/plugin-security.types';
 export * from './lib/plugin-lifecycle.types';
 
 // Runtime validators for plugin types
 export * from './lib/plugin-manifest.runtime-validators';
+export * from './lib/plugin-manifest.zod-validators';
 export * from './lib/plugin-security.runtime-validators';
 export * from './lib/plugin-lifecycle.runtime-validators';
 

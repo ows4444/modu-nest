@@ -1,10 +1,48 @@
 /**
  * File size and format utilities
+ *
+ * This module provides utilities for working with file sizes, including
+ * formatting bytes to human-readable strings, parsing size strings back
+ * to bytes, and performing size-related validations and calculations.
+ *
+ * @fileoverview File size utilities with comprehensive formatting and validation
+ * @version 1.0.0
+ * @author Plugin System
+ * @since 1.0.0
  */
 
 /**
- * Formats a file size in bytes to a human-readable string
- */
+ * Formats a file size in bytes to a human-readable string.
+ *
+ * Converts a numeric byte value into a human-readable string using
+ * appropriate units (B, KB, MB, GB, TB, PB). Uses base 1024 for
+ * binary calculations as commonly expected in computing contexts.
+ *
+ * @param {number} bytes - The file size in bytes (must be non-negative)
+ *
+ * @returns {string} A formatted string with size and appropriate unit
+ *
+ * @example
+ * // Format various file sizes
+ * console.log(formatFileSize(0)); // '0 B'
+ * console.log(formatFileSize(512)); // '512 B'
+ * console.log(formatFileSize(1024)); // '1.0 KB'
+ * console.log(formatFileSize(1536)); // '1.5 KB'
+ * console.log(formatFileSize(1048576)); // '1.0 MB'
+ * console.log(formatFileSize(1073741824)); // '1.0 GB'
+ *
+ * @example
+ * * // Large file sizes
+ * * const largeFile = 5.5 * 1024 * 1024 * 1024; // 5.5 GB
+ * * console.log(formatFileSize(largeFile)); // '5.5 GB'
+ * *
+ * * @example
+ * * // Very small sizes remain as bytes
+ * * console.log(formatFileSize(1)); // '1 B'
+ * * console.log(formatFileSize(1023)); // '1023 B'
+ * *
+ * * @since 1.0.0
+ * */
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
 

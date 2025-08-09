@@ -221,6 +221,20 @@ export class PluginVersionValidator {
   raw?: string;
 }
 
+export class LoadedPluginValidator {
+  @ValidateNested()
+  @Type(() => PluginManifestValidator)
+  manifest!: PluginManifestValidator;
+
+  // module can be any valid JS module
+  @IsObject()
+  module!: unknown;
+
+  // instance can be any valid JS object instance
+  @IsObject()
+  instance!: unknown;
+}
+
 /**
  * Runtime validator utility for plugin manifest types
  */
@@ -274,6 +288,17 @@ export class PluginManifestRuntimeValidator {
    */
   static async validateVersion(data: any): Promise<PluginValidationResult> {
     const validator = new PluginVersionValidator();
+    Object.assign(validator, data);
+
+    const errors = await validate(validator);
+    return this.formatValidationResult(errors);
+  }
+
+  /**
+   * Validates a loaded plugin using class-validator
+   */
+  static async validateLoadedPlugin(data: any): Promise<PluginValidationResult> {
+    const validator = new LoadedPluginValidator();
     Object.assign(validator, data);
 
     const errors = await validate(validator);

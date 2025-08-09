@@ -12,8 +12,8 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginEventEmitter } from '@modu-nest/plugin-types';
-import { PluginStateMachine, PluginState } from './state-machine';
+import { PluginEventEmitter, PluginState } from '@modu-nest/plugin-types';
+import { PluginStateMachine } from './state-machine';
 
 export interface DependencyWaiter {
   pluginName: string;

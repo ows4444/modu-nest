@@ -38,6 +38,55 @@ import {
 } from './strategies';
 import { PluginStateMachine } from './state-machine';
 
+// Enhanced plugin discovery error interfaces
+export interface PluginDiscoveryError {
+  pluginDirectory: string;
+  pluginPath: string;
+  errorType:
+    | 'MANIFEST_NOT_FOUND'
+    | 'MANIFEST_PARSE_ERROR'
+    | 'MANIFEST_VALIDATION_ERROR'
+    | 'FILE_ACCESS_ERROR'
+    | 'UNKNOWN_ERROR';
+  error: Error;
+  timestamp: Date;
+  retryCount: number;
+  details?: {
+    fileExists?: boolean;
+    manifestContent?: string;
+    validationErrors?: string[];
+    stackTrace?: string;
+  };
+}
+
+export interface PluginDiscoveryResult {
+  successful: PluginDiscovery[];
+  failed: PluginDiscoveryError[];
+  totalAttempted: number;
+  discoveryTime: number;
+  retryAttempts: number;
+  performanceMetrics: {
+    averageDiscoveryTime: number;
+    slowestPlugin: string | null;
+    fastestPlugin: string | null;
+  };
+}
+
+export interface PluginTrackingConfig {
+  trackingMode: 'minimal' | 'selective' | 'comprehensive';
+  maxDepth: number;
+  trackControllers: boolean;
+  trackProviders: boolean;
+  trackExports: boolean;
+  trackImports: boolean;
+  enableLazyLoading: boolean;
+  trackingHints?: {
+    includePatterns?: RegExp[];
+    excludePatterns?: RegExp[];
+    criticalExports?: string[];
+  };
+}
+
 @Injectable()
 export class PluginLoaderService implements PluginLoaderContext, IPluginEventSubscriber {
   readonly logger = new Logger(PluginLoaderService.name);
@@ -69,6 +118,14 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
   // Plugin failure tracking
   private readonly pluginFailureCounts = new Map<string, number>();
+
+  // Enhanced discovery error tracking
+  private readonly discoveryErrors = new Map<string, PluginDiscoveryError>();
+  private readonly discoveryPerformanceMetrics = new Map<string, number>();
+
+  // Optimized instance tracking
+  private readonly pluginTrackingConfig = new Map<string, PluginTrackingConfig>();
+  private readonly lazyInstanceRefs = new Map<string, Map<string, () => object | null>>();
 
   // FinalizationRegistry to track garbage collection
   private readonly cleanupRegistry = new FinalizationRegistry((pluginName: string) => {
@@ -292,12 +349,13 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
   private async performPluginDiscovery(): Promise<{ plugins: PluginDiscovery[]; discoveryTime: number }> {
     const discoveryStartTime = Date.now();
-    const discoveredPlugins = await this.discoverPlugins();
+    const discoveryResult = await this.discoverPluginsWithEnhancedErrorHandling();
     const discoveryTime = Date.now() - discoveryStartTime;
 
-    this.logger.log(`Discovered ${discoveredPlugins.length} plugins in ${discoveryTime}ms`);
+    // Log comprehensive discovery results
+    this.logDiscoveryResults(discoveryResult, discoveryTime);
 
-    return { plugins: discoveredPlugins, discoveryTime };
+    return { plugins: discoveryResult.successful, discoveryTime };
   }
 
   private async performDependencyAnalysis(discoveredPlugins: PluginDiscovery[]): Promise<string[]> {
@@ -340,71 +398,410 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     }
   }
 
-  private async discoverPlugins(): Promise<PluginDiscovery[]> {
+  /**
+   * Enhanced plugin discovery with comprehensive error handling and performance tracking
+   */
+  private async discoverPluginsWithEnhancedErrorHandling(): Promise<PluginDiscoveryResult> {
+    const discoveryStartTime = Date.now();
     const pluginsPath = process.env.PLUGINS_DIR || path.resolve(__dirname, 'assets', 'plugins');
+    const maxRetries = parseInt(process.env.PLUGIN_DISCOVERY_MAX_RETRIES || '2', 10);
+    const retryDelay = parseInt(process.env.PLUGIN_DISCOVERY_RETRY_DELAY || '1000', 10);
 
+    // Clear previous discovery state
+    this.discoveryErrors.clear();
+    this.discoveryPerformanceMetrics.clear();
+
+    let directories: string[] = [];
+
+    // Check plugins directory with enhanced error handling
     try {
       await fs.promises.access(pluginsPath);
-    } catch {
-      this.logger.warn(`Plugins directory not found: ${pluginsPath}`);
-      return [];
+      const pluginDirs = await fs.promises.readdir(pluginsPath, { withFileTypes: true });
+      directories = pluginDirs.filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
+
+      if (directories.length === 0) {
+        this.logger.warn(`No plugin directories found in: ${pluginsPath}`);
+        return this.createEmptyDiscoveryResult(discoveryStartTime);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to access plugins directory: ${pluginsPath}`, error);
+      return this.createEmptyDiscoveryResult(discoveryStartTime);
     }
 
-    const pluginDirs = await fs.promises.readdir(pluginsPath, { withFileTypes: true });
-    const directories = pluginDirs.filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
+    this.logger.debug(`Starting discovery of ${directories.length} plugin directories...`);
 
-    // Process plugins in parallel using Promise.allSettled
-    const discoveryPromises = directories.map((pluginDir) => this.discoverSinglePlugin(pluginsPath, pluginDir));
+    const successful: PluginDiscovery[] = [];
+    const failed: PluginDiscoveryError[] = [];
+    let totalRetryAttempts = 0;
 
+    // Process plugins with enhanced error handling and retry logic
+    const discoveryPromises = directories.map(async (pluginDir) => {
+      const pluginStartTime = Date.now();
+      let lastError: Error | null = null;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const discovery = await this.discoverSinglePluginWithEnhancedErrorHandling(pluginsPath, pluginDir);
+
+          if (discovery) {
+            const discoveryTime = Date.now() - pluginStartTime;
+            this.discoveryPerformanceMetrics.set(pluginDir, discoveryTime);
+
+            // Store successful discovery
+            this.discoveredPlugins.set(discovery.name, discovery);
+            this.stateMachine.transition(discovery.name, PluginTransition.REDISCOVER);
+
+            // Emit plugin discovered event
+            this.eventEmitter.emitPluginDiscovered(discovery.name, discovery.path, discovery.manifest);
+
+            this.logger.debug(
+              `✓ Discovered plugin: ${discovery.name} in ${discoveryTime}ms ` +
+                `(dependencies: [${discovery.dependencies.join(', ')}])`
+            );
+
+            return { success: true, discovery, error: null };
+          }
+        } catch (error) {
+          lastError = error as Error;
+          totalRetryAttempts++;
+
+          if (attempt < maxRetries) {
+            this.logger.debug(
+              `Discovery attempt ${attempt + 1} failed for ${pluginDir}, retrying in ${retryDelay}ms...`
+            );
+            await this.delay(retryDelay);
+          }
+        }
+      }
+
+      // All attempts failed, create comprehensive error report
+      const discoveryError = await this.createDiscoveryError(pluginsPath, pluginDir, lastError!, maxRetries);
+      this.discoveryErrors.set(pluginDir, discoveryError);
+
+      return { success: false, discovery: null, error: discoveryError };
+    });
+
+    // Wait for all discovery attempts to complete
     const results = await Promise.allSettled(discoveryPromises);
-    const discoveries: PluginDiscovery[] = [];
 
-    for (let i = 0; i < results.length; i++) {
-      const discoveryResult = results[i];
-      const pluginDirectoryName = directories[i];
+    // Process results and categorize successes/failures
+    results.forEach((result, index) => {
+      const pluginDir = directories[index];
 
-      if (discoveryResult.status === 'fulfilled' && discoveryResult.value) {
-        const pluginDiscovery = discoveryResult.value;
-        discoveries.push(pluginDiscovery);
-        this.discoveredPlugins.set(pluginDiscovery.name, pluginDiscovery);
-        this.stateMachine.transition(pluginDiscovery.name, PluginTransition.REDISCOVER);
-
-        // Emit plugin discovered event
-        this.eventEmitter.emitPluginDiscovered(pluginDiscovery.name, pluginDiscovery.path, pluginDiscovery.manifest);
-
-        this.logger.debug(
-          `Discovered plugin: ${pluginDiscovery.name} (dependencies: [${pluginDiscovery.dependencies.join(', ')}])`
-        );
+      if (result.status === 'fulfilled') {
+        if (result.value.success && result.value.discovery) {
+          successful.push(result.value.discovery);
+        } else if (result.value.error) {
+          failed.push(result.value.error);
+        }
       } else {
-        this.logger.error(
-          `Failed to discover plugin ${pluginDirectoryName}:`,
-          discoveryResult.status === 'rejected' ? discoveryResult.reason : 'Unknown error'
+        // Promise itself rejected - create an unknown error
+        const unknownError: PluginDiscoveryError = {
+          pluginDirectory: pluginDir,
+          pluginPath: path.join(pluginsPath, pluginDir),
+          errorType: 'UNKNOWN_ERROR',
+          error: new Error(`Promise rejection: ${result.reason}`),
+          timestamp: new Date(),
+          retryCount: maxRetries,
+          details: {
+            stackTrace: result.reason?.stack || 'No stack trace available',
+          },
+        };
+        failed.push(unknownError);
+      }
+    });
+
+    // Calculate performance metrics
+    const discoveryTime = Date.now() - discoveryStartTime;
+    const performanceMetrics = this.calculateDiscoveryPerformanceMetrics();
+
+    const discoveryResult: PluginDiscoveryResult = {
+      successful,
+      failed,
+      totalAttempted: directories.length,
+      discoveryTime,
+      retryAttempts: totalRetryAttempts,
+      performanceMetrics,
+    };
+
+    return discoveryResult;
+  }
+
+  /**
+   * Legacy method for backwards compatibility - kept simple for existing callers
+   */
+  private async discoverPlugins(): Promise<PluginDiscovery[]> {
+    const result = await this.discoverPluginsWithEnhancedErrorHandling();
+    return result.successful;
+  }
+
+  /**
+   * Enhanced single plugin discovery with detailed error handling
+   */
+  private async discoverSinglePluginWithEnhancedErrorHandling(
+    pluginsPath: string,
+    pluginDir: string
+  ): Promise<PluginDiscovery | null> {
+    const pluginPath = path.join(pluginsPath, pluginDir);
+
+    try {
+      const manifest = await this.loadManifest(pluginPath);
+
+      const pluginDiscoveryInfo: PluginDiscovery = {
+        name: manifest.name,
+        path: pluginPath,
+        manifest,
+        dependencies: manifest.dependencies || [],
+        loadOrder: manifest.loadOrder || 0,
+      };
+
+      return pluginDiscoveryInfo;
+    } catch (error) {
+      // Enhanced error handling with specific error categorization
+      const retryCount = this.discoveryErrors.get(pluginDir)?.retryCount || 0;
+      const discoveryError = await this.createDiscoveryError(pluginsPath, pluginDir, error as Error, retryCount + 1);
+      this.discoveryErrors.set(pluginDir, discoveryError);
+      throw error; // Let the retry mechanism handle the error categorization
+    }
+  }
+
+  /**
+   * Create a comprehensive discovery error with detailed context
+   */
+  private async createDiscoveryError(
+    pluginsPath: string,
+    pluginDir: string,
+    error: Error,
+    retryCount: number
+  ): Promise<PluginDiscoveryError> {
+    const pluginPath = path.join(pluginsPath, pluginDir);
+    const manifestPath = path.join(pluginPath, 'plugin.manifest.json');
+
+    let errorType: PluginDiscoveryError['errorType'] = 'UNKNOWN_ERROR';
+    const details: PluginDiscoveryError['details'] = {
+      stackTrace: error.stack,
+    };
+
+    try {
+      // Check if plugin directory exists
+      await fs.promises.access(pluginPath);
+
+      try {
+        // Check if manifest file exists
+        await fs.promises.access(manifestPath);
+        details.fileExists = true;
+
+        try {
+          // Try to read manifest content
+          const manifestContent = await fs.promises.readFile(manifestPath, 'utf-8');
+          details.manifestContent = manifestContent.substring(0, 500); // Limit content size
+
+          try {
+            // Try to parse JSON
+            JSON.parse(manifestContent);
+            errorType = 'MANIFEST_VALIDATION_ERROR';
+
+            // If JSON parsing succeeded, it might be a validation error from our manifest validation
+            if (error.message.includes('guard dependencies') || error.message.includes('manifest has invalid')) {
+              errorType = 'MANIFEST_VALIDATION_ERROR';
+              details.validationErrors = [error.message];
+            }
+          } catch (parseError) {
+            errorType = 'MANIFEST_PARSE_ERROR';
+            const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+            details.validationErrors = [`JSON parse error: ${errorMessage}`];
+          }
+        } catch (readError) {
+          errorType = 'FILE_ACCESS_ERROR';
+          details.fileExists = true;
+        }
+      } catch (manifestAccessError) {
+        errorType = 'MANIFEST_NOT_FOUND';
+        details.fileExists = false;
+      }
+    } catch (dirAccessError) {
+      errorType = 'FILE_ACCESS_ERROR';
+      details.fileExists = false;
+    }
+
+    return {
+      pluginDirectory: pluginDir,
+      pluginPath,
+      errorType,
+      error,
+      timestamp: new Date(),
+      retryCount,
+      details,
+    };
+  }
+
+  /**
+   * Calculate performance metrics from discovery attempts
+   */
+  private calculateDiscoveryPerformanceMetrics(): PluginDiscoveryResult['performanceMetrics'] {
+    const metrics = Array.from(this.discoveryPerformanceMetrics.values());
+
+    if (metrics.length === 0) {
+      return {
+        averageDiscoveryTime: 0,
+        slowestPlugin: null,
+        fastestPlugin: null,
+      };
+    }
+
+    const averageDiscoveryTime = metrics.reduce((sum, time) => sum + time, 0) / metrics.length;
+
+    let slowestPlugin: string | null = null;
+    let fastestPlugin: string | null = null;
+    let slowestTime = 0;
+    let fastestTime = Infinity;
+
+    for (const [pluginDir, time] of this.discoveryPerformanceMetrics.entries()) {
+      if (time > slowestTime) {
+        slowestTime = time;
+        slowestPlugin = pluginDir;
+      }
+      if (time < fastestTime) {
+        fastestTime = time;
+        fastestPlugin = pluginDir;
+      }
+    }
+
+    return {
+      averageDiscoveryTime: Math.round(averageDiscoveryTime),
+      slowestPlugin,
+      fastestPlugin,
+    };
+  }
+
+  /**
+   * Create empty discovery result for error cases
+   */
+  private createEmptyDiscoveryResult(discoveryStartTime: number): PluginDiscoveryResult {
+    return {
+      successful: [],
+      failed: [],
+      totalAttempted: 0,
+      discoveryTime: Date.now() - discoveryStartTime,
+      retryAttempts: 0,
+      performanceMetrics: {
+        averageDiscoveryTime: 0,
+        slowestPlugin: null,
+        fastestPlugin: null,
+      },
+    };
+  }
+
+  /**
+   * Simple delay utility for retry logic
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Log comprehensive discovery results with error analysis
+   */
+  private logDiscoveryResults(result: PluginDiscoveryResult, totalDiscoveryTime: number): void {
+    const { successful, failed, totalAttempted, retryAttempts, performanceMetrics } = result;
+
+    // Success summary
+    if (successful.length > 0) {
+      this.logger.log(
+        `✅ Successfully discovered ${successful.length}/${totalAttempted} plugins in ${totalDiscoveryTime}ms ` +
+          `(avg: ${performanceMetrics.averageDiscoveryTime}ms per plugin, ${retryAttempts} retry attempts)`
+      );
+
+      if (performanceMetrics.slowestPlugin && performanceMetrics.fastestPlugin) {
+        this.logger.debug(
+          `Performance: fastest=${performanceMetrics.fastestPlugin}, slowest=${performanceMetrics.slowestPlugin}`
         );
       }
     }
 
-    return discoveries;
+    // Group errors by type for better reporting (needed for both logging and event emission)
+    const errorsByType = new Map<string, PluginDiscoveryError[]>();
+    failed.forEach((error) => {
+      const errors = errorsByType.get(error.errorType) || [];
+      errors.push(error);
+      errorsByType.set(error.errorType, errors);
+    });
+
+    // Error analysis
+    if (failed.length > 0) {
+      this.logger.error(`❌ Failed to discover ${failed.length}/${totalAttempted} plugins:`);
+
+      // Report errors by category
+      for (const [errorType, errors] of errorsByType.entries()) {
+        this.logger.error(`  ${errorType} (${errors.length}): ${errors.map((e) => e.pluginDirectory).join(', ')}`);
+
+        // Show detailed error for first few failures
+        errors.slice(0, 3).forEach((error: PluginDiscoveryError) => {
+          this.logger.error(`    ${error.pluginDirectory}: ${error.error.message}`);
+          if (error.details?.validationErrors) {
+            error.details.validationErrors.forEach((validationError) => {
+              this.logger.error(`      - ${validationError}`);
+            });
+          }
+        });
+
+        if (errors.length > 3) {
+          this.logger.error(`    ... and ${errors.length - 3} more ${errorType} errors`);
+        }
+      }
+
+      // Suggest actions based on error types
+      this.suggestDiscoveryErrorResolutions(errorsByType);
+    }
+
+    // Emit discovery completion event with comprehensive results
+    try {
+      const errorsByTypeForEvent: Record<string, Array<{ plugin: string; message: string }>> = {};
+      for (const [type, errors] of errorsByType.entries()) {
+        errorsByTypeForEvent[type] = errors.map((e: PluginDiscoveryError) => ({
+          plugin: e.pluginDirectory,
+          message: e.error.message,
+        }));
+      }
+
+      // Use individual event emission - simplified logging for now
+      this.logger.debug(
+        `Discovery completed: ${successful.length}/${totalAttempted} successful, ${retryAttempts} retry attempts`
+      );
+      if (Object.keys(errorsByTypeForEvent).length > 0) {
+        this.logger.debug(`Errors by type: ${JSON.stringify(Object.keys(errorsByTypeForEvent))}`);
+      }
+    } catch (eventError) {
+      this.logger.debug('Failed to emit discovery completion event:', eventError);
+    }
   }
 
   /**
-   * Discovers a single plugin directory and loads its manifest
-   * @param pluginsPath - Base plugins directory path
-   * @param pluginDir - Individual plugin directory name
-   * @returns Promise<PluginDiscovery | null> - Plugin discovery or null if failed
+   * Suggest resolutions for common discovery errors
    */
-  private async discoverSinglePlugin(pluginsPath: string, pluginDir: string): Promise<PluginDiscovery | null> {
-    const pluginPath = path.join(pluginsPath, pluginDir);
-    const manifest = await this.loadManifest(pluginPath);
+  private suggestDiscoveryErrorResolutions(errorsByType: Map<string, PluginDiscoveryError[]>): void {
+    const suggestions: string[] = [];
 
-    const pluginDiscoveryInfo: PluginDiscovery = {
-      name: manifest.name,
-      path: pluginPath,
-      manifest,
-      dependencies: manifest.dependencies || [],
-      loadOrder: manifest.loadOrder || 0,
-    };
+    if (errorsByType.has('MANIFEST_NOT_FOUND')) {
+      suggestions.push('MANIFEST_NOT_FOUND: Ensure plugin.manifest.json files exist in plugin directories');
+    }
 
-    return pluginDiscoveryInfo;
+    if (errorsByType.has('MANIFEST_PARSE_ERROR')) {
+      suggestions.push('MANIFEST_PARSE_ERROR: Check JSON syntax in manifest files using a JSON validator');
+    }
+
+    if (errorsByType.has('MANIFEST_VALIDATION_ERROR')) {
+      suggestions.push('MANIFEST_VALIDATION_ERROR: Review manifest validation requirements in documentation');
+    }
+
+    if (errorsByType.has('FILE_ACCESS_ERROR')) {
+      suggestions.push('FILE_ACCESS_ERROR: Check file permissions and directory access rights');
+    }
+
+    if (suggestions.length > 0) {
+      this.logger.warn('💡 Suggested resolutions:');
+      suggestions.forEach((suggestion) => this.logger.warn(`  ${suggestion}`));
+    }
   }
 
   private calculateLoadOrder(discoveries: PluginDiscovery[]): string[] {
@@ -495,6 +892,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       throw new Error(`Invalid plugin manifest: ${manifestPath}`);
     }
 
+    // Enhanced guard dependency validation
+    await this.validateManifestGuardDependencies(manifest, manifestPath);
+
     // Get file stats for cache context
     const fileStats = await fs.promises.stat(manifestPath);
 
@@ -508,6 +908,301 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
     this.logger.debug(`Loaded and cached manifest: ${manifestPath}`);
     return manifest;
+  }
+
+  /**
+   * Enhanced guard dependency validation in plugin manifests
+   * Validates guard dependencies exist, are accessible, and don't create circular dependencies
+   */
+  private async validateManifestGuardDependencies(manifest: PluginManifest, manifestPath: string): Promise<void> {
+    if (!manifest.module.guards || manifest.module.guards.length === 0) {
+      return; // No guards to validate
+    }
+
+    this.logger.debug(`Validating ${manifest.module.guards.length} guard dependencies for plugin: ${manifest.name}`);
+
+    const validationErrors: string[] = [];
+    const validationWarnings: string[] = [];
+    const dependencyChain = new Set<string>();
+
+    // Track all local guards defined in this manifest
+    const localGuards = new Set<string>();
+    const externalGuardRefs = new Map<string, string>(); // guardName -> sourcePlugin
+
+    // Categorize guards
+    for (const guard of manifest.module.guards) {
+      if (guard.scope === 'local') {
+        localGuards.add(guard.name);
+      } else if (guard.scope === 'external') {
+        externalGuardRefs.set(guard.name, guard.source);
+      }
+    }
+
+    // Validate each guard entry
+    for (const guardEntry of manifest.module.guards) {
+      try {
+        await this.validateSingleGuardEntry(
+          guardEntry,
+          manifest.name,
+          localGuards,
+          externalGuardRefs,
+          dependencyChain,
+          validationErrors,
+          validationWarnings
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        validationErrors.push(`Guard '${guardEntry.name}': ${errorMessage}`);
+      }
+    }
+
+    // Check for manifest-level circular dependencies
+    const circularDeps = this.detectManifestCircularDependencies(manifest.module.guards);
+    if (circularDeps.length > 0) {
+      validationErrors.push(`Circular dependencies detected in guard manifest: ${circularDeps.join(' -> ')}`);
+    }
+
+    // Report validation results
+    if (validationWarnings.length > 0) {
+      this.logger.warn(
+        `Plugin '${manifest.name}' manifest has guard validation warnings:\n- ${validationWarnings.join('\n- ')}`
+      );
+    }
+
+    if (validationErrors.length > 0) {
+      throw new Error(
+        `Plugin '${manifest.name}' manifest has invalid guard dependencies:\n- ${validationErrors.join('\n- ')}`
+      );
+    }
+
+    this.logger.debug(`✓ Guard dependencies validated for manifest: ${manifest.name}`);
+  }
+
+  /**
+   * Validate a single guard entry and its dependencies
+   */
+  private async validateSingleGuardEntry(
+    guardEntry: GuardEntry,
+    pluginName: string,
+    localGuards: Set<string>,
+    externalGuardRefs: Map<string, string>,
+    dependencyChain: Set<string>,
+    validationErrors: string[],
+    validationWarnings: string[]
+  ): Promise<void> {
+    // Check for circular dependency in current chain
+    if (dependencyChain.has(guardEntry.name)) {
+      throw new Error(
+        `Circular dependency detected: ${Array.from(dependencyChain).join(' -> ')} -> ${guardEntry.name}`
+      );
+    }
+
+    dependencyChain.add(guardEntry.name);
+
+    try {
+      if (guardEntry.scope === 'local') {
+        await this.validateLocalGuardEntry(
+          guardEntry as LocalGuardEntry,
+          pluginName,
+          localGuards,
+          externalGuardRefs,
+          dependencyChain,
+          validationErrors,
+          validationWarnings
+        );
+      } else if (guardEntry.scope === 'external') {
+        await this.validateExternalGuardEntry(
+          guardEntry as ExternalGuardEntry,
+          pluginName,
+          validationErrors,
+          validationWarnings
+        );
+      } else {
+        validationErrors.push(`Invalid guard scope '${(guardEntry as any).scope}' for guard '${guardEntry.name}'`);
+      }
+    } finally {
+      dependencyChain.delete(guardEntry.name);
+    }
+  }
+
+  /**
+   * Validate local guard entry and its dependencies
+   */
+  private async validateLocalGuardEntry(
+    localEntry: LocalGuardEntry,
+    pluginName: string,
+    localGuards: Set<string>,
+    externalGuardRefs: Map<string, string>,
+    dependencyChain: Set<string>,
+    validationErrors: string[],
+    validationWarnings: string[]
+  ): Promise<void> {
+    // Validate required properties for local guards
+    if (!localEntry.class) {
+      validationErrors.push(`Local guard '${localEntry.name}' missing required 'class' property`);
+      return;
+    }
+
+    // Validate dependencies if they exist
+    if (localEntry.dependencies && localEntry.dependencies.length > 0) {
+      for (const depName of localEntry.dependencies) {
+        // Check if dependency exists in local guards
+        if (localGuards.has(depName)) {
+          // Local dependency - check for circular reference
+          if (dependencyChain.has(depName)) {
+            validationErrors.push(`Circular dependency: ${Array.from(dependencyChain).join(' -> ')} -> ${depName}`);
+          }
+          continue;
+        }
+
+        // Check if dependency is an external guard reference
+        if (externalGuardRefs.has(depName)) {
+          await this.validateExternalGuardReference(
+            depName,
+            externalGuardRefs.get(depName)!,
+            validationErrors,
+            validationWarnings
+          );
+          continue;
+        }
+
+        // Check if dependency might be available from other loaded plugins
+        const isAvailableFromOtherPlugins = await this.checkGuardAvailabilityFromOtherPlugins(depName, pluginName);
+        if (!isAvailableFromOtherPlugins) {
+          validationErrors.push(
+            `Guard '${localEntry.name}' depends on '${depName}' which is not defined in this manifest and not available from other plugins`
+          );
+        } else {
+          validationWarnings.push(
+            `Guard '${localEntry.name}' depends on '${depName}' from external plugin - ensure plugin loading order is correct`
+          );
+        }
+      }
+    }
+
+    // Validation for exported guards
+    if (localEntry.exported) {
+      validationWarnings.push(`Guard '${localEntry.name}' is exported and will be available to other plugins`);
+    }
+  }
+
+  /**
+   * Validate external guard entry
+   */
+  private async validateExternalGuardEntry(
+    externalEntry: ExternalGuardEntry,
+    pluginName: string,
+    validationErrors: string[],
+    validationWarnings: string[]
+  ): Promise<void> {
+    await this.validateExternalGuardReference(
+      externalEntry.name,
+      externalEntry.source,
+      validationErrors,
+      validationWarnings
+    );
+  }
+
+  /**
+   * Validate external guard reference to ensure source plugin exists
+   */
+  private async validateExternalGuardReference(
+    guardName: string,
+    sourcePlugin: string,
+    validationErrors: string[],
+    validationWarnings: string[]
+  ): Promise<void> {
+    // Check if source plugin is already discovered
+    const sourcePluginDiscovery = this.discoveredPlugins.get(sourcePlugin);
+    if (!sourcePluginDiscovery) {
+      // Check if source plugin exists in filesystem but hasn't been discovered yet
+      const pluginsDir = process.env.PLUGINS_DIR || './plugins';
+      const sourcePluginPath = path.join(pluginsDir, sourcePlugin);
+
+      try {
+        await fs.promises.access(path.join(sourcePluginPath, 'plugin.manifest.json'));
+        validationWarnings.push(
+          `External guard '${guardName}' references plugin '${sourcePlugin}' - ensure it's loaded before this plugin`
+        );
+      } catch {
+        validationErrors.push(`External guard '${guardName}' references non-existent plugin '${sourcePlugin}'`);
+      }
+    } else {
+      // Source plugin is discovered - validate the guard exists in its manifest
+      const sourceManifest = sourcePluginDiscovery.manifest;
+      const sourceGuardExists = sourceManifest.module.guards?.some(
+        (g) => g.name === guardName && (g.scope === 'local' ? (g as LocalGuardEntry).exported : true)
+      );
+
+      if (!sourceGuardExists) {
+        validationErrors.push(
+          `External guard '${guardName}' not found or not exported in source plugin '${sourcePlugin}'`
+        );
+      }
+    }
+  }
+
+  /**
+   * Check if a guard might be available from other plugins
+   */
+  private async checkGuardAvailabilityFromOtherPlugins(guardName: string, excludePluginName: string): Promise<boolean> {
+    for (const [pluginName, discovery] of this.discoveredPlugins.entries()) {
+      if (pluginName === excludePluginName) continue;
+
+      const hasExportedGuard = discovery.manifest.module.guards?.some(
+        (g) => g.name === guardName && (g.scope === 'local' ? (g as LocalGuardEntry).exported : true)
+      );
+
+      if (hasExportedGuard) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Detect circular dependencies within a manifest's guard definitions
+   */
+  private detectManifestCircularDependencies(guards: GuardEntry[]): string[] {
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+    const circularPaths: string[] = [];
+
+    const visit = (guardName: string, path: string[]): void => {
+      if (recursionStack.has(guardName)) {
+        const cycleStart = path.indexOf(guardName);
+        circularPaths.push([...path.slice(cycleStart), guardName].join(' -> '));
+        return;
+      }
+
+      if (visited.has(guardName)) {
+        return;
+      }
+
+      visited.add(guardName);
+      recursionStack.add(guardName);
+
+      const guard = guards.find((g) => g.name === guardName);
+      if (guard && guard.scope === 'local') {
+        const localGuard = guard as LocalGuardEntry;
+        if (localGuard.dependencies) {
+          for (const dep of localGuard.dependencies) {
+            visit(dep, [...path, guardName]);
+          }
+        }
+      }
+
+      recursionStack.delete(guardName);
+    };
+
+    // Check each guard as a potential starting point
+    for (const guard of guards) {
+      if (!visited.has(guard.name)) {
+        visit(guard.name, []);
+      }
+    }
+
+    return circularPaths;
   }
 
   private async loadPluginsInOrder(loadOrder: string[]): Promise<DynamicModule[]> {
@@ -1558,6 +2253,20 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
         this.cleanupRegistry.register(pluginModule, pluginName);
       }
 
+      // Create optimal tracking configuration based on plugin manifest
+      const manifest = this.discoveredPlugins.get(pluginName)?.manifest;
+      let trackingConfig: PluginTrackingConfig | undefined;
+
+      if (manifest) {
+        trackingConfig = this.createOptimalTrackingConfig(pluginName, manifest);
+        this.pluginTrackingConfig.set(pluginName, trackingConfig);
+
+        this.logger.debug(
+          `Configured optimized tracking for ${pluginName}: mode=${trackingConfig.trackingMode}, ` +
+            `depth=${trackingConfig.maxDepth}, lazy=${trackingConfig.enableLazyLoading}`
+        );
+      }
+
       // Track all instances created by the plugin
       const instances = new Set<object>();
       this.pluginInstances.set(pluginName, instances);
@@ -1567,23 +2276,227 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
         this.trackPluginInstances(pluginName, pluginModule, instances);
       }
 
-      this.logger.debug(`Memory tracking registered for plugin: ${pluginName} (${instances.size} instances tracked)`);
+      const actualInstanceCount = trackingConfig?.enableLazyLoading
+        ? (this.lazyInstanceRefs.get(pluginName)?.size || 0) + instances.size
+        : instances.size;
+
+      this.logger.debug(
+        `Memory tracking registered for plugin: ${pluginName} (${actualInstanceCount} references tracked)`
+      );
     } catch (error) {
       this.logger.warn(`Failed to register memory tracking for plugin ${pluginName}:`, error);
     }
   }
 
   /**
-   * Track instances within plugin module for cleanup
-   * @private
+   * Determine optimal tracking configuration based on plugin manifest and characteristics
    */
-  private trackPluginInstances(
+  private createOptimalTrackingConfig(pluginName: string, manifest: PluginManifest): PluginTrackingConfig {
+    // Environment-based default tracking mode
+    const defaultMode =
+      (process.env.PLUGIN_MEMORY_TRACKING_MODE as 'minimal' | 'selective' | 'comprehensive') || 'selective';
+    const maxMemoryMB = parseInt(process.env.PLUGIN_MAX_MEMORY_MB || '100', 10);
+
+    // Analyze plugin characteristics
+    const moduleSize = Object.keys(manifest.module).length;
+    const exportCount =
+      (manifest.module.exports?.length || 0) +
+      (manifest.module.controllers?.length || 0) +
+      (manifest.module.providers?.length || 0);
+
+    // Determine tracking mode based on plugin size and criticality
+    let trackingMode: 'minimal' | 'selective' | 'comprehensive' = defaultMode;
+    let maxDepth = 3; // Default depth limit
+
+    if (manifest.critical === true) {
+      // Critical plugins get minimal tracking to avoid overhead
+      trackingMode = 'minimal';
+      maxDepth = 2;
+    } else if (exportCount > 20 || moduleSize > 10) {
+      // Large plugins get selective tracking
+      trackingMode = 'selective';
+      maxDepth = 2;
+    } else if (exportCount <= 5 && moduleSize <= 5) {
+      // Small plugins can use comprehensive tracking
+      trackingMode = 'comprehensive';
+      maxDepth = 4;
+    }
+
+    // Create tracking configuration
+    const config: PluginTrackingConfig = {
+      trackingMode,
+      maxDepth,
+      trackControllers: manifest.module.controllers ? manifest.module.controllers.length <= 10 : false,
+      trackProviders: manifest.module.providers ? manifest.module.providers.length <= 15 : false,
+      trackExports: manifest.module.exports ? manifest.module.exports.length <= 10 : false,
+      trackImports: false, // Imports are external, don't need tracking
+      enableLazyLoading: exportCount > 10, // Enable lazy loading for plugins with many exports
+      trackingHints: {
+        // Include patterns for important exports
+        includePatterns: [/Service$/, /Controller$/, /Provider$/, /Guard$/],
+        // Exclude patterns for framework-specific or large objects
+        excludePatterns: [
+          /^__/, // Private/internal properties
+          /metadata/i, // Metadata objects
+          /^_/, // Private properties
+          /prototype$/, // Prototypes (tracked separately if needed)
+          /constructor$/, // Constructors
+        ],
+        // Critical exports that should always be tracked
+        criticalExports: manifest.module.exports || [],
+      },
+    };
+
+    return config;
+  }
+
+  /**
+   * Optimized instance tracking with selective depth and lazy loading
+   */
+  private trackPluginInstancesOptimized(
+    pluginName: string,
+    pluginModule: Record<string, unknown>,
+    instances: Set<object>,
+    manifest: PluginManifest
+  ): void {
+    if (!pluginModule) return;
+
+    const config = this.pluginTrackingConfig.get(pluginName);
+    if (!config) {
+      this.logger.warn(`No tracking config found for plugin ${pluginName}, using fallback`);
+      return this.trackPluginInstancesLegacy(pluginName, pluginModule, instances);
+    }
+
+    const startTime = performance.now();
+    let trackedCount = 0;
+
+    try {
+      // Always track the root module
+      instances.add(pluginModule);
+      trackedCount++;
+
+      if (config.enableLazyLoading) {
+        this.createLazyInstanceReferences(pluginName, pluginModule, manifest, config);
+      } else {
+        trackedCount += this.trackInstancesSelectively(pluginName, pluginModule, instances, config, 0);
+      }
+
+      const trackingTime = performance.now() - startTime;
+      this.logger.debug(
+        `Optimized tracking for ${pluginName}: ${trackedCount} instances in ${trackingTime.toFixed(2)}ms ` +
+          `(mode: ${config.trackingMode}, lazy: ${config.enableLazyLoading})`
+      );
+    } catch (error) {
+      this.logger.warn(`Error in optimized tracking for ${pluginName}:`, error);
+      // Fallback to legacy tracking
+      this.trackPluginInstancesLegacy(pluginName, pluginModule, instances);
+    }
+  }
+
+  /**
+   * Selectively track instances based on configuration
+   */
+  private trackInstancesSelectively(
+    pluginName: string,
+    obj: any,
+    instances: Set<object>,
+    config: PluginTrackingConfig,
+    currentDepth: number
+  ): number {
+    if (currentDepth >= config.maxDepth || !obj || typeof obj !== 'object') {
+      return 0;
+    }
+
+    let trackedCount = 0;
+    const visited = new WeakSet(); // Prevent circular references
+
+    if (visited.has(obj)) {
+      return 0;
+    }
+    visited.add(obj);
+
+    try {
+      Object.entries(obj).forEach(([key, value]) => {
+        // Skip if matches exclude patterns
+        if (config.trackingHints?.excludePatterns?.some((pattern) => pattern.test(key))) {
+          return;
+        }
+
+        // Include if matches include patterns or is a critical export
+        const shouldTrack =
+          config.trackingHints?.includePatterns?.some((pattern) => pattern.test(key)) ||
+          config.trackingHints?.criticalExports?.includes(key) ||
+          config.trackingMode === 'comprehensive';
+
+        if (shouldTrack && value && typeof value === 'object') {
+          if (!instances.has(value)) {
+            instances.add(value);
+            trackedCount++;
+
+            // Recursively track if within depth limit
+            if (currentDepth < config.maxDepth - 1) {
+              trackedCount += this.trackInstancesSelectively(pluginName, value, instances, config, currentDepth + 1);
+            }
+          }
+        } else if (shouldTrack && typeof value === 'function') {
+          if (!instances.has(value)) {
+            instances.add(value);
+            trackedCount++;
+
+            // Track function prototype if needed
+            if (value.prototype && !instances.has(value.prototype)) {
+              instances.add(value.prototype);
+              trackedCount++;
+            }
+          }
+        }
+      });
+    } catch (error) {
+      this.logger.debug(`Error in selective tracking at depth ${currentDepth}:`, error);
+    }
+
+    return trackedCount;
+  }
+
+  /**
+   * Create lazy references for large plugins
+   */
+  private createLazyInstanceReferences(
+    pluginName: string,
+    pluginModule: Record<string, unknown>,
+    manifest: PluginManifest,
+    config: PluginTrackingConfig
+  ): void {
+    const lazyRefs = new Map<string, () => object | null>();
+
+    Object.entries(pluginModule).forEach(([key, value]) => {
+      if (config.trackingHints?.excludePatterns?.some((pattern) => pattern.test(key))) {
+        return;
+      }
+
+      // Create lazy reference
+      lazyRefs.set(key, () => {
+        try {
+          // Validate that the reference is still alive
+          return value && typeof value === 'object' ? value : null;
+        } catch {
+          return null;
+        }
+      });
+    });
+
+    this.lazyInstanceRefs.set(pluginName, lazyRefs);
+    this.logger.debug(`Created ${lazyRefs.size} lazy references for plugin ${pluginName}`);
+  }
+
+  /**
+   * Legacy instance tracking method (fallback)
+   */
+  private trackPluginInstancesLegacy(
     pluginName: string,
     pluginModule: Record<string, unknown>,
     instances: Set<object>
   ): void {
-    if (!pluginModule) return;
-
     try {
       // Add the object itself to tracking
       instances.add(pluginModule);
@@ -1603,6 +2516,26 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       });
     } catch (error) {
       this.logger.debug(`Error tracking instances for ${pluginName}:`, error);
+    }
+  }
+
+  /**
+   * Track instances within plugin module for cleanup (updated main method)
+   * @private
+   */
+  private trackPluginInstances(
+    pluginName: string,
+    pluginModule: Record<string, unknown>,
+    instances: Set<object>
+  ): void {
+    const manifest = this.discoveredPlugins.get(pluginName)?.manifest;
+
+    if (manifest && this.pluginTrackingConfig.has(pluginName)) {
+      // Use optimized tracking
+      this.trackPluginInstancesOptimized(pluginName, pluginModule, instances, manifest);
+    } else {
+      // Use legacy tracking
+      this.trackPluginInstancesLegacy(pluginName, pluginModule, instances);
     }
   }
 
@@ -1727,6 +2660,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
     // Clear instance tracking
     const instances = this.pluginInstances.get(pluginName);
+    const lazyRefs = this.lazyInstanceRefs.get(pluginName);
+    const trackingConfig = this.pluginTrackingConfig.get(pluginName);
+
     if (instances) {
       this.logger.debug(`Clearing tracking for ${instances.size} instances of plugin: ${pluginName}`);
 
@@ -1753,6 +2689,19 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
       instances.clear();
       this.pluginInstances.delete(pluginName);
+    }
+
+    // Clear lazy references
+    if (lazyRefs) {
+      this.logger.debug(`Clearing ${lazyRefs.size} lazy references for plugin: ${pluginName}`);
+      lazyRefs.clear();
+      this.lazyInstanceRefs.delete(pluginName);
+    }
+
+    // Clear tracking configuration
+    if (trackingConfig) {
+      this.pluginTrackingConfig.delete(pluginName);
+      this.logger.debug(`Cleared tracking configuration for plugin: ${pluginName}`);
     }
   }
 
@@ -2453,6 +3402,204 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
    */
   getCacheKeys(pattern?: RegExp): string[] {
     return pattern ? this.cacheService.getKeysMatching(pattern) : this.cacheService.getKeys();
+  }
+
+  /**
+   * Get all plugin discovery errors from the last discovery attempt
+   * Useful for debugging and monitoring plugin discovery issues
+   */
+  getDiscoveryErrors(): PluginDiscoveryError[] {
+    return Array.from(this.discoveryErrors.values());
+  }
+
+  /**
+   * Get discovery error for a specific plugin directory
+   */
+  getDiscoveryErrorFor(pluginDirectory: string): PluginDiscoveryError | undefined {
+    return this.discoveryErrors.get(pluginDirectory);
+  }
+
+  /**
+   * Get discovery performance metrics for all plugins
+   */
+  getDiscoveryPerformanceMetrics(): Map<string, number> {
+    return new Map(this.discoveryPerformanceMetrics);
+  }
+
+  /**
+   * Get comprehensive discovery status including errors and performance
+   */
+  getDiscoveryStatus(): {
+    totalPluginsAttempted: number;
+    successfulDiscoveries: number;
+    failedDiscoveries: number;
+    errors: PluginDiscoveryError[];
+    performanceMetrics: Record<string, number>;
+    errorsByType: Record<string, number>;
+  } {
+    const errors = Array.from(this.discoveryErrors.values());
+    const errorsByType: Record<string, number> = {};
+
+    errors.forEach((error) => {
+      errorsByType[error.errorType] = (errorsByType[error.errorType] || 0) + 1;
+    });
+
+    return {
+      totalPluginsAttempted: this.discoveredPlugins.size + errors.length,
+      successfulDiscoveries: this.discoveredPlugins.size,
+      failedDiscoveries: errors.length,
+      errors,
+      performanceMetrics: Object.fromEntries(this.discoveryPerformanceMetrics),
+      errorsByType,
+    };
+  }
+
+  /**
+   * Clear discovery error history (useful for testing or cleanup)
+   */
+  clearDiscoveryErrors(): void {
+    this.discoveryErrors.clear();
+    this.discoveryPerformanceMetrics.clear();
+  }
+
+  /**
+   * Get discovery errors filtered by error type
+   */
+  getDiscoveryErrorsByType(errorType: PluginDiscoveryError['errorType']): PluginDiscoveryError[] {
+    return Array.from(this.discoveryErrors.values()).filter((error) => error.errorType === errorType);
+  }
+
+  /**
+   * Get memory tracking configuration for a plugin
+   */
+  getPluginTrackingConfig(pluginName: string): PluginTrackingConfig | undefined {
+    return this.pluginTrackingConfig.get(pluginName);
+  }
+
+  /**
+   * Get all plugin tracking configurations
+   */
+  getAllTrackingConfigs(): Record<string, PluginTrackingConfig> {
+    return Object.fromEntries(this.pluginTrackingConfig.entries());
+  }
+
+  /**
+   * Get lazy instance references for a plugin (for debugging)
+   */
+  getPluginLazyReferences(pluginName: string): string[] {
+    const lazyRefs = this.lazyInstanceRefs.get(pluginName);
+    return lazyRefs ? Array.from(lazyRefs.keys()) : [];
+  }
+
+  /**
+   * Get memory usage statistics including optimized tracking metrics
+   */
+  getOptimizedMemoryStatistics(): {
+    totalPlugins: number;
+    trackingConfigurations: {
+      minimal: number;
+      selective: number;
+      comprehensive: number;
+    };
+    lazyLoadingEnabled: number;
+    totalLazyReferences: number;
+    averageInstancesPerPlugin: number;
+    memoryOptimizationSavings: {
+      estimatedReduction: string;
+      lazyLoadedPlugins: number;
+    };
+  } {
+    const configs = Array.from(this.pluginTrackingConfig.values());
+    const trackingModes = { minimal: 0, selective: 0, comprehensive: 0 };
+    let lazyLoadingEnabled = 0;
+    let totalLazyReferences = 0;
+
+    configs.forEach((config) => {
+      trackingModes[config.trackingMode]++;
+      if (config.enableLazyLoading) {
+        lazyLoadingEnabled++;
+      }
+    });
+
+    for (const lazyRefs of this.lazyInstanceRefs.values()) {
+      totalLazyReferences += lazyRefs.size;
+    }
+
+    const totalInstances = Array.from(this.pluginInstances.values()).reduce(
+      (sum, instances) => sum + instances.size,
+      0
+    );
+
+    const averageInstancesPerPlugin = this.pluginInstances.size > 0 ? totalInstances / this.pluginInstances.size : 0;
+
+    // Estimate memory savings (rough calculation)
+    const estimatedSavingsPercent = Math.min(
+      (trackingModes.minimal * 70 + trackingModes.selective * 40 + lazyLoadingEnabled * 30) / configs.length,
+      90
+    );
+
+    return {
+      totalPlugins: this.pluginTrackingConfig.size,
+      trackingConfigurations: trackingModes,
+      lazyLoadingEnabled,
+      totalLazyReferences,
+      averageInstancesPerPlugin: Math.round(averageInstancesPerPlugin * 100) / 100,
+      memoryOptimizationSavings: {
+        estimatedReduction: `${Math.round(estimatedSavingsPercent)}%`,
+        lazyLoadedPlugins: lazyLoadingEnabled,
+      },
+    };
+  }
+
+  /**
+   * Force evaluation of lazy references for a plugin (for testing/debugging)
+   */
+  evaluateLazyReferences(pluginName: string): {
+    evaluated: number;
+    failed: number;
+    results: Record<string, 'success' | 'failed' | 'null'>;
+  } {
+    const lazyRefs = this.lazyInstanceRefs.get(pluginName);
+    if (!lazyRefs) {
+      return { evaluated: 0, failed: 0, results: {} };
+    }
+
+    const results: Record<string, 'success' | 'failed' | 'null'> = {};
+    let evaluated = 0;
+    let failed = 0;
+
+    for (const [key, lazyRef] of lazyRefs.entries()) {
+      try {
+        const result = lazyRef();
+        if (result === null) {
+          results[key] = 'null';
+        } else {
+          results[key] = 'success';
+          evaluated++;
+        }
+      } catch (error) {
+        results[key] = 'failed';
+        failed++;
+      }
+    }
+
+    return { evaluated, failed, results };
+  }
+
+  /**
+   * Update tracking configuration for a plugin (for runtime optimization)
+   */
+  updatePluginTrackingConfig(pluginName: string, updates: Partial<PluginTrackingConfig>): boolean {
+    const currentConfig = this.pluginTrackingConfig.get(pluginName);
+    if (!currentConfig) {
+      return false;
+    }
+
+    const newConfig = { ...currentConfig, ...updates };
+    this.pluginTrackingConfig.set(pluginName, newConfig);
+
+    this.logger.debug(`Updated tracking configuration for ${pluginName}:`, updates);
+    return true;
   }
 }
 

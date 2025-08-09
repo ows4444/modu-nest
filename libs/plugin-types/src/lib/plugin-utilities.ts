@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import semver from 'semver';
+import { sanitizePluginName, isValidPluginName } from '@modu-nest/shared/utils';
+import { formatFileSize } from '@modu-nest/shared/utils';
 
 /**
  * Utility functions for plugin management
@@ -14,6 +16,7 @@ export class PluginUtils {
 
   /**
    * Compare two semantic versions
+   * @deprecated Use PluginVersionUtils.compareVersionStrings from same library for more detailed comparison
    */
   static compareVersions(version1: string, version2: string): number {
     return semver.compare(version1, version2);
@@ -21,6 +24,7 @@ export class PluginUtils {
 
   /**
    * Check if a version is valid semantic version
+   * @deprecated Use PluginVersionUtils.isValidVersion from same library for consistency
    */
   static isValidVersion(version: string): boolean {
     return semver.valid(version) !== null;
@@ -28,9 +32,10 @@ export class PluginUtils {
 
   /**
    * Sanitize plugin name for file system use
+   * @deprecated Use sanitizePluginName from @modu-nest/shared/utils instead
    */
   static sanitizePluginName(name: string): string {
-    return name.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+    return sanitizePluginName(name);
   }
 
   /**
@@ -51,25 +56,18 @@ export class PluginUtils {
 
   /**
    * Format file size in human readable format
+   * @deprecated Use formatFileSize from @modu-nest/shared/utils instead
    */
   static formatFileSize(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let size = bytes;
-    let unitIndex = 0;
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
+    return formatFileSize(bytes);
   }
 
   /**
    * Validate plugin name format
+   * @deprecated Use isValidPluginName from @modu-nest/shared/utils instead
    */
   static isValidPluginName(name: string): boolean {
-    return /^[a-z0-9-_]+$/.test(name) && name.length >= 2 && name.length <= 50;
+    return isValidPluginName(name);
   }
 
   /**

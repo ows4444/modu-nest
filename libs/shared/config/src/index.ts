@@ -3,6 +3,10 @@ export * from './lib/env';
 export * from './lib/swagger';
 export * from './lib/shared-config.module';
 
+// Performance optimizations
+export * from './lib/config-cache.service';
+export * from './lib/env/optimized-env.loader';
+
 // Enhanced configuration modules
 export * from './lib/security';
 export * from './lib/database';
