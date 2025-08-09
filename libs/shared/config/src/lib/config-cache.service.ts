@@ -33,7 +33,7 @@ export class ConfigCacheService {
     return ConfigCacheService.instance;
   }
 
-  private constructor() {
+  constructor() {
     this.logger.log('ConfigCacheService initialized');
   }
 

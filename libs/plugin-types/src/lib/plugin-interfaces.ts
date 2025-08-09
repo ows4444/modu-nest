@@ -9,7 +9,7 @@ export * from './plugin-lifecycle.types';
 
 // Branded types for enhanced type safety
 export type PluginName = string & { readonly __brand: 'PluginName' };
-export type PluginVersion = string & { readonly __brand: 'PluginVersion' };
+export type PluginVersionString = string & { readonly __brand: 'PluginVersionString' };
 export type PluginId = string & { readonly __brand: 'PluginId' };
 export type Checksum = string & { readonly __brand: 'Checksum' };
 export type FilePath = string & { readonly __brand: 'FilePath' };
@@ -20,7 +20,7 @@ export function isValidPluginName(value: string): value is PluginName {
   return /^[a-z0-9-_]+$/.test(value) && value.length >= 2 && value.length <= 50;
 }
 
-export function isValidPluginVersion(value: string): value is PluginVersion {
+export function isValidPluginVersion(value: string): value is PluginVersionString {
   return /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/.test(value);
 }
 
@@ -44,14 +44,14 @@ export function createPluginName(value: string): PluginName {
   return value as PluginName;
 }
 
-export function createPluginVersion(value: string): PluginVersion {
+export function createPluginVersion(value: string): PluginVersionString {
   if (!isValidPluginVersion(value)) {
     throw new Error(`Invalid plugin version: ${value}. Must follow semantic versioning (e.g., 1.0.0).`);
   }
-  return value as PluginVersion;
+  return value as PluginVersionString;
 }
 
-export function createPluginId(name: PluginName, version: PluginVersion): PluginId {
+export function createPluginId(name: PluginName, version: PluginVersionString): PluginId {
   return `${name}@${version}` as PluginId;
 }
 
@@ -78,7 +78,7 @@ export function createFilePath(value: string): FilePath {
 }
 
 // Parser utilities for plugin identifiers
-export function parsePluginId(pluginId: PluginId): { name: PluginName; version: PluginVersion } {
+export function parsePluginId(pluginId: PluginId): { name: PluginName; version: PluginVersionString } {
   const parts = pluginId.split('@');
   if (parts.length !== 2) {
     throw new Error(`Invalid plugin ID format: ${pluginId}. Expected format: name@version`);

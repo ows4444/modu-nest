@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import semver from 'semver';
-import { sanitizePluginName, isValidPluginName } from '@modu-nest/shared/utils';
-import { formatFileSize } from '@modu-nest/shared/utils';
+import { sanitizePluginName, isValidPluginName } from '@modu-nest/utils';
+import { formatFileSize } from '@modu-nest/utils';
 
 /**
  * Utility functions for plugin management

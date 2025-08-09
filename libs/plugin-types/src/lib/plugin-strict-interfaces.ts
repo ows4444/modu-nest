@@ -1,5 +1,5 @@
 import type { GuardEntry, CrossPluginServiceConfig, PluginSecurity } from './plugin-security.types';
-import type { PluginName, PluginVersion, PluginId, Checksum, FilePath, Timestamp } from './plugin-interfaces';
+import type { PluginName, PluginVersionString, PluginId, Checksum, FilePath, Timestamp } from './plugin-interfaces';
 
 // Utility types for stricter constraints
 export type NonEmptyString = string & { readonly __nonEmpty: true };
@@ -44,7 +44,7 @@ export function createNonNegativeNumber(value: number): NonNegativeNumber {
 // Enhanced plugin interfaces with stronger types
 export interface StrictPluginManifest {
   readonly name: PluginName;
-  readonly version: PluginVersion;
+  readonly version: PluginVersionString;
   readonly description: NonEmptyString;
   readonly author: NonEmptyString;
   readonly license: NonEmptyString;
@@ -57,9 +57,9 @@ export interface StrictPluginManifest {
 }
 
 export interface StrictPluginCompatibility {
-  readonly minimumHostVersion?: PluginVersion;
-  readonly maximumHostVersion?: PluginVersion;
-  readonly nodeVersion: PluginVersion;
+  readonly minimumHostVersion?: PluginVersionString;
+  readonly maximumHostVersion?: PluginVersionString;
+  readonly nodeVersion: PluginVersionString;
 }
 
 export interface StrictPluginModuleMeta {
@@ -88,9 +88,24 @@ export interface StrictLoadedPlugin {
   readonly instance: unknown;
 }
 
+// Internal mutable interface for building
+interface MutableStrictPluginManifest {
+  name?: PluginName;
+  version?: PluginVersionString;
+  description?: NonEmptyString;
+  author?: NonEmptyString;
+  license?: NonEmptyString;
+  dependencies?: readonly PluginId[];
+  loadOrder?: NonNegativeNumber;
+  critical?: boolean;
+  security?: PluginSecurity;
+  compatibility?: StrictPluginCompatibility;
+  module?: StrictPluginModuleMeta;
+}
+
 // Type-safe plugin builder utilities
 export class PluginManifestBuilder {
-  private manifest: Partial<StrictPluginManifest> = {};
+  private manifest: MutableStrictPluginManifest = {};
 
   setName(name: string): this {
     const { createPluginName } = require('./plugin-interfaces');
@@ -206,7 +221,7 @@ export function createStrictPluginManifest(config: {
 }
 
 // Plugin identifier utilities
-export function parsePluginId(pluginId: PluginId): { name: PluginName; version: PluginVersion } {
+export function parsePluginId(pluginId: PluginId): { name: PluginName; version: PluginVersionString } {
   const parts = pluginId.split('@');
   if (parts.length !== 2) {
     throw new Error(`Invalid plugin ID format: ${pluginId}. Expected format: name@version`);

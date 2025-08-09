@@ -2295,7 +2295,6 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     // Environment-based default tracking mode
     const defaultMode =
       (process.env.PLUGIN_MEMORY_TRACKING_MODE as 'minimal' | 'selective' | 'comprehensive') || 'selective';
-    const maxMemoryMB = parseInt(process.env.PLUGIN_MAX_MEMORY_MB || '100', 10);
 
     // Analyze plugin characteristics
     const moduleSize = Object.keys(manifest.module).length;

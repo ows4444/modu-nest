@@ -402,7 +402,7 @@ export class PluginDependencyResolver {
   }
 
   private async performSingleHealthCheck(healthKey: string, healthCheck: DependencyHealthCheck): Promise<void> {
-    const { pluginName, dependency } = healthCheck;
+    const { dependency } = healthCheck;
 
     try {
       // Check if dependency is still loaded and functional

@@ -1166,7 +1166,6 @@ export class CrossPluginServiceManager {
    * Calculate comprehensive service discovery metrics
    */
   private calculateMetrics(): ServiceDiscoveryMetrics {
-    const now = Date.now();
     const successful = this.performanceRecords.filter((r) => r.success);
     const failed = this.performanceRecords.filter((r) => !r.success);
     const fromCache = this.performanceRecords.filter((r) => r.wasFromCache);

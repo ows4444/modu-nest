@@ -5,7 +5,7 @@ export * from './lib/shared-config.module';
 
 // Performance optimizations
 export * from './lib/config-cache.service';
-export * from './lib/env/optimized-env.loader';
+export { optimizedEnvLoader, getEnvironmentConfig, resetEnvironmentCache } from './lib/env/optimized-env.loader';
 
 // Enhanced configuration modules
 export * from './lib/security';
