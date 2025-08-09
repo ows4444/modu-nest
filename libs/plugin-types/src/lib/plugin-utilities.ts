@@ -11,7 +11,7 @@ export class PluginUtils {
    * Generate a checksum for plugin content
    */
   static generateChecksum(buffer: Buffer): string {
-    return crypto.createHash('sha256').update(buffer).digest('hex');
+    return crypto.createHash('sha256').update(new Uint8Array(buffer)).digest('hex');
   }
 
   /**
