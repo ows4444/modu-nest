@@ -1242,4 +1242,267 @@ export class CrossPluginServiceManager {
       this.logger.debug(`Cleaned ${entriesToDelete.length} expired cache entries`);
     }
   }
+
+  // ====================
+  // Conflict Detection Integration
+  // ====================
+
+  /**
+   * Check for potential service conflicts before registration
+   */
+  async checkServiceConflicts(
+    pluginName: string, 
+    manifest: PluginManifest
+  ): Promise<{
+    hasConflicts: boolean;
+    conflicts: Array<{
+      type: 'token-conflict' | 'version-conflict' | 'namespace-conflict';
+      serviceName: string;
+      conflictingPlugin: string;
+      severity: 'low' | 'medium' | 'high';
+      resolution: string;
+    }>;
+  }> {
+    const conflicts: any[] = [];
+    const services = manifest.module.crossPluginServices || [];
+
+    for (const service of services) {
+      const token = service.token || service.serviceName;
+      
+      // Check for token conflicts
+      const existingEntry = this.serviceRegistry.get(token);
+      if (existingEntry && existingEntry.pluginName !== pluginName) {
+        conflicts.push({
+          type: 'token-conflict' as const,
+          serviceName: service.serviceName,
+          conflictingPlugin: existingEntry.pluginName,
+          severity: 'high' as const,
+          resolution: `Consider using unique token or namespace isolation for service '${service.serviceName}'`,
+        });
+      }
+
+      // Check for version conflicts
+      const serviceVersions = this.versionRegistry.get(service.serviceName);
+      if (serviceVersions) {
+        const requestedVersion = service.version || '1.0.0';
+        
+        for (const [existingVersion, existingEntry] of serviceVersions.entries()) {
+          if (existingEntry.pluginName !== pluginName) {
+            const compatibility = this.checkVersionCompatibility(
+              requestedVersion,
+              existingVersion,
+              service.compatibleVersions || [requestedVersion],
+              existingEntry.compatibleVersions
+            );
+
+            if (compatibility.level === 'incompatible') {
+              conflicts.push({
+                type: 'version-conflict' as const,
+                serviceName: service.serviceName,
+                conflictingPlugin: existingEntry.pluginName,
+                severity: 'medium' as const,
+                resolution: `Version ${requestedVersion} is incompatible with existing version ${existingVersion}. Consider version pinning or compatibility updates.`,
+              });
+            }
+          }
+        }
+      }
+
+      // Check for namespace pollution (simplified)
+      if (service.global && service.serviceName.length < 5) {
+        conflicts.push({
+          type: 'namespace-conflict' as const,
+          serviceName: service.serviceName,
+          conflictingPlugin: pluginName,
+          severity: 'low' as const,
+          resolution: `Service name '${service.serviceName}' is too generic for global export. Consider more descriptive naming.`,
+        });
+      }
+    }
+
+    return {
+      hasConflicts: conflicts.length > 0,
+      conflicts,
+    };
+  }
+
+  /**
+   * Get service conflict statistics
+   */
+  getConflictStatistics(): {
+    duplicateTokens: number;
+    versionIncompatibilities: number;
+    deprecatedServices: number;
+    namespaceCollisions: number;
+    totalServices: number;
+    globalServices: number;
+  } {
+    const tokenCounts = new Map<string, number>();
+    const serviceVersionCounts = new Map<string, number>();
+    let deprecatedCount = 0;
+    let globalCount = 0;
+
+    // Count token usage
+    for (const entry of this.serviceRegistry.values()) {
+      const key = `${entry.serviceName}:${entry.version}`;
+      tokenCounts.set(key, (tokenCounts.get(key) || 0) + 1);
+      
+      if (entry.deprecationInfo?.isDeprecated) {
+        deprecatedCount++;
+      }
+      
+      if (entry.isGlobal) {
+        globalCount++;
+      }
+    }
+
+    // Count service version conflicts
+    for (const serviceVersions of this.versionRegistry.values()) {
+      if (serviceVersions.size > 1) {
+        serviceVersionCounts.set('conflict', (serviceVersionCounts.get('conflict') || 0) + 1);
+      }
+    }
+
+    const duplicateTokens = Array.from(tokenCounts.values()).filter(count => count > 1).length;
+    const namespaceCollisions = Array.from(this.globalTokens).filter(token => 
+      token.split('-').length < 2 || token.length < 10
+    ).length;
+
+    return {
+      duplicateTokens,
+      versionIncompatibilities: serviceVersionCounts.get('conflict') || 0,
+      deprecatedServices: deprecatedCount,
+      namespaceCollisions,
+      totalServices: this.serviceRegistry.size,
+      globalServices: globalCount,
+    };
+  }
+
+  /**
+   * Resolve service conflicts with automated strategies
+   */
+  async resolveServiceConflicts(
+    pluginName: string,
+    conflictResolutions: Array<{
+      serviceName: string;
+      strategy: 'alias' | 'namespace' | 'prioritize' | 'disable';
+      targetToken?: string;
+      namespace?: string;
+    }>
+  ): Promise<{
+    resolved: number;
+    failed: number;
+    warnings: string[];
+  }> {
+    let resolved = 0;
+    let failed = 0;
+    const warnings: string[] = [];
+
+    await this.registryMutex.runExclusive(async () => {
+      for (const resolution of conflictResolutions) {
+        try {
+          switch (resolution.strategy) {
+            case 'alias':
+              if (resolution.targetToken) {
+                await this.createServiceAlias(pluginName, resolution.serviceName, resolution.targetToken);
+                resolved++;
+              } else {
+                warnings.push(`Alias strategy requires targetToken for service ${resolution.serviceName}`);
+                failed++;
+              }
+              break;
+
+            case 'namespace':
+              if (resolution.namespace) {
+                await this.applyNamespaceIsolation(pluginName, resolution.serviceName, resolution.namespace);
+                resolved++;
+              } else {
+                warnings.push(`Namespace strategy requires namespace for service ${resolution.serviceName}`);
+                failed++;
+              }
+              break;
+
+            case 'prioritize':
+              await this.prioritizePluginService(pluginName, resolution.serviceName);
+              resolved++;
+              break;
+
+            case 'disable':
+              await this.disableConflictingService(pluginName, resolution.serviceName);
+              resolved++;
+              break;
+
+            default:
+              warnings.push(`Unknown resolution strategy: ${resolution.strategy}`);
+              failed++;
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          warnings.push(`Failed to resolve ${resolution.serviceName}: ${errorMessage}`);
+          failed++;
+        }
+      }
+    });
+
+    this.logger.log(`Conflict resolution completed: ${resolved} resolved, ${failed} failed`);
+
+    return {
+      resolved,
+      failed,
+      warnings,
+    };
+  }
+
+  // Private methods for conflict resolution strategies
+  private async createServiceAlias(pluginName: string, serviceName: string, aliasToken: string): Promise<void> {
+    // Find the service entry
+    const serviceVersions = this.versionRegistry.get(serviceName);
+    if (!serviceVersions) return;
+
+    for (const [version, entry] of serviceVersions.entries()) {
+      if (entry.pluginName === pluginName) {
+        // Create alias entry
+        const aliasEntry: ServiceRegistryEntry = {
+          ...entry,
+          serviceName: aliasToken,
+        };
+        
+        this.serviceRegistry.set(aliasToken, aliasEntry);
+        this.logger.debug(`Created service alias: ${serviceName} -> ${aliasToken} for plugin ${pluginName}`);
+        break;
+      }
+    }
+  }
+
+  private async applyNamespaceIsolation(pluginName: string, serviceName: string, namespace: string): Promise<void> {
+    const namespacedToken = `${namespace}:${serviceName}`;
+    await this.createServiceAlias(pluginName, serviceName, namespacedToken);
+  }
+
+  private async prioritizePluginService(pluginName: string, serviceName: string): Promise<void> {
+    // This would implement plugin prioritization logic
+    // For now, just log the prioritization
+    this.logger.debug(`Prioritized service ${serviceName} from plugin ${pluginName}`);
+  }
+
+  private async disableConflictingService(pluginName: string, serviceName: string): Promise<void> {
+    // Find and remove conflicting service entries
+    const serviceVersions = this.versionRegistry.get(serviceName);
+    if (!serviceVersions) return;
+
+    for (const [version, entry] of serviceVersions.entries()) {
+      if (entry.pluginName === pluginName) {
+        // Remove from all registries
+        for (const [token, registryEntry] of this.serviceRegistry.entries()) {
+          if (registryEntry === entry) {
+            this.serviceRegistry.delete(token);
+            this.globalTokens.delete(token);
+          }
+        }
+        serviceVersions.delete(version);
+        this.logger.debug(`Disabled conflicting service ${serviceName} from plugin ${pluginName}`);
+        break;
+      }
+    }
+  }
 }

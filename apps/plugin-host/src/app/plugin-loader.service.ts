@@ -44,6 +44,7 @@ import {
 } from './strategies';
 import { PluginStateMachine } from './state-machine';
 import { PluginRollbackService, RollbackOptions, RollbackResult, RollbackPlan } from './plugin-rollback.service';
+import { PluginConflictDetectorService, ConflictDetectionResult, ConflictResolutionOptions, ConflictResolutionResult } from './plugin-conflict-detector.service';
 
 // Enhanced plugin discovery error interfaces
 export interface PluginDiscoveryError {
@@ -117,6 +118,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private lifecycleHookDiscovery: PluginLifecycleHookDiscoveryService;
   private loadingState = new Map<string, PluginLoadingState>();
   private rollbackService: PluginRollbackService;
+  private conflictDetectorService: PluginConflictDetectorService;
 
   // Memory management for plugin cleanup - optimized with chunking and lazy cleanup
   private readonly pluginWeakRefs = new Map<string, WeakRef<Record<string, unknown>>>();
@@ -198,6 +200,10 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     // Initialize rollback service
     this.rollbackService = new PluginRollbackService();
     this.rollbackService.initialize(this.eventEmitter, this.stateMachine, this.loadedPlugins);
+
+    // Initialize conflict detection service
+    this.conflictDetectorService = new PluginConflictDetectorService();
+    this.conflictDetectorService.initialize(this.loadedPlugins, this.eventEmitter);
   }
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
@@ -4465,6 +4471,319 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   }
 
   private readonly defaultRollbackTimeout = 60000; // 1 minute
+
+  // ====================
+  // Plugin Conflict Detection API
+  // ====================
+
+  /**
+   * Detect conflicts across all loaded plugins
+   */
+  async detectPluginConflicts(targetPlugins?: string[]): Promise<ConflictDetectionResult> {
+    try {
+      const result = await this.conflictDetectorService.detectConflicts(targetPlugins);
+      
+      // Log significant conflicts
+      if (result.hasConflicts) {
+        const criticalConflicts = result.conflicts.filter(c => c.severity === 'critical').length;
+        const highConflicts = result.conflicts.filter(c => c.severity === 'high').length;
+        
+        if (criticalConflicts > 0) {
+          this.logger.error(`Detected ${criticalConflicts} critical conflicts that require immediate attention`);
+        } else if (highConflicts > 0) {
+          this.logger.warn(`Detected ${highConflicts} high-severity conflicts`);
+        } else {
+          this.logger.log(`Detected ${result.conflicts.length} conflicts of various severities`);
+        }
+
+        // Trigger auto-resolution if configured
+        if (result.conflicts.some(c => c.autoResolvable)) {
+          this.logger.log('Auto-resolving conflicts where possible...');
+          await this.autoResolveConflicts();
+        }
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to detect plugin conflicts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Detect conflicts for a specific plugin before loading
+   */
+  async detectConflictsForPlugin(pluginName: string, manifest: PluginManifest): Promise<ConflictDetectionResult> {
+    try {
+      // Check cross-plugin service conflicts first
+      const serviceConflicts = await this.crossPluginServiceManager.checkServiceConflicts(pluginName, manifest);
+      
+      // Check comprehensive conflicts
+      const fullConflictResult = await this.conflictDetectorService.detectConflictsForPlugin(pluginName, manifest);
+      
+      // Combine results
+      if (serviceConflicts.hasConflicts) {
+        this.logger.warn(
+          `Plugin ${pluginName} has ${serviceConflicts.conflicts.length} service conflicts before loading`
+        );
+      }
+
+      return fullConflictResult;
+    } catch (error) {
+      this.logger.error(`Failed to detect conflicts for plugin ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve plugin conflicts using specified strategies
+   */
+  async resolvePluginConflicts(options: ConflictResolutionOptions): Promise<ConflictResolutionResult[]> {
+    try {
+      this.logger.log(`Resolving ${options.conflictIds.length} conflicts using ${options.strategy} strategy`);
+      
+      const results = await this.conflictDetectorService.resolveConflicts(options);
+      
+      // Log resolution results
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      
+      this.logger.log(`Conflict resolution completed: ${successful} resolved, ${failed} failed`);
+      
+      // Update metrics if available
+      this.metricsService?.recordConflictResolution(successful, failed, options.strategy);
+
+      return results;
+    } catch (error) {
+      this.logger.error('Failed to resolve plugin conflicts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Auto-resolve conflicts where possible
+   */
+  async autoResolveConflicts(): Promise<ConflictResolutionResult[]> {
+    try {
+      const results = await this.conflictDetectorService.autoResolveConflicts();
+      
+      if (results.length > 0) {
+        const successful = results.filter(r => r.success).length;
+        this.logger.log(`Auto-resolved ${successful} out of ${results.length} conflicts`);
+        
+        this.metricsService?.recordConflictResolution(successful, results.length - successful, 'auto-resolution');
+      }
+      
+      return results;
+    } catch (error) {
+      this.logger.error('Failed to auto-resolve conflicts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current conflict status across all plugins
+   */
+  getConflictStatus(): {
+    activeConflicts: number;
+    lastScanTime: Date;
+    systemStability: string;
+    scanInProgress: boolean;
+    serviceConflicts: any;
+    metrics: any;
+  } {
+    const conflictStatus = this.conflictDetectorService.getConflictStatus();
+    const serviceStats = this.crossPluginServiceManager.getConflictStatistics();
+    
+    return {
+      ...conflictStatus,
+      serviceConflicts: serviceStats,
+    };
+  }
+
+  /**
+   * Get conflict resolution history
+   */
+  getConflictResolutionHistory(limit = 50): ConflictResolutionResult[] {
+    return this.conflictDetectorService.getResolutionHistory(limit);
+  }
+
+  /**
+   * Enhanced plugin loading with conflict pre-checking
+   */
+  async loadPluginWithConflictCheck(pluginName: string, forceLoad = false): Promise<void> {
+    try {
+      // Get plugin manifest first
+      const discovery = this.discoveredPlugins.get(pluginName);
+      if (!discovery) {
+        throw new Error(`Plugin ${pluginName} not discovered`);
+      }
+
+      // Check for conflicts before loading
+      const conflictResult = await this.detectConflictsForPlugin(pluginName, discovery.manifest);
+      
+      if (conflictResult.hasConflicts && !forceLoad) {
+        const criticalConflicts = conflictResult.conflicts.filter(c => c.severity === 'critical').length;
+        const highConflicts = conflictResult.conflicts.filter(c => c.severity === 'high').length;
+        
+        if (criticalConflicts > 0) {
+          throw new Error(
+            `Cannot load plugin ${pluginName}: ${criticalConflicts} critical conflicts detected. ` +
+            `Resolve conflicts first or use forceLoad=true to override.`
+          );
+        }
+        
+        if (highConflicts > 0) {
+          this.logger.warn(
+            `Loading plugin ${pluginName} with ${highConflicts} high-severity conflicts. ` +
+            `Consider resolving conflicts first.`
+          );
+        }
+      }
+
+      // Proceed with normal loading
+      await this.loadPlugin(pluginName);
+      
+      // Verify no new conflicts were introduced
+      const postLoadConflicts = await this.detectConflicts([pluginName]);
+      if (postLoadConflicts.hasConflicts) {
+        this.logger.warn(
+          `Plugin ${pluginName} introduced ${postLoadConflicts.conflicts.length} new conflicts after loading`
+        );
+        
+        // Auto-resolve if possible
+        await this.autoResolveConflicts();
+      }
+      
+    } catch (error) {
+      this.logger.error(`Failed to load plugin ${pluginName} with conflict checking:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve service conflicts with automated strategies
+   */
+  async resolveServiceConflicts(
+    pluginName: string,
+    resolutions: Array<{
+      serviceName: string;
+      strategy: 'alias' | 'namespace' | 'prioritize' | 'disable';
+      targetToken?: string;
+      namespace?: string;
+    }>
+  ): Promise<{
+    resolved: number;
+    failed: number;
+    warnings: string[];
+  }> {
+    try {
+      const result = await this.crossPluginServiceManager.resolveServiceConflicts(pluginName, resolutions);
+      
+      this.logger.log(
+        `Service conflict resolution for ${pluginName}: ${result.resolved} resolved, ${result.failed} failed`
+      );
+
+      if (result.warnings.length > 0) {
+        this.logger.warn(`Service conflict resolution warnings: ${result.warnings.join(', ')}`);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to resolve service conflicts for plugin ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get comprehensive conflict analysis report
+   */
+  async getConflictAnalysisReport(): Promise<{
+    summary: {
+      totalPlugins: number;
+      conflictedPlugins: number;
+      totalConflicts: number;
+      criticalConflicts: number;
+      autoResolvableConflicts: number;
+    };
+    conflictsByType: Record<string, number>;
+    conflictsBySeverity: Record<string, number>;
+    mostConflictedPlugins: Array<{ pluginName: string; conflictCount: number }>;
+    resolutionSuggestions: string[];
+    systemHealth: 'healthy' | 'degraded' | 'critical';
+  }> {
+    try {
+      const conflictResult = await this.detectConflicts();
+      const serviceStats = this.crossPluginServiceManager.getConflictStatistics();
+      
+      // Analyze conflicts
+      const conflictsByType: Record<string, number> = {};
+      const conflictsBySeverity: Record<string, number> = {};
+      const pluginConflictCounts = new Map<string, number>();
+
+      for (const conflict of conflictResult.conflicts) {
+        // Count by type
+        conflictsByType[conflict.type] = (conflictsByType[conflict.type] || 0) + 1;
+        
+        // Count by severity
+        conflictsBySeverity[conflict.severity] = (conflictsBySeverity[conflict.severity] || 0) + 1;
+        
+        // Count by plugin
+        for (const pluginName of conflict.conflictingPlugins) {
+          pluginConflictCounts.set(pluginName, (pluginConflictCounts.get(pluginName) || 0) + 1);
+        }
+      }
+
+      // Find most conflicted plugins
+      const mostConflictedPlugins = Array.from(pluginConflictCounts.entries())
+        .map(([pluginName, conflictCount]) => ({ pluginName, conflictCount }))
+        .sort((a, b) => b.conflictCount - a.conflictCount)
+        .slice(0, 5);
+
+      // Determine system health
+      const criticalCount = conflictsBySeverity.critical || 0;
+      const highCount = conflictsBySeverity.high || 0;
+      
+      let systemHealth: 'healthy' | 'degraded' | 'critical';
+      if (criticalCount > 0) {
+        systemHealth = 'critical';
+      } else if (highCount > 3 || conflictResult.conflicts.length > 10) {
+        systemHealth = 'degraded';
+      } else {
+        systemHealth = 'healthy';
+      }
+
+      // Generate resolution suggestions
+      const resolutionSuggestions: string[] = [];
+      if (serviceStats.duplicateTokens > 0) {
+        resolutionSuggestions.push('Resolve duplicate service tokens with unique naming');
+      }
+      if (serviceStats.versionIncompatibilities > 0) {
+        resolutionSuggestions.push('Update plugins to compatible versions');
+      }
+      if (conflictsBySeverity.critical > 0) {
+        resolutionSuggestions.push('Immediately address critical conflicts before proceeding');
+      }
+
+      return {
+        summary: {
+          totalPlugins: this.loadedPlugins.size,
+          conflictedPlugins: pluginConflictCounts.size,
+          totalConflicts: conflictResult.conflicts.length,
+          criticalConflicts: conflictsBySeverity.critical || 0,
+          autoResolvableConflicts: conflictResult.conflicts.filter(c => c.autoResolvable).length,
+        },
+        conflictsByType,
+        conflictsBySeverity,
+        mostConflictedPlugins,
+        resolutionSuggestions,
+        systemHealth,
+      };
+    } catch (error) {
+      this.logger.error('Failed to generate conflict analysis report:', error);
+      throw error;
+    }
+  }
 }
 
 // Supporting types for enhanced plugin loading
