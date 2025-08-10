@@ -169,6 +169,9 @@ export class PluginContextService implements OnModuleInit {
   private createFileAccessInterface(pluginName: string, config: PluginContextConfig) {
     return {
       readFile: async (path: string): Promise<Buffer> => {
+        if (!this.fileAccessService) {
+          throw new Error('File access service not available');
+        }
         await this.trackOperation(pluginName, 'file_read');
         const content = await this.fileAccessService.readFile(path, pluginName);
         return Buffer.from(content, 'utf8');

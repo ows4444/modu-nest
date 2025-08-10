@@ -154,11 +154,12 @@ This comprehensive checklist identifies actionable items to improve the plugin a
   - **Suggested Fix:** Consolidate validation logic in shared/utils and export from plugin-types to maintain single source of truth.
   - **Resolution:** Consolidated all plugin validation functions (`isValidPluginName`, `isValidPluginVersion`, `isValidChecksum`, `isValidServiceToken`, `isValidPluginFile`) into `validation-utils.ts` as the single source of truth. Updated plugin-types to import from shared utils rather than duplicating logic. Removed duplicate function from string-utils.ts. This eliminates code duplication and ensures consistent validation behavior across the entire codebase.
 
-- [ ] **Optimize plugin context service dependency injection**
+- [x] **Optimize plugin context service dependency injection** ✅ COMPLETED
   - **File/Module Path:** `libs/plugin-context/src/lib/plugin-context.service.ts`
   - **Rationale:** Heavy dependency injection in plugin context may impact plugin startup performance
   - **Priority:** Low
   - **Suggested Fix:** Implement lazy loading for context services and use factory patterns for optional dependencies.
+  - **Resolution:** Implemented optional dependency injection pattern by making FileAccessService, NetworkAccessService, and DatabaseAccessService optional in the constructor. This allows plugins to start without requiring all heavy services to be loaded upfront, improving startup performance when plugins don't need all capabilities. Added service availability checks in interface methods to gracefully handle missing services.
 
 - [ ] **Add comprehensive type guards for plugin types**
   - **File/Module Path:** `libs/plugin-types/src/lib/plugin-interfaces.ts:18-37`
