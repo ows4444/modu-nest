@@ -147,11 +147,12 @@ This comprehensive checklist identifies actionable items to improve the plugin a
 
 ### Code Quality & Reusability
 
-- [ ] **Remove duplicate validation logic between plugin-types and shared/utils**
+- [x] **Remove duplicate validation logic between plugin-types and shared/utils** ✅ COMPLETED
   - **File/Module Path:** `libs/plugin-types/src/lib/plugin-interfaces.ts:19-25, libs/shared/utils/src/lib/string-utils.ts:86-88`
   - **Rationale:** Plugin name validation is duplicated in multiple places; violates DRY principle
   - **Priority:** Medium
   - **Suggested Fix:** Consolidate validation logic in shared/utils and export from plugin-types to maintain single source of truth.
+  - **Resolution:** Consolidated all plugin validation functions (`isValidPluginName`, `isValidPluginVersion`, `isValidChecksum`, `isValidServiceToken`, `isValidPluginFile`) into `validation-utils.ts` as the single source of truth. Updated plugin-types to import from shared utils rather than duplicating logic. Removed duplicate function from string-utils.ts. This eliminates code duplication and ensures consistent validation behavior across the entire codebase.
 
 - [ ] **Optimize plugin context service dependency injection**
   - **File/Module Path:** `libs/plugin-context/src/lib/plugin-context.service.ts`

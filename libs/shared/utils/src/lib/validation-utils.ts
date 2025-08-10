@@ -114,3 +114,58 @@ export function allPass<T>(array: T[], predicate: (item: T) => boolean): boolean
 export function anyPass<T>(array: T[], predicate: (item: T) => boolean): boolean {
   return array.some(predicate);
 }
+
+// Plugin-specific validation functions (consolidated from multiple locations)
+
+/**
+ * Validates if a string is a valid plugin name
+ * Plugin names must be lowercase alphanumeric with hyphens/underscores
+ * and between 2-50 characters long
+ */
+export function isValidPluginName(name: string): boolean {
+  return /^[a-z0-9-_]+$/.test(name) && name.length >= 2 && name.length <= 50;
+}
+
+/**
+ * Validates if a string is a valid plugin version (semantic version)
+ * Supports formats like 1.0.0, 1.0.0-beta, 1.0.0-alpha.1
+ */
+export function isValidPluginVersion(value: string): boolean {
+  return /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/.test(value);
+}
+
+/**
+ * Validates if a string is a valid checksum (hexadecimal)
+ * Minimum 32 characters (for MD5), supports longer for SHA256/SHA512
+ */
+export function isValidChecksum(value: string): boolean {
+  return /^[a-fA-F0-9]+$/.test(value) && value.length >= 32;
+}
+
+/**
+ * Validates if a string is a valid service token
+ * Service tokens should be uppercase with underscores
+ */
+export function isValidServiceToken(token: string): boolean {
+  return /^[A-Z][A-Z0-9_]*[A-Z0-9]$/.test(token) && token.length >= 3 && token.length <= 100;
+}
+
+/**
+ * Validates if a string is a valid plugin file path
+ * Checks for allowed file extensions and directory structures
+ */
+export function isValidPluginFile(filename: string): boolean {
+  const allowedExtensions = ['.js', '.json', '.md', '.txt', '.ts', '.d.ts'];
+  const allowedDirs = ['dist/', 'src/', 'lib/', 'assets/', 'docs/'];
+  
+  // Check if file has valid extension
+  const hasValidExtension = allowedExtensions.some(ext => filename.endsWith(ext));
+  
+  // Check if file is in allowed directory or at root level
+  const isInAllowedDir = allowedDirs.some(dir => filename.startsWith(dir)) || !filename.includes('/');
+  
+  // Reject potentially dangerous files
+  const isDangerous = filename.includes('..') || filename.startsWith('/') || filename.includes('node_modules');
+  
+  return hasValidExtension && isInAllowedDir && !isDangerous;
+}

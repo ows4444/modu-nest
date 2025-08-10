@@ -1,3 +1,10 @@
+// Import validation functions from shared utilities (single source of truth)
+import { 
+  isValidPluginName as baseIsValidPluginName,
+  isValidPluginVersion as baseIsValidPluginVersion,
+  isValidChecksum as baseIsValidChecksum
+} from '@modu-nest/utils';
+
 // Re-export all plugin manifest types
 export * from './plugin-manifest.types';
 
@@ -15,17 +22,17 @@ export type Checksum = string & { readonly __brand: 'Checksum' };
 export type FilePath = string & { readonly __brand: 'FilePath' };
 export type Timestamp = string & { readonly __brand: 'Timestamp' };
 
-// Type guards for branded types
+// Type guards for branded types (using shared validation logic)
 export function isValidPluginName(value: string): value is PluginName {
-  return /^[a-z0-9-_]+$/.test(value) && value.length >= 2 && value.length <= 50;
+  return baseIsValidPluginName(value);
 }
 
 export function isValidPluginVersion(value: string): value is PluginVersionString {
-  return /^\d+\.\d+\.\d+(-[a-zA-Z0-9-]+)?$/.test(value);
+  return baseIsValidPluginVersion(value);
 }
 
 export function isValidChecksum(value: string): value is Checksum {
-  return /^[a-fA-F0-9]+$/.test(value) && value.length >= 32;
+  return baseIsValidChecksum(value);
 }
 
 export function isValidTimestamp(value: string): value is Timestamp {

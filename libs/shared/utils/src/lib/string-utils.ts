@@ -48,44 +48,8 @@ export function sanitizePluginName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
 }
 
-/**
- * Validates if a plugin name follows the expected format.
- *
- * Checks that the plugin name contains only lowercase letters, digits,
- * hyphens, and underscores, and is between 2 and 50 characters long.
- * This validation ensures compatibility with file systems, package managers,
- * and URL structures.
- *
- * @param {string} name - The plugin name to validate
- *
- * @returns {boolean} True if the name is valid, false otherwise
- *
- * @example
- * // Valid plugin names
- * console.log(isValidPluginName('my-plugin')); // true
- * console.log(isValidPluginName('plugin_name')); // true
- * console.log(isValidPluginName('plugin123')); // true
- *
- * @example
- * // Invalid plugin names
- * console.log(isValidPluginName('My Plugin')); // false (contains spaces and uppercase)
- * console.log(isValidPluginName('a')); // false (too short)
- * console.log(isValidPluginName('')); // false (empty)
- * console.log(isValidPluginName('plugin@name')); // false (contains @)
- *
- * @example
- * // Edge cases
- * console.log(isValidPluginName('ab')); // true (minimum length)
- * const longName = 'a'.repeat(50);
- * console.log(isValidPluginName(longName)); // true (maximum length)
- * const tooLong = 'a'.repeat(51);
- * console.log(isValidPluginName(tooLong)); // false (too long)
- *
- * @since 1.0.0
- */
-export function isValidPluginName(name: string): boolean {
-  return /^[a-z0-9-_]+$/.test(name) && name.length >= 2 && name.length <= 50;
-}
+// NOTE: isValidPluginName has been moved to validation-utils.ts to consolidate validation logic
+// Import from '@modu-nest/utils' if you need this function
 
 /**
  * Normalizes a string by trimming whitespace and converting to lowercase.
