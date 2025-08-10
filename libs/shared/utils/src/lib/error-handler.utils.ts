@@ -1,5 +1,14 @@
-import { HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { 
+  ErrorFactory, 
+  ErrorUtils, 
+  StandardErrorResponse 
+} from './standard-errors';
 
+/**
+ * @deprecated Use ErrorFactory and BaseFrameworkError classes for new code
+ * This class is maintained for backward compatibility
+ */
 export interface ErrorResponse {
   success: false;
   error: {
@@ -18,48 +27,60 @@ export interface SuccessResponse<T = any> {
 
 export type ApiResponse<T = any> = SuccessResponse<T> | ErrorResponse;
 
+/**
+ * Enhanced error handler using standardized error system
+ * @deprecated Use ErrorFactory and ErrorUtils for new implementations
+ */
 export class ErrorHandler {
   private static readonly logger = new Logger('ErrorHandler');
 
+  /**
+   * Handle errors with standardized format
+   */
   static handleError(error: unknown, context?: string): ErrorResponse {
     this.logger.error(`Error in ${context || 'unknown context'}:`, error);
 
-    if (error instanceof HttpException) {
-      const status = error.getStatus();
-      const response = error.getResponse();
-      
-      return {
-        success: false,
-        error: {
-          code: `HTTP_${status}`,
-          message: typeof response === 'string' ? response : (response as any)?.message || error.message,
-          details: typeof response === 'object' ? response : undefined,
-          timestamp: new Date().toISOString(),
-        },
-      };
-    }
+    // Convert to standardized framework error
+    const frameworkError = ErrorUtils.normalize(error, { context });
+    const logInfo = ErrorUtils.extractForLogging(frameworkError);
+    
+    this.logger.error(
+      `[${logInfo.correlationId}] ${logInfo.category}:${logInfo.code} - ${logInfo.message}`,
+      logInfo.context
+    );
 
-    if (error instanceof Error) {
-      return {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message,
-          details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-          timestamp: new Date().toISOString(),
-        },
-      };
-    }
-
+    // Return in legacy format for backward compatibility
     return {
       success: false,
       error: {
-        code: 'UNKNOWN_ERROR',
-        message: 'An unexpected error occurred',
-        details: process.env.NODE_ENV === 'development' ? error : undefined,
-        timestamp: new Date().toISOString(),
+        code: frameworkError.code,
+        message: frameworkError.message,
+        details: {
+          category: frameworkError.category,
+          correlationId: frameworkError.correlationId,
+          context: frameworkError.context,
+          suggestions: frameworkError.getSuggestions(),
+          recoverable: frameworkError.isRecoverable(),
+          ...(process.env.NODE_ENV === 'development' && { stack: frameworkError.stack }),
+        },
+        timestamp: frameworkError.timestamp,
       },
     };
+  }
+
+  /**
+   * Handle errors with standardized response format
+   */
+  static handleErrorStandardized(error: unknown, path?: string, method?: string, context?: Record<string, any>): StandardErrorResponse {
+    const frameworkError = ErrorUtils.normalize(error, context);
+    const logInfo = ErrorUtils.extractForLogging(frameworkError);
+    
+    this.logger.error(
+      `[${logInfo.correlationId}] ${logInfo.category}:${logInfo.code} - ${logInfo.message}`,
+      { path, method, ...logInfo.context }
+    );
+
+    return ErrorUtils.toApiResponse(frameworkError, path, method);
   }
 
   static createSuccessResponse<T>(data: T, includeTimestamp = true): SuccessResponse<T> {
@@ -70,32 +91,59 @@ export class ErrorHandler {
     };
   }
 
-  static throwNotFound(resource: string, id?: string): never {
-    const message = id 
-      ? `${resource} with ID '${id}' not found`
-      : `${resource} not found`;
-    throw new HttpException(message, HttpStatus.NOT_FOUND);
+  // ============================================================================
+  // Standardized Error Throwing Methods
+  // ============================================================================
+
+  static throwNotFound(resource: string, id?: string, context: Record<string, any> = {}): never {
+    throw ErrorFactory.notFound(resource, id, context).toHttpException();
   }
 
   static throwBadRequest(message: string, details?: any): never {
-    throw new HttpException(
-      { message, details },
-      HttpStatus.BAD_REQUEST
-    );
+    throw ErrorFactory.validation(message, [], { details }).toHttpException();
   }
 
   static throwConflict(message: string, details?: any): never {
-    throw new HttpException(
-      { message, details },
-      HttpStatus.CONFLICT
-    );
+    throw ErrorFactory.conflict(message, undefined, { details }).toHttpException();
   }
 
-  static throwForbidden(message: string): never {
-    throw new HttpException(message, HttpStatus.FORBIDDEN);
+  static throwForbidden(message: string, context: Record<string, any> = {}): never {
+    throw ErrorFactory.authorization(undefined, undefined, { originalMessage: message, ...context }).toHttpException();
   }
 
-  static throwUnauthorized(message: string): never {
-    throw new HttpException(message, HttpStatus.UNAUTHORIZED);
+  static throwUnauthorized(message: string, context: Record<string, any> = {}): never {
+    throw ErrorFactory.authentication(message, context).toHttpException();
+  }
+
+  static throwValidation(message: string, validationErrors: string[] = [], context: Record<string, any> = {}): never {
+    throw ErrorFactory.validation(message, validationErrors, context).toHttpException();
+  }
+
+  static throwConfiguration(configKey?: string, reason?: string, context: Record<string, any> = {}): never {
+    throw ErrorFactory.configuration(configKey, reason, context).toHttpException();
+  }
+
+  static throwNetwork(operation: string, target?: string, originalError?: Error, context: Record<string, any> = {}): never {
+    throw ErrorFactory.network(operation, target, originalError, context).toHttpException();
+  }
+
+  static throwTimeout(operation: string, timeoutMs: number, context: Record<string, any> = {}): never {
+    throw ErrorFactory.timeout(operation, timeoutMs, context).toHttpException();
+  }
+
+  static throwDatabase(operation: string, table?: string, originalError?: Error, context: Record<string, any> = {}): never {
+    throw ErrorFactory.database(operation, table, originalError, context).toHttpException();
+  }
+
+  static throwFileSystem(operation: string, path?: string, originalError?: Error, context: Record<string, any> = {}): never {
+    throw ErrorFactory.fileSystem(operation, path, originalError, context).toHttpException();
+  }
+
+  static throwRateLimit(limit: number, windowMs: number, retryAfterMs?: number, context: Record<string, any> = {}): never {
+    throw ErrorFactory.rateLimit(limit, windowMs, retryAfterMs, context).toHttpException();
+  }
+
+  static throwBusinessLogic(operation: string, reason: string, context: Record<string, any> = {}): never {
+    throw ErrorFactory.businessLogic(operation, reason, context).toHttpException();
   }
 }

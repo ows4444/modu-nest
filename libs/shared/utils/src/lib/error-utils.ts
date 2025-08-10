@@ -120,7 +120,7 @@ export function withAsyncErrorHandling<T extends (...args: any[]) => Promise<any
 }
 
 /**
- * Retries an operation with exponential backoff
+ * Retries an operation with exponential backoff using standardized error handling
  */
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
@@ -137,7 +137,12 @@ export async function retryWithBackoff<T>(
     initialDelay = 1000,
     maxDelay = 10000,
     backoffMultiplier = 2,
-    shouldRetry = () => true,
+    shouldRetry = (error: unknown) => {
+      // Import ErrorUtils here to avoid circular dependencies
+      const { ErrorUtils, BaseFrameworkError } = require('./standard-errors');
+      const frameworkError = ErrorUtils.normalize(error);
+      return frameworkError instanceof BaseFrameworkError ? frameworkError.isRecoverable() : isRetryableError(error);
+    },
   } = options;
 
   let lastError: unknown;

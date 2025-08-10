@@ -1,51 +1,56 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { 
+  BaseFrameworkError, 
+  ErrorCategory,
+  ValidationError,
+  NotFoundError,
+  ConflictError
+} from '@modu-nest/utils';
 
 /**
- * Base plugin error class
+ * Base plugin error class using standardized error handling
+ * @deprecated Use specific error types from ErrorFactory for new code
  */
-export abstract class PluginError extends Error {
-  abstract readonly code: string;
-  abstract readonly statusCode: HttpStatus;
+export abstract class PluginError extends BaseFrameworkError {
+  abstract override readonly code: string;
+  abstract override readonly statusCode: HttpStatus;
+  abstract override readonly category: ErrorCategory;
 
-  constructor(message: string, public readonly details?: any) {
-    super(message);
+  constructor(message: string, public readonly details?: unknown, context: Record<string, unknown> = {}) {
+    super(message, { details, ...context });
     this.name = this.constructor.name;
   }
 }
 
 /**
- * Plugin validation errors
+ * Plugin validation errors - uses standardized validation error
  */
-export class PluginValidationError extends PluginError {
-  readonly code = 'PLUGIN_VALIDATION_ERROR';
-  readonly statusCode = HttpStatus.BAD_REQUEST;
-
-  constructor(message: string, public readonly validationErrors: string[]) {
-    super(message, { validationErrors });
+export class PluginValidationError extends ValidationError {
+  constructor(message: string, validationErrors: string[] = [], pluginName?: string) {
+    super(message, validationErrors, { pluginName, errorType: 'plugin_validation' });
   }
 }
 
 /**
- * Plugin not found error
+ * Plugin not found error - uses standardized not found error
  */
-export class PluginNotFoundError extends PluginError {
-  readonly code = 'PLUGIN_NOT_FOUND';
-  readonly statusCode = HttpStatus.NOT_FOUND;
-
-  constructor(pluginName: string) {
-    super(`Plugin '${pluginName}' not found`, { pluginName });
+export class PluginNotFoundError extends NotFoundError {
+  constructor(pluginName: string, version?: string) {
+    const identifier = version ? `${pluginName}@${version}` : pluginName;
+    super('Plugin', identifier, { pluginName, version });
   }
 }
 
 /**
- * Plugin already exists error
+ * Plugin already exists error - uses standardized conflict error
  */
-export class PluginAlreadyExistsError extends PluginError {
-  readonly code = 'PLUGIN_ALREADY_EXISTS';
-  readonly statusCode = HttpStatus.CONFLICT;
-
+export class PluginAlreadyExistsError extends ConflictError {
   constructor(pluginName: string, version: string) {
-    super(`Plugin '${pluginName}' version '${version}' already exists`, { pluginName, version });
+    super(
+      `Plugin '${pluginName}' version '${version}' already exists`,
+      'plugin_version_conflict',
+      { pluginName, version }
+    );
   }
 }
 
@@ -53,8 +58,9 @@ export class PluginAlreadyExistsError extends PluginError {
  * Plugin file format error
  */
 export class PluginFileFormatError extends PluginError {
-  readonly code = 'PLUGIN_FILE_FORMAT_ERROR';
-  readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly code = 'PLUGIN_FILE_FORMAT_ERROR';
+  override readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly category = ErrorCategory.VALIDATION;
 
   constructor(message: string, fileName?: string) {
     super(message, { fileName });
@@ -65,8 +71,9 @@ export class PluginFileFormatError extends PluginError {
  * Plugin storage error
  */
 export class PluginStorageError extends PluginError {
-  readonly code = 'PLUGIN_STORAGE_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_STORAGE_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.FILE_SYSTEM;
 
   constructor(message: string, operation?: string) {
     super(message, { operation });
@@ -77,8 +84,9 @@ export class PluginStorageError extends PluginError {
  * Plugin registry connection error
  */
 export class PluginRegistryConnectionError extends PluginError {
-  readonly code = 'PLUGIN_REGISTRY_CONNECTION_ERROR';
-  readonly statusCode = HttpStatus.SERVICE_UNAVAILABLE;
+  override readonly code = 'PLUGIN_REGISTRY_CONNECTION_ERROR';
+  override readonly statusCode = HttpStatus.SERVICE_UNAVAILABLE;
+  override readonly category = ErrorCategory.NETWORK;
 
   constructor(registryUrl: string, originalError?: Error) {
     super(`Failed to connect to plugin registry at ${registryUrl}`, { registryUrl, originalError });
@@ -89,8 +97,9 @@ export class PluginRegistryConnectionError extends PluginError {
  * Plugin installation error
  */
 export class PluginInstallationError extends PluginError {
-  readonly code = 'PLUGIN_INSTALLATION_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_INSTALLATION_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.SYSTEM;
 
   constructor(pluginName: string, reason: string) {
     super(`Failed to install plugin '${pluginName}': ${reason}`, { pluginName, reason });
@@ -101,8 +110,9 @@ export class PluginInstallationError extends PluginError {
  * Plugin loading error
  */
 export class PluginLoadingError extends PluginError {
-  readonly code = 'PLUGIN_LOADING_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_LOADING_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.SYSTEM;
 
   constructor(pluginName: string, reason: string, phase?: string) {
     super(`Failed to load plugin '${pluginName}': ${reason}`, { pluginName, reason, phase });
@@ -113,8 +123,9 @@ export class PluginLoadingError extends PluginError {
  * Plugin security error
  */
 export class PluginSecurityError extends PluginError {
-  readonly code = 'PLUGIN_SECURITY_ERROR';
-  readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly code = 'PLUGIN_SECURITY_ERROR';
+  override readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly category = ErrorCategory.SECURITY;
 
   constructor(pluginName: string, violations: string[], riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'medium') {
     super(`Security violations detected in plugin '${pluginName}': ${violations.join(', ')}`, {
@@ -129,8 +140,9 @@ export class PluginSecurityError extends PluginError {
  * Plugin dependency error
  */
 export class PluginDependencyError extends PluginError {
-  readonly code = 'PLUGIN_DEPENDENCY_ERROR';
-  readonly statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
+  override readonly code = 'PLUGIN_DEPENDENCY_ERROR';
+  override readonly statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
+  override readonly category = ErrorCategory.BUSINESS_LOGIC;
 
   constructor(pluginName: string, missingDependencies: string[], circular?: string[]) {
     const message =
@@ -146,8 +158,9 @@ export class PluginDependencyError extends PluginError {
  * Plugin configuration error
  */
 export class PluginConfigurationError extends PluginError {
-  readonly code = 'PLUGIN_CONFIGURATION_ERROR';
-  readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly code = 'PLUGIN_CONFIGURATION_ERROR';
+  override readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly category = ErrorCategory.CONFIGURATION;
 
   constructor(pluginName: string, configKey: string, reason: string) {
     super(`Configuration error in plugin '${pluginName}' for key '${configKey}': ${reason}`, {
@@ -162,8 +175,9 @@ export class PluginConfigurationError extends PluginError {
  * Plugin manifest error
  */
 export class PluginManifestError extends PluginError {
-  readonly code = 'PLUGIN_MANIFEST_ERROR';
-  readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly code = 'PLUGIN_MANIFEST_ERROR';
+  override readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly category = ErrorCategory.VALIDATION;
 
   constructor(pluginName: string, manifestErrors: string[], warnings?: string[]) {
     super(`Invalid manifest for plugin '${pluginName}': ${manifestErrors.join(', ')}`, {
@@ -178,8 +192,9 @@ export class PluginManifestError extends PluginError {
  * Plugin file size error
  */
 export class PluginFileSizeError extends PluginError {
-  readonly code = 'PLUGIN_FILE_SIZE_ERROR';
-  readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly code = 'PLUGIN_FILE_SIZE_ERROR';
+  override readonly statusCode = HttpStatus.BAD_REQUEST;
+  override readonly category = ErrorCategory.VALIDATION;
 
   constructor(actualSize: number, maxSize: number, pluginName?: string) {
     super(`Plugin file size (${actualSize} bytes) exceeds maximum allowed size (${maxSize} bytes)`, {
@@ -194,8 +209,9 @@ export class PluginFileSizeError extends PluginError {
  * Plugin timeout error
  */
 export class PluginTimeoutError extends PluginError {
-  readonly code = 'PLUGIN_TIMEOUT_ERROR';
-  readonly statusCode = HttpStatus.REQUEST_TIMEOUT;
+  override readonly code = 'PLUGIN_TIMEOUT_ERROR';
+  override readonly statusCode = HttpStatus.REQUEST_TIMEOUT;
+  override readonly category = ErrorCategory.SYSTEM;
 
   constructor(operation: string, timeoutMs: number, pluginName?: string) {
     super(`Operation '${operation}' timed out after ${timeoutMs}ms`, {
@@ -210,8 +226,9 @@ export class PluginTimeoutError extends PluginError {
  * Plugin guard error
  */
 export class PluginGuardError extends PluginError {
-  readonly code = 'PLUGIN_GUARD_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_GUARD_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.SECURITY;
 
   constructor(pluginName: string, guardName: string, reason: string) {
     super(`Guard error in plugin '${pluginName}' for guard '${guardName}': ${reason}`, {
@@ -226,8 +243,9 @@ export class PluginGuardError extends PluginError {
  * Plugin state error
  */
 export class PluginStateError extends PluginError {
-  readonly code = 'PLUGIN_STATE_ERROR';
-  readonly statusCode = HttpStatus.CONFLICT;
+  override readonly code = 'PLUGIN_STATE_ERROR';
+  override readonly statusCode = HttpStatus.CONFLICT;
+  override readonly category = ErrorCategory.BUSINESS_LOGIC;
 
   constructor(pluginName: string, currentState: string, attemptedTransition: string) {
     super(
@@ -245,8 +263,9 @@ export class PluginStateError extends PluginError {
  * Plugin permission error
  */
 export class PluginPermissionError extends PluginError {
-  readonly code = 'PLUGIN_PERMISSION_ERROR';
-  readonly statusCode = HttpStatus.FORBIDDEN;
+  override readonly code = 'PLUGIN_PERMISSION_ERROR';
+  override readonly statusCode = HttpStatus.FORBIDDEN;
+  override readonly category = ErrorCategory.AUTHORIZATION;
 
   constructor(pluginName: string, requiredPermission: string, operation: string) {
     super(`Plugin '${pluginName}' lacks permission '${requiredPermission}' for operation '${operation}'`, {
@@ -261,8 +280,9 @@ export class PluginPermissionError extends PluginError {
  * Plugin circuit breaker error
  */
 export class PluginCircuitBreakerError extends PluginError {
-  readonly code = 'PLUGIN_CIRCUIT_BREAKER_ERROR';
-  readonly statusCode = HttpStatus.SERVICE_UNAVAILABLE;
+  override readonly code = 'PLUGIN_CIRCUIT_BREAKER_ERROR';
+  override readonly statusCode = HttpStatus.SERVICE_UNAVAILABLE;
+  override readonly category = ErrorCategory.SYSTEM;
 
   constructor(pluginName: string, reason: string, resetTime?: number) {
     super(`Circuit breaker open for plugin '${pluginName}': ${reason}`, {
@@ -277,8 +297,9 @@ export class PluginCircuitBreakerError extends PluginError {
  * Plugin registry error
  */
 export class PluginRegistryError extends PluginError {
-  readonly code = 'PLUGIN_REGISTRY_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_REGISTRY_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.SYSTEM;
 
   constructor(operation: string, reason: string, pluginName?: string) {
     super(`Registry operation '${operation}' failed: ${reason}`, {
@@ -293,8 +314,9 @@ export class PluginRegistryError extends PluginError {
  * Plugin cache error
  */
 export class PluginCacheError extends PluginError {
-  readonly code = 'PLUGIN_CACHE_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_CACHE_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.SYSTEM;
 
   constructor(operation: string, cacheKey: string, reason: string) {
     super(`Cache operation '${operation}' failed for key '${cacheKey}': ${reason}`, {
@@ -309,8 +331,9 @@ export class PluginCacheError extends PluginError {
  * Plugin database error
  */
 export class PluginDatabaseError extends PluginError {
-  readonly code = 'PLUGIN_DATABASE_ERROR';
-  readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly code = 'PLUGIN_DATABASE_ERROR';
+  override readonly statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+  override readonly category = ErrorCategory.DATABASE;
 
   constructor(operation: string, table: string, reason: string) {
     super(`Database operation '${operation}' failed on table '${table}': ${reason}`, {
