@@ -1113,4 +1113,614 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       });
     }
   }
+
+  // ================================
+  // BATCH OPERATIONS SECTION
+  // ================================
+
+  /**
+   * Batch upload multiple plugins with progress tracking and transaction support
+   */
+  async batchUploadPlugins(
+    pluginBuffers: Array<{ buffer: Buffer; filename?: string }>,
+    options: {
+      continueOnError?: boolean;
+      batchSize?: number;
+      reportProgress?: (progress: BatchOperationProgress) => void;
+      useTransaction?: boolean;
+    } = {}
+  ): Promise<BatchUploadResult> {
+    const { continueOnError = false, batchSize = 5, reportProgress, useTransaction = false } = options;
+    
+    const startTime = Date.now();
+    const totalPlugins = pluginBuffers.length;
+    let processedCount = 0;
+    
+    const results: BatchUploadResult = {
+      successful: [],
+      failed: [],
+      skipped: [],
+      totalProcessed: totalPlugins,
+      duration: 0,
+      successCount: 0,
+      failureCount: 0,
+      skipCount: 0,
+    };
+
+    this.logger.log(`Starting batch upload of ${totalPlugins} plugins with batch size ${batchSize}`);
+    
+    // Emit batch operation started event
+    this.eventEmitter.emit('batch-upload-started', {
+      totalPlugins,
+      batchSize,
+      useTransaction,
+      timestamp: new Date(),
+    });
+
+    try {
+      // Process plugins in batches
+      for (let i = 0; i < pluginBuffers.length; i += batchSize) {
+        const batch = pluginBuffers.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(totalPlugins / batchSize);
+        
+        this.logger.debug(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} plugins)`);
+
+        // Process batch with optional transaction support
+        const batchResults = await Promise.allSettled(
+          batch.map(async ({ buffer, filename }, batchIndex) => {
+            const globalIndex = i + batchIndex;
+            try {
+              const metadata = await this.uploadPlugin(buffer);
+              processedCount++;
+              
+              results.successful.push({
+                pluginName: metadata.name,
+                version: metadata.version,
+                metadata,
+                index: globalIndex,
+                filename,
+              });
+              
+              // Report progress if callback provided
+              if (reportProgress) {
+                reportProgress({
+                  processed: processedCount,
+                  total: totalPlugins,
+                  percentage: Math.round((processedCount / totalPlugins) * 100),
+                  currentBatch: batchNumber,
+                  totalBatches,
+                  currentPlugin: metadata.name,
+                  status: 'processing',
+                });
+              }
+              
+              return { success: true, metadata, index: globalIndex };
+            } catch (error) {
+              processedCount++;
+              const pluginError = this.toPluginError(error, 'batchUpload', filename || `plugin-${globalIndex}`);
+              
+              results.failed.push({
+                pluginName: filename || `plugin-${globalIndex}`,
+                error: pluginError,
+                index: globalIndex,
+                filename,
+              });
+
+              // Stop batch processing if continueOnError is false
+              if (!continueOnError) {
+                throw new Error(`Batch upload failed at plugin ${globalIndex}: ${pluginError.message}`);
+              }
+
+              return { success: false, error: pluginError, index: globalIndex };
+            }
+          })
+        );
+
+        // Process batch results
+        batchResults.forEach((result, batchIndex) => {
+          const globalIndex = i + batchIndex;
+          if (result.status === 'rejected' && !continueOnError) {
+            // Mark remaining plugins as skipped
+            for (let skipIndex = globalIndex + 1; skipIndex < totalPlugins; skipIndex++) {
+              results.skipped.push({
+                pluginName: `plugin-${skipIndex}`,
+                reason: 'Batch processing stopped due to error',
+                index: skipIndex,
+                filename: pluginBuffers[skipIndex]?.filename,
+              });
+            }
+            throw result.reason;
+          }
+        });
+
+        // Small delay between batches to prevent overwhelming the system
+        if (i + batchSize < pluginBuffers.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+    } catch (error) {
+      this.logger.error('Batch upload operation failed:', error);
+      
+      // Emit batch operation failed event
+      this.eventEmitter.emit('batch-upload-failed', {
+        totalPlugins,
+        processedCount,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date(),
+      });
+      
+      if (!continueOnError) {
+        throw error;
+      }
+    }
+
+    // Calculate final statistics
+    results.duration = Date.now() - startTime;
+    results.successCount = results.successful.length;
+    results.failureCount = results.failed.length;
+    results.skipCount = results.skipped.length;
+
+    this.logger.log(
+      `Batch upload completed: ${results.successCount} successful, ${results.failureCount} failed, ${results.skipCount} skipped in ${results.duration}ms`
+    );
+
+    // Emit batch operation completed event
+    this.eventEmitter.emit('batch-upload-completed', {
+      ...results,
+      timestamp: new Date(),
+    });
+
+    // Final progress report
+    if (reportProgress) {
+      reportProgress({
+        processed: processedCount,
+        total: totalPlugins,
+        percentage: 100,
+        currentBatch: Math.ceil(totalPlugins / batchSize),
+        totalBatches: Math.ceil(totalPlugins / batchSize),
+        status: 'completed',
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Batch validate multiple plugin buffers without storing them
+   */
+  async batchValidatePlugins(
+    pluginBuffers: Array<{ buffer: Buffer; filename?: string }>,
+    options: {
+      batchSize?: number;
+      reportProgress?: (progress: BatchOperationProgress) => void;
+      validationLevel?: 'basic' | 'full';
+    } = {}
+  ): Promise<BatchValidationResult> {
+    const { batchSize = 10, reportProgress, validationLevel = 'full' } = options;
+    
+    const startTime = Date.now();
+    const totalPlugins = pluginBuffers.length;
+    let processedCount = 0;
+    
+    const results: BatchValidationResult = {
+      valid: [],
+      invalid: [],
+      totalProcessed: totalPlugins,
+      duration: 0,
+      validCount: 0,
+      invalidCount: 0,
+    };
+
+    this.logger.log(`Starting batch validation of ${totalPlugins} plugins with ${validationLevel} validation`);
+
+    // Emit batch validation started event
+    this.eventEmitter.emit('batch-validation-started', {
+      totalPlugins,
+      batchSize,
+      validationLevel,
+      timestamp: new Date(),
+    });
+
+    try {
+      // Process plugins in batches
+      for (let i = 0; i < pluginBuffers.length; i += batchSize) {
+        const batch = pluginBuffers.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(totalPlugins / batchSize);
+        
+        // Process batch
+        const batchResults = await Promise.allSettled(
+          batch.map(async ({ buffer, filename }, batchIndex) => {
+            const globalIndex = i + batchIndex;
+            try {
+              let pluginName = filename || `plugin-${globalIndex}`;
+              
+              // Security: Check file size
+              this.securityService.validateFileSize(buffer);
+              
+              // Extract and validate manifest
+              const extractedManifest = await this.validationService.extractAndValidateManifest(buffer);
+              pluginName = extractedManifest.name;
+              
+              // Create metadata for validation
+              const metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, buffer);
+              
+              // Perform validation based on level
+              const validationResults = {
+                manifest: await this.validationService.validateManifestWithCache(extractedManifest, metadata.checksum),
+                structure: validationLevel === 'full' 
+                  ? await this.validationService.validatePluginStructureWithCache(buffer, metadata.checksum)
+                  : { isValid: true, warnings: [], errors: [] },
+                security: validationLevel === 'full'
+                  ? await this.securityService.validatePluginSecurityWithCache(buffer, metadata.checksum)
+                  : { isValid: true, warnings: [], errors: [] },
+              };
+
+              const isValid = validationResults.manifest.isValid && 
+                            validationResults.structure.isValid && 
+                            validationResults.security.isValid;
+
+              processedCount++;
+
+              const result = {
+                pluginName,
+                filename,
+                index: globalIndex,
+                metadata,
+                validationResults,
+                isValid,
+              };
+
+              if (isValid) {
+                results.valid.push(result);
+              } else {
+                results.invalid.push(result);
+              }
+
+              // Report progress
+              if (reportProgress) {
+                reportProgress({
+                  processed: processedCount,
+                  total: totalPlugins,
+                  percentage: Math.round((processedCount / totalPlugins) * 100),
+                  currentBatch: batchNumber,
+                  totalBatches,
+                  currentPlugin: pluginName,
+                  status: 'processing',
+                });
+              }
+
+              return result;
+            } catch (error) {
+              processedCount++;
+              const pluginError = this.toPluginError(error, 'batchValidation', filename || `plugin-${globalIndex}`);
+              
+              const result = {
+                pluginName: filename || `plugin-${globalIndex}`,
+                filename,
+                index: globalIndex,
+                error: pluginError,
+                isValid: false,
+              };
+              
+              results.invalid.push(result);
+              return result;
+            }
+          })
+        );
+      }
+
+    } catch (error) {
+      this.logger.error('Batch validation operation failed:', error);
+      
+      this.eventEmitter.emit('batch-validation-failed', {
+        totalPlugins,
+        processedCount,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date(),
+      });
+      
+      throw error;
+    }
+
+    // Calculate final statistics
+    results.duration = Date.now() - startTime;
+    results.validCount = results.valid.length;
+    results.invalidCount = results.invalid.length;
+
+    this.logger.log(
+      `Batch validation completed: ${results.validCount} valid, ${results.invalidCount} invalid in ${results.duration}ms`
+    );
+
+    // Emit batch operation completed event
+    this.eventEmitter.emit('batch-validation-completed', {
+      ...results,
+      timestamp: new Date(),
+    });
+
+    // Final progress report
+    if (reportProgress) {
+      reportProgress({
+        processed: processedCount,
+        total: totalPlugins,
+        percentage: 100,
+        currentBatch: Math.ceil(totalPlugins / batchSize),
+        totalBatches: Math.ceil(totalPlugins / batchSize),
+        status: 'completed',
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Batch delete multiple plugins with progress tracking
+   */
+  async batchDeletePlugins(
+    pluginNames: string[],
+    options: {
+      continueOnError?: boolean;
+      batchSize?: number;
+      reason?: string;
+      reportProgress?: (progress: BatchOperationProgress) => void;
+      dryRun?: boolean;
+    } = {}
+  ): Promise<BatchDeleteResult> {
+    const { continueOnError = true, batchSize = 5, reason = 'batch-delete', reportProgress, dryRun = false } = options;
+    
+    const startTime = Date.now();
+    const totalPlugins = pluginNames.length;
+    let processedCount = 0;
+    
+    const results: BatchDeleteResult = {
+      deleted: [],
+      failed: [],
+      notFound: [],
+      totalProcessed: totalPlugins,
+      duration: 0,
+      deletedCount: 0,
+      failedCount: 0,
+      notFoundCount: 0,
+      dryRun,
+    };
+
+    this.logger.log(`Starting batch ${dryRun ? 'dry-run ' : ''}delete of ${totalPlugins} plugins`);
+
+    // Emit batch delete started event
+    this.eventEmitter.emit('batch-delete-started', {
+      totalPlugins,
+      batchSize,
+      dryRun,
+      reason,
+      timestamp: new Date(),
+    });
+
+    try {
+      // Process plugins in batches
+      for (let i = 0; i < pluginNames.length; i += batchSize) {
+        const batch = pluginNames.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(totalPlugins / batchSize);
+        
+        // Process batch
+        const batchResults = await Promise.allSettled(
+          batch.map(async (pluginName, batchIndex) => {
+            const globalIndex = i + batchIndex;
+            try {
+              // Check if plugin exists first
+              const plugin = await this.getPlugin(pluginName).catch(() => null);
+              
+              if (!plugin) {
+                processedCount++;
+                results.notFound.push({
+                  pluginName,
+                  index: globalIndex,
+                  reason: 'Plugin not found',
+                });
+                return { success: false, notFound: true };
+              }
+
+              if (!dryRun) {
+                // Actually delete the plugin
+                await this.deletePlugin(pluginName, reason);
+              }
+
+              processedCount++;
+              results.deleted.push({
+                pluginName,
+                index: globalIndex,
+                metadata: plugin,
+              });
+
+              // Report progress
+              if (reportProgress) {
+                reportProgress({
+                  processed: processedCount,
+                  total: totalPlugins,
+                  percentage: Math.round((processedCount / totalPlugins) * 100),
+                  currentBatch: batchNumber,
+                  totalBatches,
+                  currentPlugin: pluginName,
+                  status: 'processing',
+                });
+              }
+
+              return { success: true };
+            } catch (error) {
+              processedCount++;
+              const pluginError = this.toPluginError(error, 'batchDelete', pluginName);
+              
+              results.failed.push({
+                pluginName,
+                error: pluginError,
+                index: globalIndex,
+              });
+
+              if (!continueOnError) {
+                throw new Error(`Batch delete failed at plugin ${pluginName}: ${pluginError.message}`);
+              }
+
+              return { success: false, error: pluginError };
+            }
+          })
+        );
+      }
+
+    } catch (error) {
+      this.logger.error('Batch delete operation failed:', error);
+      
+      this.eventEmitter.emit('batch-delete-failed', {
+        totalPlugins,
+        processedCount,
+        error: error instanceof Error ? error.message : String(error),
+        dryRun,
+        timestamp: new Date(),
+      });
+      
+      if (!continueOnError) {
+        throw error;
+      }
+    }
+
+    // Calculate final statistics
+    results.duration = Date.now() - startTime;
+    results.deletedCount = results.deleted.length;
+    results.failedCount = results.failed.length;
+    results.notFoundCount = results.notFound.length;
+
+    this.logger.log(
+      `Batch ${dryRun ? 'dry-run ' : ''}delete completed: ${results.deletedCount} deleted, ${results.failedCount} failed, ${results.notFoundCount} not found in ${results.duration}ms`
+    );
+
+    // Emit batch operation completed event
+    this.eventEmitter.emit('batch-delete-completed', {
+      ...results,
+      timestamp: new Date(),
+    });
+
+    // Final progress report
+    if (reportProgress) {
+      reportProgress({
+        processed: processedCount,
+        total: totalPlugins,
+        percentage: 100,
+        currentBatch: Math.ceil(totalPlugins / batchSize),
+        totalBatches: Math.ceil(totalPlugins / batchSize),
+        status: 'completed',
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Get batch operation status and history
+   */
+  getBatchOperationStatus(): {
+    active: boolean;
+    currentOperation?: string;
+    progress?: BatchOperationProgress;
+    history: Array<{
+      operation: string;
+      startTime: Date;
+      endTime?: Date;
+      status: 'running' | 'completed' | 'failed';
+      summary?: any;
+    }>;
+  } {
+    // This would be implemented with proper state tracking
+    // For now, return a basic structure
+    return {
+      active: false,
+      history: [],
+    };
+  }
+}
+
+// Type definitions for batch operations
+export interface BatchOperationProgress {
+  processed: number;
+  total: number;
+  percentage: number;
+  currentBatch: number;
+  totalBatches: number;
+  currentPlugin?: string;
+  status: 'processing' | 'completed' | 'failed';
+}
+
+export interface BatchUploadResult {
+  successful: Array<{
+    pluginName: string;
+    version: string;
+    metadata: PluginMetadata;
+    index: number;
+    filename?: string;
+  }>;
+  failed: Array<{
+    pluginName: string;
+    error: PluginError;
+    index: number;
+    filename?: string;
+  }>;
+  skipped: Array<{
+    pluginName: string;
+    reason: string;
+    index: number;
+    filename?: string;
+  }>;
+  totalProcessed: number;
+  duration: number;
+  successCount: number;
+  failureCount: number;
+  skipCount: number;
+}
+
+export interface BatchValidationResult {
+  valid: Array<{
+    pluginName: string;
+    filename?: string;
+    index: number;
+    metadata: PluginMetadata;
+    validationResults: any;
+    isValid: boolean;
+  }>;
+  invalid: Array<{
+    pluginName: string;
+    filename?: string;
+    index: number;
+    metadata?: PluginMetadata;
+    validationResults?: any;
+    error?: PluginError;
+    isValid: boolean;
+  }>;
+  totalProcessed: number;
+  duration: number;
+  validCount: number;
+  invalidCount: number;
+}
+
+export interface BatchDeleteResult {
+  deleted: Array<{
+    pluginName: string;
+    index: number;
+    metadata?: PluginResponseDto;
+  }>;
+  failed: Array<{
+    pluginName: string;
+    error: PluginError;
+    index: number;
+  }>;
+  notFound: Array<{
+    pluginName: string;
+    index: number;
+    reason: string;
+  }>;
+  totalProcessed: number;
+  duration: number;
+  deletedCount: number;
+  failedCount: number;
+  notFoundCount: number;
+  dryRun: boolean;
 }

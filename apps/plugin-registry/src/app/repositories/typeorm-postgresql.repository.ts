@@ -14,20 +14,188 @@ import { PluginEntity, PluginDownloadEntity } from '../entities';
 @Injectable()
 export class TypeORMPostgreSQLRepository implements IPluginRepository {
   private readonly logger = new Logger(TypeORMPostgreSQLRepository.name);
+  
+  // Query result cache with TTL
+  private readonly queryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes default
+  private readonly MAX_CACHE_SIZE = 1000;
+  
+  // Connection pool monitoring
+  private queryMetrics = {
+    totalQueries: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    averageQueryTime: 0,
+    slowQueries: 0,
+  };
 
   constructor(
     @InjectRepository(PluginEntity)
     private readonly pluginRepository: Repository<PluginEntity>,
     @InjectRepository(PluginDownloadEntity)
     private readonly downloadRepository: Repository<PluginDownloadEntity>
-  ) {}
+  ) {
+    // Start cache cleanup timer
+    this.startCacheCleanup();
+  }
+
+  /**
+   * Start cache cleanup timer to prevent memory leaks
+   */
+  private startCacheCleanup(): void {
+    setInterval(() => {
+      this.cleanupExpiredCache();
+    }, 60000); // Cleanup every minute
+  }
+
+  /**
+   * Clean up expired cache entries and enforce size limits
+   */
+  private cleanupExpiredCache(): void {
+    const now = Date.now();
+    let removedCount = 0;
+
+    // Remove expired entries
+    for (const [key, entry] of this.queryCache.entries()) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.queryCache.delete(key);
+        removedCount++;
+      }
+    }
+
+    // Enforce maximum cache size by removing oldest entries
+    if (this.queryCache.size > this.MAX_CACHE_SIZE) {
+      const entries = Array.from(this.queryCache.entries());
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      
+      const excessCount = this.queryCache.size - this.MAX_CACHE_SIZE;
+      for (let i = 0; i < excessCount; i++) {
+        this.queryCache.delete(entries[i][0]);
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      this.logger.debug(`Cleaned up ${removedCount} expired/excess cache entries`);
+    }
+  }
+
+  /**
+   * Get cached query result if available and not expired
+   */
+  private getCachedResult<T>(key: string): T | null {
+    const entry = this.queryCache.get(key);
+    if (!entry) {
+      this.queryMetrics.cacheMisses++;
+      return null;
+    }
+
+    const now = Date.now();
+    if (now - entry.timestamp > entry.ttl) {
+      this.queryCache.delete(key);
+      this.queryMetrics.cacheMisses++;
+      return null;
+    }
+
+    this.queryMetrics.cacheHits++;
+    return entry.data as T;
+  }
+
+  /**
+   * Cache query result with TTL
+   */
+  private setCachedResult(key: string, data: any, ttl: number = this.CACHE_TTL): void {
+    this.queryCache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl,
+    });
+  }
+
+  /**
+   * Execute query with performance monitoring and caching
+   */
+  private async executeWithMonitoring<T>(
+    queryKey: string,
+    queryExecutor: () => Promise<T>,
+    cacheTTL: number = this.CACHE_TTL,
+    enableCache: boolean = true
+  ): Promise<T> {
+    const startTime = Date.now();
+    this.queryMetrics.totalQueries++;
+
+    try {
+      // Check cache first
+      if (enableCache) {
+        const cached = this.getCachedResult<T>(queryKey);
+        if (cached !== null) {
+          return cached;
+        }
+      }
+
+      // Execute query
+      const result = await queryExecutor();
+      const queryTime = Date.now() - startTime;
+
+      // Update metrics
+      this.queryMetrics.averageQueryTime = 
+        (this.queryMetrics.averageQueryTime * (this.queryMetrics.totalQueries - 1) + queryTime) / 
+        this.queryMetrics.totalQueries;
+
+      if (queryTime > 1000) { // Queries slower than 1s
+        this.queryMetrics.slowQueries++;
+        this.logger.warn(`Slow query detected: ${queryKey} took ${queryTime}ms`);
+      }
+
+      // Cache result
+      if (enableCache) {
+        this.setCachedResult(queryKey, result, cacheTTL);
+      }
+
+      return result;
+    } catch (error) {
+      const queryTime = Date.now() - startTime;
+      this.logger.error(`Query failed: ${queryKey} (${queryTime}ms)`, error);
+      throw error;
+    }
+  }
 
   async initialize(): Promise<void> {
     try {
-      // PostgreSQL-specific optimizations
+      // PostgreSQL-specific performance optimizations
       await this.pluginRepository.query('SET synchronous_commit = off');
       await this.pluginRepository.query('SET wal_buffers = 16MB');
       await this.pluginRepository.query('SET checkpoint_completion_target = 0.9');
+      await this.pluginRepository.query('SET shared_buffers = 256MB');
+      await this.pluginRepository.query('SET effective_cache_size = 1GB');
+      await this.pluginRepository.query('SET random_page_cost = 1.1');
+      
+      // Create additional performance indexes if they don't exist
+      try {
+        await this.pluginRepository.query(`
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_search_text 
+          ON plugins USING gin(to_tsvector('english', name || ' ' || COALESCE(description, '') || ' ' || COALESCE(author, '')))
+        `);
+        
+        await this.pluginRepository.query(`
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_tags_gin 
+          ON plugins USING gin(tags::jsonb)
+        `);
+        
+        await this.pluginRepository.query(`
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_popularity 
+          ON plugins (download_count DESC, upload_date DESC)
+        `);
+        
+        await this.pluginRepository.query(`
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_recent_active 
+          ON plugins (status, upload_date DESC) WHERE status = 'active'
+        `);
+        
+        this.logger.log('Database performance indexes created successfully');
+      } catch (error) {
+        this.logger.warn('Some performance indexes may already exist:', error);
+      }
       this.logger.log('PostgreSQL repository initialized successfully');
     } catch (error) {
       this.logger.error('Failed to initialize PostgreSQL repository:', error);
@@ -120,56 +288,96 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
   }
 
   async getAllPlugins(options: PluginSearchOptions = {}): Promise<PluginRecord[]> {
-    try {
-      const { status = 'active', limit = 100, offset = 0, sortBy = 'uploadDate', sortOrder = 'desc' } = options;
+    const { status = 'active', limit = 100, offset = 0, sortBy = 'uploadDate', sortOrder = 'desc' } = options;
+    const cacheKey = `getAllPlugins:${status}:${limit}:${offset}:${sortBy}:${sortOrder}`;
 
-      const queryBuilder = this.pluginRepository.createQueryBuilder('plugin');
+    return this.executeWithMonitoring(
+      cacheKey,
+      async () => {
+        const queryBuilder = this.pluginRepository.createQueryBuilder('plugin');
 
-      if (status !== 'all') {
-        queryBuilder.where('plugin.status = :status', { status });
-      }
+        if (status !== 'all') {
+          queryBuilder.where('plugin.status = :status', { status });
+        }
 
-      // PostgreSQL-specific optimizations with proper column mapping
-      const columnMap: { [key: string]: string } = {
-        uploadDate: 'upload_date',
-        downloadCount: 'download_count',
-        createdAt: 'created_at',
-        updatedAt: 'updated_at',
-      };
+        // PostgreSQL-specific optimizations with proper column mapping
+        const columnMap: { [key: string]: string } = {
+          uploadDate: 'upload_date',
+          downloadCount: 'download_count',
+          createdAt: 'created_at',
+          updatedAt: 'updated_at',
+        };
 
-      const dbColumn = columnMap[sortBy] || sortBy;
+        const dbColumn = columnMap[sortBy] || sortBy;
 
-      queryBuilder
-        .orderBy(`plugin.${dbColumn}`, sortOrder.toUpperCase() as 'ASC' | 'DESC')
-        .limit(limit)
-        .offset(offset);
+        // Use index-optimized queries
+        queryBuilder
+          .orderBy(`plugin.${dbColumn}`, sortOrder.toUpperCase() as 'ASC' | 'DESC')
+          .limit(Math.min(limit, 1000)) // Prevent excessive memory usage
+          .offset(offset);
 
-      const plugins = await queryBuilder.getMany();
-      return plugins.map((plugin) => this.mapEntityToRecord(plugin));
-    } catch (error) {
-      this.logger.error('Failed to get all plugins:', error);
-      return [];
-    }
+        // Optimize for common cases
+        if (status === 'active' && sortBy === 'uploadDate') {
+          // Use partial index for better performance
+          queryBuilder.addSelect('plugin.id');
+        }
+
+        const plugins = await queryBuilder.getMany();
+        return plugins.map((plugin) => this.mapEntityToRecord(plugin));
+      },
+      // Cache for shorter time for frequently changing data
+      2 * 60 * 1000 // 2 minutes
+    );
   }
 
   async searchPlugins(query: string): Promise<PluginRecord[]> {
-    try {
-      // Use PostgreSQL's ILIKE for case-insensitive search
-      const plugins = await this.pluginRepository
-        .createQueryBuilder('plugin')
-        .where('plugin.status = :status', { status: 'active' })
-        .andWhere(
-          '(plugin.name ILIKE :query OR plugin.description ILIKE :query OR plugin.author ILIKE :query OR plugin.tags ILIKE :query)',
-          { query: `%${query}%` }
-        )
-        .orderBy('plugin.name', 'ASC')
-        .getMany();
+    const cacheKey = `searchPlugins:${query.toLowerCase().trim()}`;
+    
+    return this.executeWithMonitoring(
+      cacheKey,
+      async () => {
+        const sanitizedQuery = query.trim();
+        
+        if (!sanitizedQuery) {
+          return [];
+        }
 
-      return plugins.map((plugin) => this.mapEntityToRecord(plugin));
-    } catch (error) {
-      this.logger.error(`Failed to search plugins with query '${query}':`, error);
-      return [];
-    }
+        const queryBuilder = this.pluginRepository.createQueryBuilder('plugin');
+        
+        queryBuilder.where('plugin.status = :status', { status: 'active' });
+
+        // Use full-text search for better performance on PostgreSQL
+        if (sanitizedQuery.length > 2) {
+          queryBuilder.andWhere(
+            "to_tsvector('english', plugin.name || ' ' || COALESCE(plugin.description, '') || ' ' || COALESCE(plugin.author, '')) @@ plainto_tsquery('english', :query)",
+            { query: sanitizedQuery }
+          );
+          // Order by relevance using ts_rank
+          queryBuilder
+            .addSelect(
+              "ts_rank(to_tsvector('english', plugin.name || ' ' || COALESCE(plugin.description, '') || ' ' || COALESCE(plugin.author, '')), plainto_tsquery('english', :query))",
+              'relevance'
+            )
+            .orderBy('relevance', 'DESC')
+            .addOrderBy('plugin.downloadCount', 'DESC'); // Secondary sort by popularity
+        } else {
+          // For short queries, fall back to ILIKE search
+          queryBuilder.andWhere(
+            '(plugin.name ILIKE :likeQuery OR plugin.description ILIKE :likeQuery OR plugin.author ILIKE :likeQuery)',
+            { likeQuery: `%${sanitizedQuery}%` }
+          );
+          queryBuilder.orderBy('plugin.downloadCount', 'DESC');
+        }
+
+        // Limit search results to prevent performance issues
+        queryBuilder.limit(100);
+
+        const plugins = await queryBuilder.getMany();
+        return plugins.map((plugin) => this.mapEntityToRecord(plugin));
+      },
+      // Cache search results for longer since they change less frequently
+      10 * 60 * 1000 // 10 minutes
+    );
   }
 
   async deletePlugin(name: string): Promise<boolean> {
@@ -397,5 +605,196 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
+  }
+
+  /**
+   * Get comprehensive query performance metrics
+   */
+  getQueryMetrics(): {
+    totalQueries: number;
+    cacheHitRate: number;
+    averageQueryTime: number;
+    slowQueries: number;
+    cacheSize: number;
+    cacheMemoryUsage: string;
+  } {
+    const cacheHitRate = this.queryMetrics.totalQueries > 0 
+      ? (this.queryMetrics.cacheHits / (this.queryMetrics.cacheHits + this.queryMetrics.cacheMisses)) * 100 
+      : 0;
+
+    // Estimate cache memory usage
+    const cacheMemoryUsage = (this.queryCache.size * 1024).toLocaleString() + ' bytes (estimated)';
+
+    return {
+      totalQueries: this.queryMetrics.totalQueries,
+      cacheHitRate: Math.round(cacheHitRate * 100) / 100,
+      averageQueryTime: Math.round(this.queryMetrics.averageQueryTime * 100) / 100,
+      slowQueries: this.queryMetrics.slowQueries,
+      cacheSize: this.queryCache.size,
+      cacheMemoryUsage,
+    };
+  }
+
+  /**
+   * Clear query cache and reset metrics
+   */
+  clearQueryCache(): void {
+    this.queryCache.clear();
+    this.queryMetrics = {
+      totalQueries: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      averageQueryTime: 0,
+      slowQueries: 0,
+    };
+    this.logger.log('Query cache and metrics cleared');
+  }
+
+  /**
+   * Get database connection pool status
+   */
+  async getConnectionPoolStatus(): Promise<{
+    activeConnections: number;
+    idleConnections: number;
+    totalConnections: number;
+    waitingClients: number;
+  }> {
+    try {
+      const result = await this.pluginRepository.query(`
+        SELECT 
+          count(*) filter (where state = 'active') as active_connections,
+          count(*) filter (where state = 'idle') as idle_connections,
+          count(*) as total_connections,
+          0 as waiting_clients
+        FROM pg_stat_activity 
+        WHERE datname = current_database()
+      `);
+      
+      return result[0] || {
+        activeConnections: 0,
+        idleConnections: 0,
+        totalConnections: 0,
+        waitingClients: 0,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get connection pool status:', error);
+      return {
+        activeConnections: 0,
+        idleConnections: 0,
+        totalConnections: 0,
+        waitingClients: 0,
+      };
+    }
+  }
+
+  /**
+   * Analyze query performance and suggest optimizations
+   */
+  async analyzeQueryPerformance(): Promise<{
+    slowQueries: Array<{ query: string; avg_time: number; calls: number }>;
+    indexUsage: Array<{ table: string; index: string; scans: number; tuples_read: number }>;
+    suggestions: string[];
+  }> {
+    try {
+      // Get slow queries from pg_stat_statements if available
+      const slowQueriesResult = await this.pluginRepository.query(`
+        SELECT 
+          query,
+          mean_exec_time as avg_time,
+          calls
+        FROM pg_stat_statements 
+        WHERE query LIKE '%plugins%'
+        ORDER BY mean_exec_time DESC 
+        LIMIT 10
+      `).catch(() => []);
+
+      // Get index usage statistics
+      const indexUsageResult = await this.pluginRepository.query(`
+        SELECT 
+          schemaname,
+          tablename as table,
+          indexname as index,
+          idx_scan as scans,
+          idx_tup_read as tuples_read
+        FROM pg_stat_user_indexes 
+        WHERE tablename = 'plugins'
+        ORDER BY idx_scan DESC
+      `).catch(() => []);
+
+      // Generate optimization suggestions
+      const suggestions: string[] = [];
+      
+      const metrics = this.getQueryMetrics();
+      if (metrics.cacheHitRate < 80) {
+        suggestions.push('Consider increasing cache TTL or cache size for better hit rate');
+      }
+      
+      if (metrics.slowQueries > metrics.totalQueries * 0.1) {
+        suggestions.push('High number of slow queries detected - review query optimization');
+      }
+      
+      if (metrics.averageQueryTime > 100) {
+        suggestions.push('Average query time is high - consider adding more indexes');
+      }
+
+      const connectionPool = await this.getConnectionPoolStatus();
+      if (connectionPool.activeConnections > connectionPool.totalConnections * 0.8) {
+        suggestions.push('Connection pool utilization is high - consider increasing pool size');
+      }
+
+      return {
+        slowQueries: slowQueriesResult,
+        indexUsage: indexUsageResult,
+        suggestions,
+      };
+    } catch (error) {
+      this.logger.error('Failed to analyze query performance:', error);
+      return {
+        slowQueries: [],
+        indexUsage: [],
+        suggestions: ['Query performance analysis failed - check database permissions'],
+      };
+    }
+  }
+
+  /**
+   * Optimize database tables (VACUUM ANALYZE)
+   */
+  async optimizeDatabase(): Promise<{
+    tablesOptimized: string[];
+    duration: number;
+  }> {
+    const startTime = Date.now();
+    const tablesOptimized: string[] = [];
+
+    try {
+      this.logger.log('Starting database optimization...');
+      
+      // VACUUM ANALYZE for plugins table
+      await this.pluginRepository.query('VACUUM ANALYZE plugins');
+      tablesOptimized.push('plugins');
+      
+      // VACUUM ANALYZE for plugin_downloads table
+      await this.pluginRepository.query('VACUUM ANALYZE plugin_downloads');
+      tablesOptimized.push('plugin_downloads');
+      
+      // Update table statistics
+      await this.pluginRepository.query('ANALYZE');
+      
+      const duration = Date.now() - startTime;
+      this.logger.log(`Database optimization completed in ${duration}ms`);
+      
+      return {
+        tablesOptimized,
+        duration,
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Database optimization failed:', error);
+      return {
+        tablesOptimized,
+        duration,
+      };
+    }
   }
 }

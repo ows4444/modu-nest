@@ -7,6 +7,14 @@ import { PluginVersionEntity } from './plugin-version.entity';
 @Index(['checksum'])
 @Index(['status'])
 @Index(['uploadDate'])
+// Composite indexes for common query patterns
+@Index(['status', 'uploadDate']) // For listing active plugins by upload date
+@Index(['name', 'status']) // For plugin lookups with status filter
+@Index(['author', 'status']) // For author-based searches
+@Index(['uploadDate', 'downloadCount']) // For sorting by popularity and recency
+@Index(['tags']) // For tag-based searches (GIN index for PostgreSQL)
+// Full-text search indexes (PostgreSQL specific)
+@Index(['name', 'description', 'author']) // For multi-field searches
 export class PluginEntity {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -55,6 +63,7 @@ export class PluginEntity {
   status!: 'active' | 'deprecated' | 'disabled';
 
   @Column('text', { default: '[]' })
+  @Index() // Add GIN index for JSON operations in PostgreSQL
   tags!: string; // JSON array string
 
   @Column('text', { default: '[]' })

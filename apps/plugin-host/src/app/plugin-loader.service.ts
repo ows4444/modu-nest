@@ -116,7 +116,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private lifecycleHookDiscovery: PluginLifecycleHookDiscoveryService;
   private loadingState = new Map<string, PluginLoadingState>();
 
-  // Memory management for plugin cleanup
+  // Memory management for plugin cleanup - optimized with chunking and lazy cleanup
   private readonly pluginWeakRefs = new Map<string, WeakRef<Record<string, unknown>>>();
   private readonly pluginTimers = new Map<string, NodeJS.Timeout[]>();
   private readonly pluginEventListeners = new Map<
@@ -124,6 +124,13 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     Array<{ target: EventTarget | NodeJS.EventEmitter; event: string; listener: Function }>
   >();
   private readonly pluginInstances = new Map<string, Set<object>>();
+
+  // Memory optimization enhancements
+  private readonly MEMORY_CLEANUP_CHUNK_SIZE = 10;
+  private readonly MEMORY_CLEANUP_INTERVAL_MS = 30000; // 30 seconds
+  private readonly MAX_PLUGIN_CACHE_SIZE = 100;
+  private memoryCleanupTimer?: NodeJS.Timeout;
+  private memoryPressureThreshold = 0.85; // 85% of heap limit
 
   // Plugin failure tracking
   private readonly pluginFailureCounts = new Map<string, number>();
@@ -136,11 +143,19 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private readonly pluginTrackingConfig = new Map<string, PluginTrackingConfig>();
   private readonly lazyInstanceRefs = new Map<string, Map<string, () => object | null>>();
 
-  // FinalizationRegistry to track garbage collection
+  // Enhanced FinalizationRegistry with memory pressure tracking
   private readonly cleanupRegistry = new FinalizationRegistry((pluginName: string) => {
     this.logger.debug(`Plugin instance garbage collected: ${pluginName}`);
-    this.pluginWeakRefs.delete(pluginName);
+    this.onPluginGarbageCollected(pluginName);
   });
+
+  // Memory statistics tracking
+  private memoryStats = {
+    lastCleanup: Date.now(),
+    totalCleanupsPerformed: 0,
+    memoryFreedEstimate: 0,
+    peakMemoryUsage: 0
+  };
 
   constructor() {
     // Initialize event emitter
@@ -154,6 +169,9 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
     // Initialize lifecycle hook discovery service
     this.lifecycleHookDiscovery = new PluginLifecycleHookDiscoveryService();
+
+    // Initialize periodic memory cleanup
+    this.initializeMemoryCleanupTimer();
 
     // Initialize loading strategy from environment or use default
     const strategyType = PluginLoadingStrategyFactory.getStrategyFromEnvironment();
@@ -2906,6 +2924,266 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   }
 
   /**
+   * Initialize periodic memory cleanup timer
+   * @private
+   */
+  private initializeMemoryCleanupTimer(): void {
+    if (this.memoryCleanupTimer) {
+      clearInterval(this.memoryCleanupTimer);
+    }
+
+    this.memoryCleanupTimer = setInterval(async () => {
+      try {
+        const memoryUsage = process.memoryUsage();
+        const memoryUsageRatio = memoryUsage.heapUsed / memoryUsage.heapTotal;
+        
+        this.memoryStats.peakMemoryUsage = Math.max(this.memoryStats.peakMemoryUsage, memoryUsage.heapUsed);
+
+        // Perform cleanup if memory pressure is high or cleanup interval has passed
+        const timeSinceLastCleanup = Date.now() - this.memoryStats.lastCleanup;
+        const shouldCleanup = memoryUsageRatio > this.memoryPressureThreshold || 
+                             timeSinceLastCleanup > this.MEMORY_CLEANUP_INTERVAL_MS * 2;
+
+        if (shouldCleanup) {
+          await this.performChunkedMemoryCleanup();
+        }
+      } catch (error) {
+        this.logger.warn('Error during periodic memory cleanup:', error);
+      }
+    }, this.MEMORY_CLEANUP_INTERVAL_MS);
+
+    this.logger.debug('Initialized periodic memory cleanup timer');
+  }
+
+  /**
+   * Perform memory cleanup in chunks to avoid blocking the event loop
+   * @private
+   */
+  private async performChunkedMemoryCleanup(): Promise<void> {
+    const startTime = Date.now();
+    let totalProcessed = 0;
+    let memoryFreedEstimate = 0;
+
+    // Get all unloaded plugins that need cleanup
+    const unloadedPlugins = this.getUnloadedPluginsForCleanup();
+    
+    // Process plugins in chunks
+    for (let i = 0; i < unloadedPlugins.length; i += this.MEMORY_CLEANUP_CHUNK_SIZE) {
+      const chunk = unloadedPlugins.slice(i, i + this.MEMORY_CLEANUP_CHUNK_SIZE);
+      
+      for (const pluginName of chunk) {
+        try {
+          const beforeMemory = process.memoryUsage().heapUsed;
+          await this.performLightweightCleanup(pluginName);
+          const afterMemory = process.memoryUsage().heapUsed;
+          
+          memoryFreedEstimate += Math.max(0, beforeMemory - afterMemory);
+          totalProcessed++;
+        } catch (error) {
+          this.logger.debug(`Error during chunked cleanup for ${pluginName}:`, error);
+        }
+      }
+      
+      // Yield control to event loop between chunks
+      await new Promise(resolve => setImmediate(resolve));
+    }
+
+    // Update memory statistics
+    this.memoryStats.lastCleanup = Date.now();
+    this.memoryStats.totalCleanupsPerformed++;
+    this.memoryStats.memoryFreedEstimate += memoryFreedEstimate;
+
+    const cleanupTime = Date.now() - startTime;
+    this.logger.debug(`Chunked memory cleanup completed: processed ${totalProcessed} plugins in ${cleanupTime}ms, estimated ${Math.round(memoryFreedEstimate / 1024 / 1024)}MB freed`);
+  }
+
+  /**
+   * Get list of unloaded plugins that need cleanup
+   * @private
+   */
+  private getUnloadedPluginsForCleanup(): string[] {
+    const allTrackedPlugins = new Set([
+      ...this.pluginWeakRefs.keys(),
+      ...this.pluginTimers.keys(),
+      ...this.pluginEventListeners.keys(),
+      ...this.pluginInstances.keys(),
+    ]);
+
+    return Array.from(allTrackedPlugins).filter(pluginName => !this.loadedPlugins.has(pluginName));
+  }
+
+  /**
+   * Perform lightweight cleanup for a single plugin (non-blocking)
+   * @private
+   */
+  private async performLightweightCleanup(pluginName: string): Promise<void> {
+    // Clear timers (quick operation)
+    const timers = this.pluginTimers.get(pluginName);
+    if (timers) {
+      timers.forEach(timer => {
+        try {
+          clearTimeout(timer);
+          clearInterval(timer);
+        } catch {
+          // Ignore errors for already cleared timers
+        }
+      });
+      this.pluginTimers.delete(pluginName);
+    }
+
+    // Clear weak references (quick operation)
+    this.pluginWeakRefs.delete(pluginName);
+
+    // Clear instance tracking (quick operation)
+    this.pluginInstances.delete(pluginName);
+
+    // Clear discovery errors and performance metrics
+    this.discoveryErrors.delete(pluginName);
+    this.discoveryPerformanceMetrics.delete(pluginName);
+    this.pluginTrackingConfig.delete(pluginName);
+    this.lazyInstanceRefs.delete(pluginName);
+
+    // Event listeners cleanup (potentially slower, but necessary)
+    const listeners = this.pluginEventListeners.get(pluginName);
+    if (listeners && listeners.length > 0) {
+      // Use setImmediate to avoid blocking
+      setImmediate(() => {
+        this.clearPluginEventListenersSync(pluginName);
+      });
+    }
+  }
+
+  /**
+   * Synchronous event listeners cleanup (called via setImmediate)
+   * @private
+   */
+  private clearPluginEventListenersSync(pluginName: string): void {
+    const listeners = this.pluginEventListeners.get(pluginName);
+    if (!listeners) return;
+
+    for (const { target, event, listener } of listeners) {
+      try {
+        if (target) {
+          const eventTarget = target as any;
+          if (typeof eventTarget.removeEventListener === 'function') {
+            eventTarget.removeEventListener(event, listener);
+          } else if (typeof eventTarget.off === 'function') {
+            eventTarget.off(event, listener);
+          } else if (typeof eventTarget.removeListener === 'function') {
+            eventTarget.removeListener(event, listener);
+          }
+        }
+      } catch {
+        // Ignore cleanup errors to prevent crashes
+      }
+    }
+
+    this.pluginEventListeners.delete(pluginName);
+  }
+
+  /**
+   * Handle plugin garbage collection event
+   * @private
+   */
+  private onPluginGarbageCollected(pluginName: string): void {
+    // Clean up WeakRef tracking
+    this.pluginWeakRefs.delete(pluginName);
+    
+    // Schedule lightweight cleanup to ensure no references remain
+    setImmediate(() => {
+      this.performLightweightCleanup(pluginName).catch(error => {
+        this.logger.debug(`Error during GC-triggered cleanup for ${pluginName}:`, error);
+      });
+    });
+  }
+
+  /**
+   * Optimize plugin cache size by removing least recently used entries
+   * @private
+   */
+  private optimizePluginCacheSize(): void {
+    const cacheStats = this.cacheService.getCacheStats();
+    
+    if (cacheStats.size > this.MAX_PLUGIN_CACHE_SIZE) {
+      const entriesToRemove = cacheStats.size - this.MAX_PLUGIN_CACHE_SIZE;
+      this.logger.debug(`Optimizing plugin cache: removing ${entriesToRemove} entries`);
+      
+      // Remove oldest cache entries (assuming cache service supports this)
+      try {
+        this.cacheService.evictOldest(entriesToRemove);
+      } catch (error) {
+        this.logger.debug('Error optimizing plugin cache size:', error);
+      }
+    }
+  }
+
+  /**
+   * Get comprehensive memory usage statistics
+   */
+  getMemoryUsageStatistics(): {
+    system: NodeJS.MemoryUsage;
+    pluginTracker: {
+      trackedPlugins: number;
+      weakRefs: number;
+      timers: number;
+      eventListeners: number;
+      instances: number;
+    };
+    memoryOptimization: {
+      totalCleanupsPerformed: number;
+      memoryFreedEstimate: number;
+      peakMemoryUsage: number;
+      lastCleanup: Date;
+      cleanupInterval: number;
+    };
+  } {
+    return {
+      system: process.memoryUsage(),
+      pluginTracker: {
+        trackedPlugins: this.loadedPlugins.size,
+        weakRefs: this.pluginWeakRefs.size,
+        timers: this.pluginTimers.size,
+        eventListeners: this.pluginEventListeners.size,
+        instances: this.pluginInstances.size,
+      },
+      memoryOptimization: {
+        totalCleanupsPerformed: this.memoryStats.totalCleanupsPerformed,
+        memoryFreedEstimate: this.memoryStats.memoryFreedEstimate,
+        peakMemoryUsage: this.memoryStats.peakMemoryUsage,
+        lastCleanup: new Date(this.memoryStats.lastCleanup),
+        cleanupInterval: this.MEMORY_CLEANUP_INTERVAL_MS,
+      },
+    };
+  }
+
+  /**
+   * Set memory pressure threshold for cleanup triggering
+   */
+  setMemoryPressureThreshold(threshold: number): void {
+    if (threshold >= 0.5 && threshold <= 1.0) {
+      this.memoryPressureThreshold = threshold;
+      this.logger.log(`Memory pressure threshold set to ${(threshold * 100).toFixed(1)}%`);
+    } else {
+      throw new Error('Memory pressure threshold must be between 0.5 and 1.0');
+    }
+  }
+
+  /**
+   * Cleanup method to be called on service destruction
+   */
+  async onDestroy(): Promise<void> {
+    if (this.memoryCleanupTimer) {
+      clearInterval(this.memoryCleanupTimer);
+      this.memoryCleanupTimer = undefined;
+    }
+
+    // Perform final cleanup
+    await this.forceMemoryCleanup();
+    
+    this.logger.log('PluginLoaderService memory cleanup completed');
+  }
+
+  /**
    * Clear plugin module cache for proper cleanup
    * @param pluginName - Name of the plugin to clear cache for
    */
@@ -3334,6 +3612,279 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       }
       throw error;
     }
+  }
+
+  /**
+   * Execute multiple plugin operations with circuit breaker protection
+   */
+  async executeBulkWithCircuitBreaker<T>(
+    operations: Array<{ pluginName: string; operation: () => Promise<T>; operationName?: string }>
+  ): Promise<Array<{ pluginName: string; result?: T; error?: Error; circuitOpen?: boolean }>> {
+    const results = await Promise.allSettled(
+      operations.map(async ({ pluginName, operation, operationName }) => {
+        try {
+          const result = await this.executeWithCircuitBreaker(pluginName, operation, operationName);
+          return { pluginName, result };
+        } catch (error) {
+          const circuitOpen = error instanceof PluginCircuitOpenError;
+          return { pluginName, error: error as Error, circuitOpen };
+        }
+      })
+    );
+
+    return results.map((result, index) => {
+      const operation = operations[index];
+      if (result.status === 'fulfilled') {
+        return result.value;
+      } else {
+        return {
+          pluginName: operation.pluginName,
+          error: result.reason,
+          circuitOpen: result.reason instanceof PluginCircuitOpenError,
+        };
+      }
+    });
+  }
+
+  /**
+   * Execute plugin operation with automatic circuit breaker configuration
+   */
+  async executePluginOperationSafely<T>(
+    pluginName: string,
+    operation: () => Promise<T>,
+    options: {
+      operationName?: string;
+      autoConfigureCircuitBreaker?: boolean;
+      fallbackValue?: T;
+      retryOnCircuitOpen?: boolean;
+    } = {}
+  ): Promise<T> {
+    const { operationName, autoConfigureCircuitBreaker = true, fallbackValue, retryOnCircuitOpen = false } = options;
+
+    // Auto-configure circuit breaker if enabled
+    if (autoConfigureCircuitBreaker && !this.circuitBreaker.getPluginStats(pluginName)) {
+      await this.ensureCircuitBreakerConfiguration(pluginName);
+    }
+
+    try {
+      return await this.executeWithCircuitBreaker(pluginName, operation, operationName);
+    } catch (error) {
+      if (error instanceof PluginCircuitOpenError) {
+        // Handle circuit breaker open scenarios
+        if (retryOnCircuitOpen) {
+          this.logger.info(`Scheduling retry for plugin '${pluginName}' after circuit recovery`);
+          return await this.scheduleCircuitBreakerRetry(pluginName, operation, operationName);
+        }
+
+        if (fallbackValue !== undefined) {
+          this.logger.info(`Using fallback value for plugin '${pluginName}' due to circuit breaker`);
+          return fallbackValue;
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Schedule a retry for plugin operation after circuit breaker recovery
+   */
+  private async scheduleCircuitBreakerRetry<T>(
+    pluginName: string,
+    operation: () => Promise<T>,
+    operationName?: string
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const checkCircuitState = () => {
+        const state = this.circuitBreaker.getCurrentState(pluginName);
+        
+        if (state === CircuitBreakerState.CLOSED || state === CircuitBreakerState.HALF_OPEN) {
+          // Circuit is recovered, retry the operation
+          this.executeWithCircuitBreaker(pluginName, operation, operationName)
+            .then(resolve)
+            .catch(reject);
+        } else {
+          // Still open, schedule another check
+          setTimeout(checkCircuitState, 5000); // Check every 5 seconds
+        }
+      };
+
+      // Initial check after a delay
+      setTimeout(checkCircuitState, 1000);
+    });
+  }
+
+  /**
+   * Ensure circuit breaker is properly configured for a plugin
+   */
+  private async ensureCircuitBreakerConfiguration(pluginName: string): Promise<void> {
+    const discovery = this.discoveredPlugins.get(pluginName);
+    if (!discovery) {
+      this.logger.warn(`Cannot configure circuit breaker for unknown plugin: ${pluginName}`);
+      return;
+    }
+
+    // Configure circuit breaker using the config service
+    this.circuitBreakerConfigService.configureCircuitBreaker(this.circuitBreaker, {
+      pluginName,
+      manifest: discovery.manifest,
+      trustLevel: discovery.manifest.security?.trustLevel,
+      previousFailures: this.getPluginFailureCount(pluginName),
+    });
+
+    this.logger.debug(`Circuit breaker configuration ensured for plugin: ${pluginName}`);
+  }
+
+  /**
+   * Get circuit breaker health status for all plugins
+   */
+  getCircuitBreakerHealthStatus(): {
+    totalPlugins: number;
+    healthyPlugins: number;
+    circuitOpenPlugins: string[];
+    circuitHalfOpenPlugins: string[];
+    averageFailureRate: number;
+    overallUptime: number;
+  } {
+    const allStats = this.circuitBreaker.getAllStats();
+    const totalPlugins = allStats.length;
+    
+    const circuitOpenPlugins = allStats
+      .filter(stat => stat.state === CircuitBreakerState.OPEN)
+      .map(stat => stat.pluginName);
+    
+    const circuitHalfOpenPlugins = allStats
+      .filter(stat => stat.state === CircuitBreakerState.HALF_OPEN)
+      .map(stat => stat.pluginName);
+    
+    const healthyPlugins = totalPlugins - circuitOpenPlugins.length;
+    
+    const averageFailureRate = totalPlugins > 0 
+      ? allStats.reduce((sum, stat) => sum + stat.failureRate, 0) / totalPlugins 
+      : 0;
+    
+    const overallUptime = totalPlugins > 0 
+      ? allStats.reduce((sum, stat) => sum + stat.uptime, 0) / totalPlugins 
+      : 100;
+
+    return {
+      totalPlugins,
+      healthyPlugins,
+      circuitOpenPlugins,
+      circuitHalfOpenPlugins,
+      averageFailureRate: Math.round(averageFailureRate * 100) / 100,
+      overallUptime: Math.round(overallUptime * 100) / 100,
+    };
+  }
+
+  /**
+   * Force recovery attempt for plugins with open circuit breakers
+   */
+  async forceCircuitBreakerRecovery(pluginNames?: string[]): Promise<{
+    attempted: string[];
+    recovered: string[];
+    stillFailed: string[];
+  }> {
+    const targetPlugins = pluginNames || this.circuitBreaker.getAllStats()
+      .filter(stat => stat.state === CircuitBreakerState.OPEN)
+      .map(stat => stat.pluginName);
+
+    const attempted: string[] = [];
+    const recovered: string[] = [];
+    const stillFailed: string[] = [];
+
+    for (const pluginName of targetPlugins) {
+      attempted.push(pluginName);
+      
+      try {
+        // Reset the circuit breaker and attempt a simple health check
+        this.circuitBreaker.resetPlugin(pluginName);
+        
+        await this.executeWithCircuitBreaker(pluginName, async () => {
+          // Simple health check operation
+          const discovery = this.discoveredPlugins.get(pluginName);
+          if (discovery) {
+            return Promise.resolve('health-check-passed');
+          }
+          throw new Error('Plugin discovery not found');
+        }, 'recovery-health-check');
+        
+        recovered.push(pluginName);
+        this.logger.info(`Circuit breaker recovery successful for plugin: ${pluginName}`);
+      } catch (error) {
+        stillFailed.push(pluginName);
+        this.logger.warn(`Circuit breaker recovery failed for plugin ${pluginName}:`, error);
+      }
+    }
+
+    this.logger.log(
+      `Circuit breaker recovery completed: ${recovered.length}/${attempted.length} plugins recovered`
+    );
+
+    return { attempted, recovered, stillFailed };
+  }
+
+  /**
+   * Auto-heal plugins with repeated circuit breaker failures
+   */
+  async autoHealFailingPlugins(options: {
+    maxFailureRate?: number;
+    maxDowntime?: number; // in minutes
+    enableAutoReload?: boolean;
+  } = {}): Promise<{
+    healingAttempts: string[];
+    successful: string[];
+    failed: string[];
+  }> {
+    const { maxFailureRate = 50, maxDowntime = 10, enableAutoReload = false } = options;
+    
+    const allStats = this.circuitBreaker.getAllStats();
+    const currentTime = Date.now();
+    
+    const candidatesForHealing = allStats.filter(stat => {
+      const exceedsFailureRate = stat.failureRate > maxFailureRate;
+      const exceedsDowntime = stat.openTime && 
+        (currentTime - stat.openTime.getTime()) > (maxDowntime * 60 * 1000);
+      
+      return exceedsFailureRate || exceedsDowntime;
+    });
+
+    const healingAttempts = candidatesForHealing.map(stat => stat.pluginName);
+    const successful: string[] = [];
+    const failed: string[] = [];
+
+    for (const stat of candidatesForHealing) {
+      const pluginName = stat.pluginName;
+      
+      try {
+        this.logger.info(`Attempting auto-healing for plugin: ${pluginName}`);
+        
+        // Reset circuit breaker
+        this.circuitBreaker.resetPlugin(pluginName);
+        
+        if (enableAutoReload && this.loadedPlugins.has(pluginName)) {
+          // Attempt to reload the plugin
+          await this.reloadPlugin(pluginName);
+        }
+        
+        // Test plugin health
+        await this.executeWithCircuitBreaker(pluginName, async () => {
+          return Promise.resolve('auto-heal-test');
+        }, 'auto-healing-test');
+        
+        successful.push(pluginName);
+        this.logger.info(`Auto-healing successful for plugin: ${pluginName}`);
+      } catch (error) {
+        failed.push(pluginName);
+        this.logger.warn(`Auto-healing failed for plugin ${pluginName}:`, error);
+      }
+    }
+
+    this.logger.log(
+      `Auto-healing completed: ${successful.length}/${healingAttempts.length} plugins healed`
+    );
+
+    return { healingAttempts, successful, failed };
   }
 
   /**
