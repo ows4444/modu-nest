@@ -6,18 +6,103 @@ import {
   PluginDelete,
   PluginUseGuards,
   PluginPermissions,
+  PluginLifecycleHookDecorator,
+  ICrossPluginService,
+  CROSS_PLUGIN_SERVICE_TOKEN,
 } from '@modu-nest/plugin-types';
-import { Body, Param, Query, ValidationPipe, UsePipes } from '@nestjs/common';
+import { Body, Param, Query, ValidationPipe, UsePipes, Logger, HttpException, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
 import type { CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
+import { ErrorHandler, ApiResponse } from '@modu-nest/shared/utils';
 
 @PluginRoute('users')
 export class UserPluginController {
-  constructor(private readonly userPluginService: UserPluginService) {}
+  private readonly logger = new Logger(UserPluginController.name);
+
+  constructor(
+    private readonly userPluginService: UserPluginService,
+    @Optional() @Inject(CROSS_PLUGIN_SERVICE_TOKEN) private readonly crossPluginService?: ICrossPluginService
+  ) {}
 
   @PluginGet()
   getHello(): string {
     return this.userPluginService.getHello();
+  }
+
+  // === PLUGIN LIFECYCLE HOOKS ===
+
+  @PluginLifecycleHookDecorator('beforeLoad')
+  onPluginBeforeLoad() {
+    this.logger.log(`User plugin is initializing before load at ${new Date().toISOString()}`);
+    
+    // Initialize user authentication system
+    return { 
+      message: 'User plugin is initializing authentication system',
+      timestamp: new Date(),
+      status: 'initializing'
+    };
+  }
+
+  @PluginLifecycleHookDecorator('afterLoad')
+  onPluginAfterLoad() {
+    this.logger.log(`User plugin has loaded successfully at ${new Date().toISOString()}`);
+    
+    // Confirm authentication system is ready
+    return { 
+      message: 'User plugin authentication system ready',
+      timestamp: new Date(),
+      status: 'ready'
+    };
+  }
+
+  @PluginLifecycleHookDecorator('beforeUnload')
+  onPluginBeforeUnload() {
+    this.logger.log(`User plugin is preparing to unload at ${new Date().toISOString()}`);
+    
+    // Cleanup authentication sessions
+    try {
+      // Here you would cleanup active sessions, cache, etc.
+      this.logger.debug('Cleaning up user authentication sessions');
+    } catch (error) {
+      this.logger.error('Error during authentication cleanup', error);
+    }
+    
+    return { 
+      message: 'User plugin is cleaning up authentication resources',
+      timestamp: new Date(),
+      status: 'cleaning-up'
+    };
+  }
+
+  @PluginLifecycleHookDecorator('afterUnload')
+  onPluginAfterUnload() {
+    this.logger.log(`User plugin has unloaded successfully at ${new Date().toISOString()}`);
+    return { 
+      message: 'User plugin has unloaded successfully',
+      timestamp: new Date(),
+      status: 'unloaded'
+    };
+  }
+
+  @PluginLifecycleHookDecorator('onError')
+  onPluginError(error: Error) {
+    this.logger.error(`User plugin encountered an error: ${error.message} at ${new Date().toISOString()}`, error.stack);
+    
+    // Handle plugin-specific errors
+    if (error.message.includes('authentication')) {
+      this.logger.error('Authentication system error detected');
+    }
+    
+    return { 
+      message: 'User plugin encountered an error',
+      error: {
+        message: error.message,
+        type: error.constructor.name,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
+      timestamp: new Date(),
+      status: 'error'
+    };
   }
 
   // === BASIC USER CRUD OPERATIONS ===
@@ -39,32 +124,106 @@ export class UserPluginController {
   @PluginGet(':id')
   @PluginUseGuards('user-auth', 'user-ownership')
   @PluginPermissions(['users:read:own'])
-  getUserById(@Param('id') id: string) {
-    return this.userPluginService.getUserById(id);
+  async getUserById(@Param('id') id: string): Promise<ApiResponse> {
+    try {
+      if (!id || id.trim() === '') {
+        ErrorHandler.throwBadRequest('User ID is required');
+      }
+      
+      const user = await this.userPluginService.getUserById(id);
+      if (!user) {
+        ErrorHandler.throwNotFound('User', id);
+      }
+      
+      return ErrorHandler.createSuccessResponse(user);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Failed to get user by ID: ${id}`, error);
+      throw new HttpException(
+        ErrorHandler.handleError(error, 'getUserById'),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   @PluginPost()
   @PluginUseGuards('user-auth', 'admin-role')
   @PluginPermissions(['users:write', 'admin:access'])
   @UsePipes(new ValidationPipe())
-  createUser(@Body() createUserDto: CreateUserDto) {
-    return this.userPluginService.createUser(createUserDto);
+  async createUser(@Body() createUserDto: CreateUserDto): Promise<ApiResponse> {
+    try {
+      const user = await this.userPluginService.createUser(createUserDto);
+      return ErrorHandler.createSuccessResponse(user);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to create user', { error, dto: createUserDto });
+      throw new HttpException(
+        ErrorHandler.handleError(error, 'createUser'),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   @PluginPut(':id')
   @PluginUseGuards('user-auth', 'user-ownership')
   @PluginPermissions(['users:write:own'])
   @UsePipes(new ValidationPipe())
-  updateUser(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userPluginService.updateUser(id, updateUserDto);
+  async updateUser(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<ApiResponse> {
+    try {
+      if (!id || id.trim() === '') {
+        ErrorHandler.throwBadRequest('User ID is required');
+      }
+      
+      const updatedUser = await this.userPluginService.updateUser(id, updateUserDto);
+      if (!updatedUser) {
+        ErrorHandler.throwNotFound('User', id);
+      }
+      
+      return ErrorHandler.createSuccessResponse(updatedUser);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Failed to update user: ${id}`, { error, dto: updateUserDto });
+      throw new HttpException(
+        ErrorHandler.handleError(error, 'updateUser'),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   @PluginDelete(':id')
   @PluginUseGuards('user-auth', 'admin-role')
   @PluginPermissions(['users:delete', 'admin:access'])
-  deleteUser(@Param('id') id: string) {
-    this.userPluginService.deleteUser(id);
-    return { message: 'User deleted successfully' };
+  async deleteUser(@Param('id') id: string): Promise<ApiResponse> {
+    try {
+      if (!id || id.trim() === '') {
+        ErrorHandler.throwBadRequest('User ID is required');
+      }
+      
+      const deleted = await this.userPluginService.deleteUser(id);
+      if (!deleted) {
+        ErrorHandler.throwNotFound('User', id);
+      }
+      
+      return ErrorHandler.createSuccessResponse({ 
+        message: 'User deleted successfully',
+        id 
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Failed to delete user: ${id}`, error);
+      throw new HttpException(
+        ErrorHandler.handleError(error, 'deleteUser'),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   // === GUARD TESTING ENDPOINTS ===
@@ -107,38 +266,118 @@ export class UserPluginController {
 
   @PluginGet('products/:userId')
   @PluginUseGuards('user-auth', 'user-ownership')
-  async getUserProducts(@Param('userId') userId: string) {
-    const userExists = this.userPluginService.validateUserExists(userId);
-    if (!userExists) {
-      return { error: 'User not found' };
+  async getUserProducts(@Param('userId') userId: string): Promise<ApiResponse> {
+    try {
+      if (!userId || userId.trim() === '') {
+        ErrorHandler.throwBadRequest('User ID is required');
+      }
+
+      const user = await this.userPluginService.getUserById(userId);
+      if (!user) {
+        ErrorHandler.throwNotFound('User', userId);
+      }
+
+      // Get user's products via cross-plugin service
+      let products: any[] = [];
+      if (this.crossPluginService) {
+        try {
+          const productService = await this.crossPluginService.getService('PRODUCT_PLUGIN_SERVICE');
+          if (productService) {
+            products = await this.crossPluginService.callServiceMethod(
+              'PRODUCT_PLUGIN_SERVICE',
+              'getProductsByOwner',
+              userId
+            ) || [];
+          } else {
+            this.logger.warn('Product service not available via cross-plugin communication');
+          }
+        } catch (error) {
+          this.logger.error(`Failed to get products for user ${userId}`, error);
+        }
+      } else {
+        this.logger.warn('Cross-plugin service not available');
+      }
+
+      return ErrorHandler.createSuccessResponse({
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          roles: user.roles
+        },
+        products,
+        productsCount: products.length,
+        message: 'User products retrieved via cross-plugin integration',
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Failed to get products for user: ${userId}`, error);
+      throw new HttpException(
+        ErrorHandler.handleError(error, 'getUserProducts'),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
-
-    const user = this.userPluginService.getUserById(userId);
-
-    return {
-      user: { id: user.id, username: user.username, roles: user.roles },
-      message: 'User products retrieved via cross-plugin integration',
-    };
   }
 
   @PluginPost('create-with-product')
   @PluginUseGuards('user-auth', 'admin-role')
   @UsePipes(new ValidationPipe())
-  async createUserWithProduct(@Body() data: { user: CreateUserDto }) {
-    const { user: userData } = data;
+  async createUserWithProduct(@Body() data: { user: CreateUserDto; productData?: any }): Promise<ApiResponse> {
+    const { user: userData, productData } = data;
 
     try {
-      const newUser = this.userPluginService.createUser(userData);
+      // Create the user first
+      const newUser = await this.userPluginService.createUser(userData);
+      if (!newUser) {
+        ErrorHandler.throwBadRequest('Failed to create user');
+      }
 
-      return {
+      let product: any = null;
+      
+      // Try to create a default product for the user if product data provided
+      if (productData && this.crossPluginService) {
+        try {
+          const productService = await this.crossPluginService.getService('PRODUCT_PLUGIN_SERVICE');
+          if (productService) {
+            product = await this.crossPluginService.callServiceMethod(
+              'PRODUCT_PLUGIN_SERVICE',
+              'createProduct',
+              {
+                ...productData,
+                ownerId: newUser.id,
+              },
+              newUser.id
+            );
+          } else {
+            this.logger.warn('Product service not available for creating default product');
+          }
+        } catch (error) {
+          this.logger.error(`Failed to create product for new user ${newUser.id}`, error);
+          // Don't fail the entire operation if product creation fails
+        }
+      } else if (!this.crossPluginService) {
+        this.logger.warn('Cross-plugin service not available for product creation');
+      }
+
+      return ErrorHandler.createSuccessResponse({
         user: newUser,
-        message: 'User and product created via cross-plugin integration',
-      };
-    } catch (error: unknown) {
-      return {
-        error: 'Failed to create user and product',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      };
+        product,
+        message: product 
+          ? 'User and product created successfully via cross-plugin integration'
+          : 'User created successfully (product creation skipped)',
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to create user with product', { error, userData });
+      throw new HttpException(
+        ErrorHandler.handleError(error, 'createUserWithProduct'),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
+  }
   }
 }

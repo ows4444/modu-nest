@@ -27,6 +27,7 @@ export * from './lib/date-utils';
 
 // Error handling utilities
 export * from './lib/error-utils';
+export * from './lib/error-handler.utils';
 
 // JSON utilities
 export * from './lib/json-utils';

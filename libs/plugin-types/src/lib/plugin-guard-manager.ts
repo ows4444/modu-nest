@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Mutex } from 'async-mutex';
 import { GuardEntry, LocalGuardEntry } from './plugin-interfaces';
+import { PluginGuardDependencyOptimizer, OptimizationResult, DependencyAnalysis } from './plugin-guard-dependency-optimizer';
 
 export interface LoadedGuard {
   entry: GuardEntry;
@@ -14,6 +15,7 @@ export interface GuardResolutionResult {
   guards: LoadedGuard[];
   missingDependencies: string[];
   circularDependencies: string[];
+  optimizationResult?: OptimizationResult;
 }
 
 @Injectable()
@@ -27,6 +29,9 @@ export class PluginGuardManager {
   // Thread-safe operation locks
   private readonly resolutionMutex = new Mutex();
   private readonly storageMutex = new Mutex();
+
+  // Dependency optimizer
+  private readonly dependencyOptimizer = new PluginGuardDependencyOptimizer();
 
   /**
    * Store guards from a plugin with thread-safe operations
@@ -426,6 +431,81 @@ export class PluginGuardManager {
       this.logger.warn('Clearing all guards from the system');
       this.guardsMap.clear();
       this.pluginGuardsMap.clear();
+    });
+  }
+
+  /**
+   * Analyze guard dependencies for optimization opportunities
+   */
+  async analyzeDependencies(): Promise<DependencyAnalysis> {
+    return await this.resolutionMutex.runExclusive(async () => {
+      this.logger.debug('Analyzing guard dependencies across all plugins');
+
+      const allGuards = new Map<string, GuardEntry>();
+      for (const [key, loadedGuard] of this.guardsMap) {
+        allGuards.set(key, loadedGuard.entry);
+      }
+
+      const pluginGuards = new Map<string, string[]>();
+      for (const [pluginName, guardNames] of this.pluginGuardsMap) {
+        pluginGuards.set(pluginName, Array.from(guardNames));
+      }
+
+      return this.dependencyOptimizer.analyzeDependencies(allGuards, pluginGuards);
+    });
+  }
+
+  /**
+   * Get optimization recommendations for a specific plugin
+   */
+  async getOptimizationRecommendations(pluginName: string): Promise<OptimizationResult> {
+    return await this.resolutionMutex.runExclusive(async () => {
+      this.logger.debug(`Getting optimization recommendations for plugin: ${pluginName}`);
+
+      const pluginGuardNames = this.pluginGuardsMap.get(pluginName);
+      if (!pluginGuardNames) {
+        return {
+          optimizedOrder: [],
+          circularDependencies: [],
+          redundantDependencies: [],
+          suggestions: [`No guards found for plugin: ${pluginName}`],
+        };
+      }
+
+      const guardEntries: GuardEntry[] = [];
+      for (const guardName of pluginGuardNames) {
+        const guardKey = this.createGuardKey(pluginName, guardName);
+        const loadedGuard = this.guardsMap.get(guardKey);
+        if (loadedGuard) {
+          guardEntries.push(loadedGuard.entry);
+        }
+      }
+
+      return this.dependencyOptimizer.optimizeGuardOrder(guardEntries, pluginName);
+    });
+  }
+
+  /**
+   * Resolve guards with optimization
+   */
+  async resolveGuardsForPluginWithOptimization(pluginName: string, requestedGuards: string[]): Promise<GuardResolutionResult> {
+    return await this.resolutionMutex.runExclusive(async () => {
+      this.logger.debug(`Resolving guards with optimization for plugin '${pluginName}': [${requestedGuards.join(', ')}]`);
+
+      // First get optimization recommendations
+      const optimizationResult = await this.getOptimizationRecommendations(pluginName);
+      
+      // Use optimized order if available, otherwise use requested order
+      const orderToUse = optimizationResult.optimizedOrder.length > 0 ? optimizationResult.optimizedOrder : requestedGuards;
+      
+      // Resolve guards using the standard method
+      const standardResult = await this.resolveGuardsForPlugin(pluginName, orderToUse);
+      
+      // Add optimization results to the response
+      return {
+        ...standardResult,
+        optimizationResult,
+      };
     });
   }
 }

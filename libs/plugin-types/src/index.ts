@@ -57,6 +57,7 @@ export * from './lib/plugin-guards';
 export * from './lib/plugin-guard-registry.service';
 export * from './lib/plugin-guard-interceptor';
 export { PluginGuardManager } from './lib/plugin-guard-manager';
+export * from './lib/plugin-guard-dependency-optimizer';
 
 // Plugin permission system
 export * from './lib/plugin-permission-interceptor';
@@ -79,3 +80,9 @@ export * from './lib/plugin-events';
 export * from './lib/plugin-event-emitter';
 export * from './lib/plugin-event-validators';
 export * from './lib/plugin-event-monitor.service';
+
+// Authentication abstraction
+export * from './lib/auth.interface';
+
+// Cross-plugin service communication
+export * from './lib/cross-plugin-service.interface';

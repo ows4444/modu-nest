@@ -4,14 +4,14 @@
   "description": "ProductPlugin plugin for modu-nest with product management and access controls",
   "author": "Plugin Developer",
   "license": "MIT",
-  "dependencies": ["user-plugin"],
+  "dependencies": [],
   "loadOrder": 200,
   "critical": false,
   "security": {
     "trustLevel": "verified"
   },
   "permissions": {
-    "services": ["database", "UserPluginService", "logging"],
+    "services": ["database", "AUTH_SERVICE", "logging"],
     "modules": ["sharp", "multer"]
   },
   "module": {
@@ -19,6 +19,14 @@
     "providers": ["ProductPluginService"],
     "exports": ["ProductPluginService"],
     "guards": [
+      {
+        "name": "auth",
+        "class": "AuthGuard",
+        "description": "Generic authentication guard using configurable auth service",
+        "source": "product-plugin",
+        "exported": true,
+        "scope": "local"
+      },
       {
         "name": "product-access",
         "class": "ProductAccessGuard",
@@ -32,14 +40,8 @@
         "class": "ProductOwnershipGuard",
         "description": "Ensures users can only modify products they own",
         "source": "product-plugin",
-        "dependencies": ["user-auth", "product-access"],
+        "dependencies": ["product-access"],
         "scope": "local"
-      },
-      {
-        "name": "user-auth",
-        "source": "user-plugin",
-        "description": "Checks if user is authenticated",
-        "scope": "external"
       }
     ]
   }
