@@ -21,6 +21,7 @@ import { PluginBundleOptimizationService } from './plugin-bundle-optimization.se
 import { PluginStorageOrchestratorService } from './plugin-storage-orchestrator.service';
 import { PluginVersionManager, VersionRollbackOptions } from './plugin-version-manager';
 import { PluginTrustManager, TrustLevel, TrustLevelAssignment, TrustLevelChangeRequest } from './plugin-trust-manager';
+import { PluginRegistryMetricsService } from './plugin-registry-metrics.service';
 
 @Injectable()
 export class PluginRegistryService implements IPluginEventSubscriber {
@@ -48,7 +49,8 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     private readonly bundleOptimizationService: PluginBundleOptimizationService,
     private readonly storageOrchestrator: PluginStorageOrchestratorService,
     private readonly versionManager: PluginVersionManager,
-    private readonly trustManager: PluginTrustManager
+    private readonly trustManager: PluginTrustManager,
+    private readonly metricsService: PluginRegistryMetricsService
   ) {
     this.eventEmitter = new PluginEventEmitter();
     this.subscribeToEvents(this.eventEmitter);
@@ -56,6 +58,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   }
 
   async uploadPlugin(pluginBuffer: Buffer): Promise<PluginMetadata> {
+    const startTime = Date.now();
     let pluginName = 'unknown';
     let checksum = '';
 
@@ -282,6 +285,14 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       this.logger.log(
         `Plugin ${metadata.name} v${metadata.version} uploaded successfully (checksum: ${checksum.substring(0, 8)}...)`
       );
+      
+      // Record successful upload metrics
+      this.metricsService.recordUpload(Date.now() - startTime, true, finalPluginBuffer.length, {
+        pluginName: metadata.name,
+        version: metadata.version,
+        optimized: finalPluginBuffer !== pluginBuffer
+      });
+      
       return metadata;
     } catch (error) {
       // Record error metrics if it's a plugin error
@@ -294,6 +305,12 @@ export class PluginRegistryService implements IPluginEventSubscriber {
 
       // Emit plugin error event
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'validation', false);
+
+      // Record failed upload metrics
+      this.metricsService.recordUpload(Date.now() - startTime, false, pluginBuffer.length, {
+        pluginName,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
 
       // Use standardized error handling
       handlePluginError(this.toPluginError(error, 'uploadPlugin', pluginName), {
@@ -319,11 +336,16 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     buffer: Buffer;
     metadata: PluginMetadata;
   }> {
+    const startTime = Date.now();
+    
     try {
       const downloadResult = await this.storageOrchestrator.downloadPlugin(name, userAgent, ipAddress);
 
       // Emit plugin downloaded event
       this.eventEmitter.emitPluginDownloaded(name, userAgent, ipAddress, downloadResult.buffer.length);
+
+      // Record successful download metrics
+      this.metricsService.recordDownload(Date.now() - startTime, true, name, userAgent, ipAddress);
 
       return downloadResult;
     } catch (error) {
@@ -337,6 +359,9 @@ export class PluginRegistryService implements IPluginEventSubscriber {
 
       // Emit plugin error event
       this.eventEmitter.emitPluginError(name, error as Error, 'medium', 'network', true);
+
+      // Record failed download metrics
+      this.metricsService.recordDownload(Date.now() - startTime, false, name, userAgent, ipAddress);
 
       // Use standardized error handling
       handlePluginError(this.toPluginError(error, 'downloadPlugin', name), {
@@ -377,6 +402,49 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   }
 
   /**
+   * Get comprehensive plugin registry metrics
+   */
+  getRegistryMetrics() {
+    return this.metricsService.getMetrics();
+  }
+
+  /**
+   * Get metrics for a specific time range
+   */
+  getMetricsHistory(metric: string, startTime: Date, endTime: Date) {
+    return this.metricsService.getMetricsHistory(metric, startTime, endTime);
+  }
+
+  /**
+   * Get performance summary with health score and recommendations
+   */
+  getPerformanceSummary() {
+    return this.metricsService.getPerformanceSummary();
+  }
+
+  /**
+   * Get operational statistics
+   */
+  getOperationalStats() {
+    return this.metricsService.getOperationalStats();
+  }
+
+  /**
+   * Export all metrics data
+   */
+  exportMetrics() {
+    return this.metricsService.exportMetrics();
+  }
+
+  /**
+   * Reset metrics (admin only)
+   */
+  resetMetrics(): void {
+    this.metricsService.resetMetrics();
+    this.logger.warn('All registry metrics have been reset');
+  }
+
+  /**
    * Get detailed registry statistics including database metrics
    */
   async getDetailedRegistryStats() {
@@ -394,7 +462,20 @@ export class PluginRegistryService implements IPluginEventSubscriber {
    * Search plugins by query
    */
   async searchPlugins(query: string): Promise<PluginResponseDto[]> {
-    return this.storageOrchestrator.searchPlugins(query);
+    const startTime = Date.now();
+    
+    try {
+      const results = await this.storageOrchestrator.searchPlugins(query);
+      
+      // Record successful search metrics
+      this.metricsService.recordSearch(query, Date.now() - startTime, results.length, true);
+      
+      return results;
+    } catch (error) {
+      // Record failed search metrics
+      this.metricsService.recordSearch(query, Date.now() - startTime, 0, false);
+      throw error;
+    }
   }
 
   /**

@@ -3,11 +3,12 @@
     "allow": [
       "Bash(node:*)",
       "Bash(nx run:*)",
-      "Bash(git add:*)",
+      "Bash(git add .)",
       "Bash(npx nx:*)",
       "Bash(nx build:*)",
       "Bash(nx serve:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(nx sync:*)"
     ],
     "deny": []
   }

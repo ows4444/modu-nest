@@ -298,6 +298,79 @@ export class PluginController {
     throw new BadRequestException('Database backup listing functionality not yet implemented');
   }
 
+  // ========================================
+  // Metrics and Monitoring Endpoints
+  // ========================================
+
+  @Get('metrics')
+  async getRegistryMetrics(): Promise<StandardSuccessResponse<any>> {
+    const metrics = this.pluginRegistryService.getRegistryMetrics();
+    return createSuccessResponse(metrics, 'Registry metrics retrieved successfully');
+  }
+
+  @Get('metrics/performance')
+  async getPerformanceSummary(): Promise<StandardSuccessResponse<any>> {
+    const summary = this.pluginRegistryService.getPerformanceSummary();
+    return createSuccessResponse(summary, 'Performance summary retrieved successfully');
+  }
+
+  @Get('metrics/operational')
+  async getOperationalStats(): Promise<StandardSuccessResponse<any>> {
+    const stats = this.pluginRegistryService.getOperationalStats();
+    return createSuccessResponse(stats, 'Operational statistics retrieved successfully');
+  }
+
+  @Get('metrics/history/:metric')
+  async getMetricsHistory(
+    @Param('metric') metric: string,
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string
+  ): Promise<StandardSuccessResponse<any>> {
+    const start = startTime ? new Date(startTime) : new Date(Date.now() - 24 * 60 * 60 * 1000); // Default: 24 hours ago
+    const end = endTime ? new Date(endTime) : new Date(); // Default: now
+    
+    const history = this.pluginRegistryService.getMetricsHistory(metric, start, end);
+    return createSuccessResponse(history, `Metrics history for ${metric} retrieved successfully`);
+  }
+
+  @Get('metrics/export')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
+  async exportMetrics(): Promise<StandardSuccessResponse<any>> {
+    const exportedData = this.pluginRegistryService.exportMetrics();
+    return createSuccessResponse(exportedData, 'Metrics data exported successfully');
+  }
+
+  @Delete('metrics/reset')
+  @UseGuards(RateLimitingGuard)
+  @AdminRateLimit()
+  async resetMetrics(@Req() request: Request): Promise<StandardSuccessResponse<any>> {
+    // Log metrics reset attempt
+    this.securityLogger.logAdminOperationEvent(
+      'metrics-reset',
+      false,
+      'system',
+      { operation: 'metrics-reset' },
+      request
+    );
+
+    this.pluginRegistryService.resetMetrics();
+
+    // Log successful metrics reset
+    this.securityLogger.logAdminOperationEvent(
+      'metrics-reset',
+      true,
+      'system',
+      { operation: 'metrics-reset' },
+      request
+    );
+
+    return createSuccessResponse(
+      { message: 'All registry metrics have been reset' },
+      'Metrics reset successfully'
+    );
+  }
+
   @Post('database/restore/:filename')
   @UseGuards(RateLimitingGuard)
   @AdminRateLimit()

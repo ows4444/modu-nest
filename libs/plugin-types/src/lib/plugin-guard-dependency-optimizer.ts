@@ -409,6 +409,7 @@ export class PluginGuardDependencyOptimizer {
           nextNode = depNode;
         }
       }
+      if (!nextNode) break;
       currentNode = nextNode;
     }
 

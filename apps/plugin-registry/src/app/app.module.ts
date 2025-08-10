@@ -18,6 +18,7 @@ import { PluginStorageOrchestratorService } from './services/plugin-storage-orch
 import { PluginVersionManager } from './services/plugin-version-manager';
 import { PluginTrustManager } from './services/plugin-trust-manager';
 import { SecurityEventLoggerService } from './services/security-event-logger.service';
+import { PluginRegistryMetricsService } from './services/plugin-registry-metrics.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { SharedConfigModule } from '@modu-nest/config';
@@ -63,6 +64,7 @@ import { RepositoryModule } from './modules/repository.module';
     PluginVersionManager,
     PluginTrustManager,
     SecurityEventLoggerService,
+    PluginRegistryMetricsService,
     PluginRegistryService,
     {
       provide: APP_INTERCEPTOR,
