@@ -1,0 +1,66 @@
+{
+  "name": "user-plugin",
+  "version": "1.0.0",
+  "fileAccess": {
+    "allowedExtensions": [".json", ".txt", ".log"],
+    "maxFileSize": 5242880,
+    "allowWrite": true,
+    "allowDelete": false,
+    "allowExecute": false
+  },
+  "networkAccess": {
+    "allowedDomains": ["auth.service.com", "user-api.com", "profile.service.com"],
+    "blockedDomains": [],
+    "allowedPorts": [80, 443],
+    "blockedPorts": [],
+    "maxRequestSize": 2097152,
+    "requestTimeout": 20000,
+    "rateLimits": {
+      "requestsPerMinute": 50,
+      "requestsPerHour": 1000,
+      "dailyBandwidthLimit": 52428800
+    },
+    "allowedMethods": ["GET", "POST", "PUT"],
+    "allowedProtocols": ["https"]
+  },
+  "databaseAccess": {
+    "allowedDatabases": ["plugin_data"],
+    "allowedTables": ["users", "user_sessions", "user_preferences"],
+    "allowedOperations": ["SELECT", "INSERT", "UPDATE"],
+    "maxQueryComplexity": 100,
+    "queryTimeout": 30000,
+    "maxResultSize": 1000,
+    "allowTransactions": true,
+    "allowStoredProcedures": false,
+    "connectionPoolSize": 5
+  },
+  "resourceLimits": {
+    "maxMemoryUsage": 268435456,
+    "maxCpuTime": 5000,
+    "maxExecutionTime": 30000,
+    "maxConcurrentOperations": 10
+  },
+  "sandbox": {
+    "enabled": true,
+    "isolateMemory": true,
+    "restrictSystemCalls": true
+  },
+  "logging": {
+    "level": "info",
+    "maxLogSize": 52428800,
+    "enableMetrics": true
+  },
+  "environment": {
+    "canReadEnvVars": true,
+    "allowedEnvVars": ["JWT_SECRET", "BCRYPT_ROUNDS"]
+  },
+  "config": {
+    "maxUsers": 10000,
+    "sessionTimeout": 3600,
+    "passwordPolicy": {
+      "minLength": 8,
+      "requireNumbers": true,
+      "requireSymbols": false
+    }
+  }
+}

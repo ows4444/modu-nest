@@ -13,7 +13,7 @@ import { configCache } from '../config-cache.service';
  */
 export function sortEnvFiles(files: string[]): string[] {
   const cacheKey = `sort:${files.join(',')}`;
-  
+
   return configCache.getSync(cacheKey, () => {
     return files.sort((a, b) => {
       const aSegments = a.split(path.sep).length;
@@ -49,7 +49,11 @@ export function getEnvFile(envFilePath: string | string[] | undefined): string[]
       envFilePathStr
         ? [
             ...envFileNames.map((name) =>
-              path.join('apps', envFilePathStr.split(path.sep)[envFilePathStr.split(path.sep).indexOf('apps') + 1], name)
+              path.join(
+                'apps',
+                envFilePathStr.split(path.sep)[envFilePathStr.split(path.sep).indexOf('apps') + 1],
+                name
+              )
             ),
             ...envFileNames,
           ]
@@ -63,29 +67,33 @@ export function getEnvFile(envFilePath: string | string[] | undefined): string[]
  */
 function parseEnvironmentVariables(): EnvironmentSchema {
   const cacheKey = `envParsing:${JSON.stringify(process.env)}`;
-  
-  return configCache.getSync(cacheKey, () => {
-    const config = plainToInstance(EnvironmentSchema, process.env, {
-      enableImplicitConversion: true,
-      excludeExtraneousValues: true,
-    });
 
-    const errors = validateSync(config, {
-      skipMissingProperties: false,
-      forbidUnknownValues: true,
-      whitelist: true,
-    });
+  return configCache.getSync(
+    cacheKey,
+    () => {
+      const config = plainToInstance(EnvironmentSchema, process.env, {
+        enableImplicitConversion: true,
+        excludeExtraneousValues: true,
+      });
 
-    if (errors.length > 0) {
-      const errorMessages = errors
-        .flatMap((error) => Object.values(error.constraints ?? { [error.property]: 'Invalid value' }))
-        .join('\n- ');
+      const errors = validateSync(config, {
+        skipMissingProperties: false,
+        forbidUnknownValues: true,
+        whitelist: true,
+      });
 
-      throw new Error(`Environment validation failed:\n- ${errorMessages}`);
-    }
+      if (errors.length > 0) {
+        const errorMessages = errors
+          .flatMap((error) => Object.values(error.constraints ?? { [error.property]: 'Invalid value' }))
+          .join('\n- ');
 
-    return config;
-  }, 10 * 60 * 1000); // Cache for 10 minutes since env vars don't change often
+        throw new Error(`Environment validation failed:\n- ${errorMessages}`);
+      }
+
+      return config;
+    },
+    10 * 60 * 1000
+  ); // Cache for 10 minutes since env vars don't change often
 }
 
 /**
@@ -93,23 +101,27 @@ function parseEnvironmentVariables(): EnvironmentSchema {
  */
 export const optimizedEnvLoader = registerAs(ENVIRONMENT_ENV, (): Environment => {
   const envCacheKey = `env:${process.env.NODE_ENV}:${process.env.HOST}:${process.env.PORT}`;
-  
-  return configCache.getSync(envCacheKey, () => {
-    const config = parseEnvironmentVariables();
 
-    return {
-      url: `${config.HOST}:${config.PORT}`,
-      host: config.HOST,
-      appName: config.APP_NAME,
-      apiPrefix: config.API_PREFIX,
-      environment: config.NODE_ENV,
-      isProduction: config.NODE_ENV === EnvironmentType.Production,
-      port: config.PORT,
-      enableSwagger: parseBoolean(config.ENABLE_SWAGGER),
-      awsRegion: config.AWS_REGION,
-      corsOrigins: config.CORS_ORIGINS,
-    };
-  }, 15 * 60 * 1000); // Cache for 15 minutes
+  return configCache.getSync(
+    envCacheKey,
+    () => {
+      const config = parseEnvironmentVariables();
+
+      return {
+        url: `${config.HOST}:${config.PORT}`,
+        host: config.HOST,
+        appName: config.APP_NAME,
+        apiPrefix: config.API_PREFIX,
+        environment: config.NODE_ENV,
+        isProduction: config.NODE_ENV === EnvironmentType.Production,
+        port: config.PORT,
+        enableSwagger: parseBoolean(config.ENABLE_SWAGGER),
+        awsRegion: config.AWS_REGION,
+        corsOrigins: config.CORS_ORIGINS,
+      };
+    },
+    15 * 60 * 1000
+  ); // Cache for 15 minutes
 });
 
 /**

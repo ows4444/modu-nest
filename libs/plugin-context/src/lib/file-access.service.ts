@@ -19,10 +19,9 @@ export class FileAccessService {
   private readonly defaultOptions: FileAccessServiceOptions;
   private readonly pluginConfigurations = new Map<string, PluginFileAccessConfig>();
 
-  constructor(
-    private readonly configService: FileAccessConfigService
-  ) {
+  constructor(private readonly configService: FileAccessConfigService) {
     this.defaultOptions = this.configService.getDefaultOptions();
+    console.log(`FileAccessService initialized with default options: ${JSON.stringify(this.defaultOptions)}`);
   }
 
   configurePlugin(pluginName: string, permissions: FileAccessPermissions): void {
@@ -57,8 +56,6 @@ export class FileAccessService {
     return {
       allowedExtensions: pluginConfig.allowedExtensions || this.defaultOptions.allowedExtensions,
       maxFileSize: pluginConfig.maxFileSize || this.defaultOptions.maxFileSize,
-      allowedPaths: pluginConfig.allowedPaths || this.defaultOptions.allowedPaths,
-      blockedPaths: pluginConfig.blockedPaths || this.defaultOptions.blockedPaths,
       canRead: pluginConfig.canRead,
       canWrite: pluginConfig.canWrite,
       canDelete: pluginConfig.canDelete,
@@ -82,23 +79,6 @@ export class FileAccessService {
 
       // Check against blocked paths
       const absolutePath = path.resolve(normalizedPath);
-      if (config.blockedPaths?.some((blocked) => absolutePath.startsWith(blocked))) {
-        return {
-          isValid: false,
-          error: 'Access to system directories is forbidden',
-        };
-      }
-
-      // Check against allowed paths
-      if (config.allowedPaths?.length) {
-        const isAllowed = config.allowedPaths.some((allowed) => absolutePath.startsWith(path.resolve(allowed)));
-        if (!isAllowed) {
-          return {
-            isValid: false,
-            error: 'Path not in allowed directories',
-          };
-        }
-      }
 
       // Check file extension
       const ext = path.extname(normalizedPath).toLowerCase();
@@ -133,7 +113,7 @@ export class FileAccessService {
 
   async readFile(filePath: string, pluginName?: string): Promise<string> {
     const config = this.getPluginConfig(pluginName);
-    
+
     // Check if plugin has read permission
     if (config.canRead === false) {
       throw new ForbiddenException(`Read access denied for plugin ${pluginName}`);
@@ -155,7 +135,9 @@ export class FileAccessService {
       return await fs.readFile(validation.normalizedPath!, 'utf8');
     } catch (error) {
       throw new BadRequestException(
-        `Failed to read file${pluginName ? ` for plugin ${pluginName}` : ''}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to read file${pluginName ? ` for plugin ${pluginName}` : ''}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   }
@@ -184,7 +166,9 @@ export class FileAccessService {
       await fs.writeFile(validation.normalizedPath!, content, 'utf8');
     } catch (error) {
       throw new BadRequestException(
-        `Failed to write file${pluginName ? ` for plugin ${pluginName}` : ''}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to write file${pluginName ? ` for plugin ${pluginName}` : ''}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   }
@@ -208,7 +192,9 @@ export class FileAccessService {
       await fs.unlink(validation.normalizedPath!);
     } catch (error) {
       throw new BadRequestException(
-        `Failed to delete file${pluginName ? ` for plugin ${pluginName}` : ''}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to delete file${pluginName ? ` for plugin ${pluginName}` : ''}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   }
@@ -250,7 +236,9 @@ export class FileAccessService {
       });
     } catch (error) {
       throw new BadRequestException(
-        `Failed to list files${pluginName ? ` for plugin ${pluginName}` : ''}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to list files${pluginName ? ` for plugin ${pluginName}` : ''}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   }

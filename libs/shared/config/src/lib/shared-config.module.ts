@@ -38,7 +38,7 @@ export class SharedConfigModule implements OnModuleInit {
   async onModuleInit() {
     // Start periodic cache cleanup
     configCache.startPeriodicCleanup();
-    
+
     this.logger.log('SharedConfigModule initialized with optimized caching');
     this.logger.debug(`Cache stats: ${JSON.stringify(configCache.getStats())}`);
   }

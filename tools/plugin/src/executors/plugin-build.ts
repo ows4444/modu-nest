@@ -8,7 +8,6 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 
-
 interface BuildResult {
   success: boolean;
   outputPath?: string;

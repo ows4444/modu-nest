@@ -15,7 +15,9 @@
     }
   },
   "dependencies": {
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "@nestjs/common": "^11.0.0",
+    "@modu-nest/plugin-types": "0.0.1"
   },
   "nx": {
     "targets": {

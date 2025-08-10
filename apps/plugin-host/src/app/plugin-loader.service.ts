@@ -22,10 +22,11 @@ import {
   PluginTransition,
   PluginState,
 } from '@modu-nest/plugin-types';
-import { 
+import {
   RestrictedPluginContextService,
   PluginPermissionService,
-  PluginContextInterface 
+  PluginContextInterface,
+  PluginContextService,
 } from '@modu-nest/plugin-context';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { PluginMetricsService } from './plugin-metrics.service';
@@ -1600,7 +1601,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
       // Add guard providers to the providers array (cast as Provider)
       providers.push(...guardProviders.map((guard) => guard as Provider));
-      
+
       // Create restricted plugin context for this plugin
       if (this.contextService && this.permissionService) {
         const pluginContext = this.contextService.createPluginContext({
@@ -1612,15 +1613,15 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
             allowedGlobals: ['console', 'Buffer', 'setTimeout', 'setInterval'],
           },
         });
-        
+
         this.pluginContexts.set(manifest.name, pluginContext);
-        
+
         // Add plugin context as provider
         providers.push({
           provide: `PLUGIN_CONTEXT_${manifest.name}`,
           useValue: pluginContext,
         });
-        
+
         this.logger.debug(`Created restricted context for plugin: ${manifest.name}`);
       }
 
@@ -2964,7 +2965,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
       // Clean up guards and services
       await this.guardManager.removePluginGuards(pluginName);
       await this.crossPluginServiceManager.removePluginServices(pluginName);
-      
+
       // Clean up plugin context
       if (this.contextService) {
         this.contextService.removePluginContext(pluginName);

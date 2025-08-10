@@ -11,10 +11,12 @@ import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
-import { 
-  ModuNestPluginContextModule, 
+import {
+  ModuNestPluginContextModule,
   RestrictedPluginContextService,
-  PluginPermissionService 
+  PluginPermissionService,
+  PluginContextService,
+  GlobalPluginContextConfig,
 } from '@modu-nest/plugin-context';
 import {
   PluginGuardInterceptor,
@@ -40,13 +42,72 @@ export class AppModule implements OnModuleInit {
     // Add shared configuration module
     const baseImports = [
       ModuNestPluginContextModule.forRoot({
-        defaultOptions: {
-          allowedExtensions: ['.json', '.txt', '.md', '.js', '.ts'],
-          maxFileSize: 10 * 1024 * 1024, // 10MB
-          allowedPaths: ['./plugins', './temp', './uploads'],
-          blockedPaths: ['/etc', '/usr', '/bin', '/sbin', '/var', '/boot', '/root', '/home'],
+        defaultConfig: {
+          pluginName: 'default',
+          version: '1.0.0',
+          fileAccess: {
+            allowedExtensions: ['.json', '.txt', '.md', '.js', '.ts', '.yaml', '.yml', '.csv'],
+            maxFileSize: 10 * 1024 * 1024, // 10MB
+            allowWrite: true,
+            allowDelete: false,
+            allowExecute: false,
+          },
+          networkAccess: {
+            allowedDomains: ['api.github.com', 'registry.npmjs.org', 'cdn.jsdelivr.net'],
+            blockedDomains: [],
+            allowedPorts: [80, 443, 8080],
+            blockedPorts: [22, 23, 3389, 5432, 3306],
+            maxRequestSize: 5 * 1024 * 1024, // 5MB
+            requestTimeout: 30000,
+            rateLimits: {
+              requestsPerMinute: 60,
+              requestsPerHour: 1000,
+              dailyBandwidthLimit: 100 * 1024 * 1024, // 100MB
+            },
+            allowedMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+            allowedProtocols: ['https', 'http'],
+          },
+          databaseAccess: {
+            allowedDatabases: ['plugin_data'],
+            allowedTables: ['user_data', 'plugin_settings', 'cache'],
+            allowedOperations: ['SELECT', 'INSERT', 'UPDATE'],
+            maxQueryComplexity: 100,
+            queryTimeout: 30000,
+            maxResultSize: 1000,
+            allowTransactions: true,
+            allowStoredProcedures: false,
+            connectionPoolSize: 5,
+          },
+          resourceLimits: {
+            maxMemoryUsage: 256 * 1024 * 1024, // 256MB
+            maxCpuTime: 5000,
+            maxExecutionTime: 30000,
+            maxConcurrentOperations: 10,
+          },
+          sandbox: {
+            enabled: true,
+            isolateMemory: true,
+            restrictSystemCalls: true,
+          },
+          logging: {
+            level: 'info',
+            maxLogSize: 50 * 1024 * 1024, // 50MB
+            enableMetrics: true,
+          },
         },
-      }),
+        pluginConfigs: new Map(),
+        globalLimits: {
+          maxPluginCount: 50,
+          totalMemoryLimit: 2 * 1024 * 1024 * 1024, // 2GB
+          totalCpuLimit: 80, // 80% CPU
+          globalRateLimit: 5000, // requests per minute
+        },
+        security: {
+          enforceStrictMode: true,
+          enableAuditLogging: true,
+          requireDigitalSignatures: false,
+        },
+      } as Partial<GlobalPluginContextConfig>),
       SharedConfigModule.forRoot({
         isGlobal: true,
         expandVariables: true,
@@ -105,7 +166,7 @@ export class AppModule implements OnModuleInit {
 
     // Set up guard registry in plugin loader
     this.pluginLoader.setGuardRegistry(this.guardRegistry);
-    
+
     // Set up context and permission services
     this.pluginLoader.setContextService(this.contextService);
     this.pluginLoader.setPermissionService(this.permissionService);

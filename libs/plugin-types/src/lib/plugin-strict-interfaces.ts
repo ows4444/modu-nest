@@ -163,9 +163,11 @@ export class PluginManifestBuilder {
 
   build(): StrictPluginManifest {
     const { name, version, description, author, license, module } = this.manifest;
-    
+
     if (!name || !version || !description || !author || !license || !module) {
-      throw new Error('Missing required manifest fields: name, version, description, author, license, and module are required');
+      throw new Error(
+        'Missing required manifest fields: name, version, description, author, license, and module are required'
+      );
     }
 
     return {
@@ -202,7 +204,7 @@ export function createStrictPluginManifest(config: {
     .setModule(config.module);
 
   if (config.dependencies) {
-    config.dependencies.forEach(dep => builder.addDependency(dep.name, dep.version));
+    config.dependencies.forEach((dep) => builder.addDependency(dep.name, dep.version));
   }
 
   if (config.loadOrder !== undefined) {
@@ -226,7 +228,7 @@ export function parsePluginId(pluginId: PluginId): { name: PluginName; version: 
   if (parts.length !== 2) {
     throw new Error(`Invalid plugin ID format: ${pluginId}. Expected format: name@version`);
   }
-  
+
   const [name, version] = parts;
   const { createPluginName, createPluginVersion } = require('./plugin-interfaces');
   return {
@@ -242,11 +244,7 @@ export function getPluginId(manifest: StrictPluginManifest): PluginId {
 
 // Conversion utilities between strict and loose types
 export function toStrictManifest(manifest: any): StrictPluginManifest {
-  const {
-    createPluginName,
-    createPluginVersion,
-    createPluginId,
-  } = require('./plugin-interfaces');
+  const { createPluginName, createPluginVersion, createPluginId } = require('./plugin-interfaces');
 
   const strictModule: StrictPluginModuleMeta = {
     controllers: manifest.module?.controllers?.map(createNonEmptyString),

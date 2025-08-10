@@ -8,33 +8,11 @@
   "loadOrder": 100,
   "critical": true,
   "security": {
-    "trustLevel": "internal",
-    "fileAccess": {
-      "canRead": true,
-      "canWrite": true,
-      "canDelete": false,
-      "canList": true,
-      "allowedPaths": ["./plugins/user-plugin/temp", "./uploads/users"],
-      "allowedExtensions": [".json", ".txt", ".csv"],
-      "maxFileSize": 5242880
-    }
+    "trustLevel": "verified"
   },
   "permissions": {
     "services": ["database", "auth", "logging"],
-    "modules": ["bcrypt", "jsonwebtoken"],
-    "environment": {
-      "canReadEnvVars": true,
-      "allowedEnvVars": ["JWT_SECRET", "BCRYPT_ROUNDS"]
-    }
-  },
-  "config": {
-    "maxUsers": 10000,
-    "sessionTimeout": 3600,
-    "passwordPolicy": {
-      "minLength": 8,
-      "requireNumbers": true,
-      "requireSymbols": false
-    }
+    "modules": ["bcrypt", "jsonwebtoken"]
   },
   "module": {
     "controllers": ["UserPluginController"],

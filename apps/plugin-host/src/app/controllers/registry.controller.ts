@@ -12,21 +12,21 @@ export class RegistryController {
     try {
       const startTime = Date.now();
       this.logger.debug('Fetching available plugins from registry');
-      
+
       const plugins = await this.registryClient.listAvailablePlugins();
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Successfully fetched ${plugins.length} plugins in ${duration}ms`);
-      
+
       return plugins;
     } catch (error) {
       this.logger.error('Failed to fetch available plugins:', error);
-      
+
       // Re-throw HttpException as-is, transform other errors
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
         {
@@ -55,21 +55,21 @@ export class RegistryController {
     try {
       const startTime = Date.now();
       this.logger.debug(`Fetching plugin info for: ${name}`);
-      
+
       const pluginInfo = await this.registryClient.getPluginInfo(name);
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Successfully fetched info for plugin '${name}' in ${duration}ms`);
-      
+
       return pluginInfo;
     } catch (error) {
       this.logger.error(`Failed to fetch plugin info for '${name}':`, error);
-      
+
       // Re-throw HttpException as-is, transform other errors
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
         {
@@ -84,7 +84,9 @@ export class RegistryController {
   }
 
   @Post('plugins/:name/install')
-  async installPlugin(@Param('name') name: string): Promise<{ message: string; pluginName: string; timestamp: string }> {
+  async installPlugin(
+    @Param('name') name: string
+  ): Promise<{ message: string; pluginName: string; timestamp: string }> {
     if (!name?.trim()) {
       throw new HttpException(
         {
@@ -99,12 +101,12 @@ export class RegistryController {
     try {
       const startTime = Date.now();
       this.logger.log(`Starting installation of plugin '${name}'`);
-      
+
       await this.registryClient.downloadAndInstallPlugin(name);
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Successfully installed plugin '${name}' in ${duration}ms`);
-      
+
       return {
         message: `Plugin '${name}' installed successfully. Restart the application to load the plugin.`,
         pluginName: name,
@@ -112,12 +114,12 @@ export class RegistryController {
       };
     } catch (error) {
       this.logger.error(`Failed to install plugin '${name}':`, error);
-      
+
       // Re-throw HttpException as-is, transform other errors
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
         {
@@ -148,12 +150,12 @@ export class RegistryController {
     try {
       const startTime = Date.now();
       this.logger.log(`Starting update of plugin '${name}'`);
-      
+
       await this.registryClient.downloadAndInstallPlugin(name);
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Successfully updated plugin '${name}' in ${duration}ms`);
-      
+
       return {
         message: `Plugin '${name}' updated successfully. Restart the application to load the updated plugin.`,
         pluginName: name,
@@ -161,12 +163,12 @@ export class RegistryController {
       };
     } catch (error) {
       this.logger.error(`Failed to update plugin '${name}':`, error);
-      
+
       // Re-throw HttpException as-is, transform other errors
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
         {
@@ -186,11 +188,11 @@ export class RegistryController {
     try {
       const startTime = Date.now();
       this.logger.debug('Checking registry status');
-      
+
       const isAvailable = await this.registryClient.isRegistryAvailable();
       const registryUrl = this.registryClient.getRegistryUrl();
       const duration = Date.now() - startTime;
-      
+
       const status = {
         available: isAvailable,
         url: registryUrl,
@@ -199,12 +201,12 @@ export class RegistryController {
         responseTime: `${duration}ms`,
         status: isAvailable ? 'healthy' : 'unhealthy',
       };
-      
+
       this.logger.log(`Registry status check completed: ${isAvailable ? 'available' : 'unavailable'} (${duration}ms)`);
       return status;
     } catch (error) {
       this.logger.error('Failed to check registry status:', error);
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       return {
         available: false,

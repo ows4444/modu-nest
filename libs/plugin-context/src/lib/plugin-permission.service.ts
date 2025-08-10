@@ -73,32 +73,6 @@ export class PluginPermissionService {
         break;
     }
 
-    // Check path restrictions
-    if (context.resourcePath && fileAccess.allowedPaths?.length) {
-      const isPathAllowed = fileAccess.allowedPaths.some(allowedPath =>
-        context.resourcePath!.startsWith(allowedPath)
-      );
-      if (!isPathAllowed) {
-        return {
-          granted: false,
-          reason: `Path ${context.resourcePath} not in allowed paths`,
-        };
-      }
-    }
-
-    // Check blocked paths
-    if (context.resourcePath && fileAccess.blockedPaths?.length) {
-      const isPathBlocked = fileAccess.blockedPaths.some(blockedPath =>
-        context.resourcePath!.startsWith(blockedPath)
-      );
-      if (isPathBlocked) {
-        return {
-          granted: false,
-          reason: `Path ${context.resourcePath} is blocked`,
-        };
-      }
-    }
-
     return {
       granted: true,
       restrictions: {
@@ -118,7 +92,8 @@ export class PluginPermissionService {
     }
 
     // Check if plugin has permission to access cross-plugin services
-    const hasServicePermission = manifest.permissions?.services?.includes(context.requestedPermission) ||
+    const hasServicePermission =
+      manifest.permissions?.services?.includes(context.requestedPermission) ||
       manifest.permissions?.services?.includes('*');
 
     if (!hasServicePermission) {
@@ -141,7 +116,8 @@ export class PluginPermissionService {
     }
 
     // Check if plugin has permission to access specific modules
-    const hasModulePermission = manifest.permissions?.modules?.includes(context.requestedPermission) ||
+    const hasModulePermission =
+      manifest.permissions?.modules?.includes(context.requestedPermission) ||
       manifest.permissions?.modules?.includes('*');
 
     if (!hasModulePermission) {
@@ -175,9 +151,7 @@ export class PluginPermissionService {
     }
 
     if (!result.granted) {
-      throw new ForbiddenException(
-        `Permission denied for plugin ${context.pluginName}: ${result.reason}`
-      );
+      throw new ForbiddenException(`Permission denied for plugin ${context.pluginName}: ${result.reason}`);
     }
   }
 

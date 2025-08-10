@@ -1,18 +1,154 @@
 import { PluginInjectable } from '@modu-nest/plugin-types';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { PluginContext } from '@modu-nest/plugin-context';
+import { NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { Product, CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
 
 @PluginInjectable()
 export class ProductPluginService {
+  private readonly logger = new Logger(ProductPluginService.name);
   private products: Map<string, Product> = new Map();
+  private context: PluginContext | null = null;
 
   constructor() {
     // Initialize with sample data
     this.initializeSampleData();
+    this.logger.log(`ProductPluginService initialized with ${this.products.size} sample products`);
+  }
+
+  // Method to inject the plugin context (called by plugin loader)
+  setPluginContext(context: PluginContext): void {
+    this.context = context;
+    this.logger.log(`Plugin context injected for product-plugin`);
+
+    // Demonstrate context usage
+    this.demonstrateContextUsage();
   }
 
   getHello(): string {
     return 'Hello from ProductPlugin plugin!';
+  }
+
+  private async demonstrateContextUsage(): Promise<void> {
+    if (!this.context) return;
+
+    try {
+      // Demonstrate file access
+      this.logger.debug('Demonstrating file access capabilities...');
+
+      // Save products to file
+      await this.saveProductsToFile();
+
+      // Demonstrate network access
+      this.logger.debug('Demonstrating network access capabilities...');
+      await this.fetchExternalProductData();
+
+      // Demonstrate database access
+      this.logger.debug('Demonstrating database access capabilities...');
+      await this.syncProductsToDatabase();
+
+      // Show metrics
+      const metrics = await this.context.utils.getMetrics();
+      this.logger.log('Plugin context metrics:', metrics);
+    } catch (error) {
+      this.logger.error('Error demonstrating context usage:', error);
+    }
+  }
+
+  private async saveProductsToFile(): Promise<void> {
+    if (!this.context) return;
+
+    try {
+      const productsData = JSON.stringify(Array.from(this.products.values()), null, 2);
+      await this.context.fileAccess.writeFile('./temp/products/products.json', productsData);
+      this.logger.debug('Products saved to file successfully');
+    } catch (error) {
+      this.logger.warn('Failed to save products to file:', error);
+    }
+  }
+
+  private async fetchExternalProductData(): Promise<void> {
+    if (!this.context) return;
+
+    try {
+      // Example API call to fetch product data
+      const response = await this.context.networkAccess.get('https://api.github.com/repos/microsoft/TypeScript', {
+        'User-Agent': 'ProductPlugin/1.0',
+      });
+
+      this.logger.debug(`External API response status: ${response.statusCode}, size: ${response.size} bytes`);
+    } catch (error) {
+      this.logger.warn('Failed to fetch external product data:', error);
+    }
+  }
+
+  private async syncProductsToDatabase(): Promise<void> {
+    if (!this.context) return;
+
+    try {
+      // Example database operations
+      const products = Array.from(this.products.values());
+
+      for (const product of products.slice(0, 3)) {
+        // Sync first 3 products
+        await this.context.databaseAccess.insert('products', {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          category: product.category,
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      // Query to verify
+      const result = await this.context.databaseAccess.select('products', 'id = ?', ['1']);
+      this.logger.debug(`Database sync completed. Query result: ${result.rowCount} rows`);
+    } catch (error) {
+      this.logger.warn('Failed to sync products to database:', error);
+    }
+  }
+
+  // Enhanced methods that use context for persistence
+  async saveProduct(productData: CreateProductDto): Promise<Product> {
+    const product = this.createProduct(productData);
+
+    // Save to file if context is available
+    if (this.context) {
+      try {
+        await this.context.fileAccess.writeFile(
+          `./temp/products/product-${product.id}.json`,
+          JSON.stringify(product, null, 2)
+        );
+
+        // Also save to database
+        await this.context.databaseAccess.insert('products', {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          category: product.category,
+          created_at: product.createdAt.toISOString(),
+          updated_at: product.updatedAt.toISOString(),
+        });
+
+        this.logger.debug(`Product ${product.id} persisted to file and database`);
+      } catch (error) {
+        this.logger.warn(`Failed to persist product ${product.id}:`, error);
+      }
+    }
+
+    return product;
+  }
+
+  async getProductMetrics(): Promise<any> {
+    if (!this.context) {
+      return { error: 'Plugin context not available' };
+    }
+
+    const metrics = await this.context.utils.getMetrics();
+    return {
+      pluginMetrics: metrics,
+      productCount: this.products.size,
+      availableProducts: this.getAllProducts().length,
+    };
   }
 
   private initializeSampleData() {

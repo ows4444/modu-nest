@@ -28,24 +28,24 @@ export class PluginController {
     try {
       const startTime = Date.now();
       this.logger.debug('Checking for plugin updates');
-      
+
       const loadedPlugins = this.pluginLoader.getLoadedPlugins();
       this.logger.debug(`Checking updates for ${loadedPlugins.size} installed plugins`);
-      
+
       const updates = await this.registryClient.checkPluginUpdates(loadedPlugins);
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Update check completed: found ${updates.length} available updates (${duration}ms)`);
-      
+
       return updates;
     } catch (error) {
       this.logger.error('Failed to check for plugin updates:', error);
-      
+
       // Re-throw HttpException as-is, transform other errors
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
         {
@@ -89,7 +89,7 @@ export class PluginController {
     try {
       this.logger.debug(`Fetching memory stats for plugin: ${name}`);
       const memoryStats = this.pluginLoader.getPluginMemoryStats(name);
-      
+
       if (!memoryStats) {
         throw new HttpException(
           {
@@ -101,13 +101,13 @@ export class PluginController {
           HttpStatus.NOT_FOUND
         );
       }
-      
+
       return memoryStats;
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       this.logger.error(`Failed to get memory stats for plugin '${name}':`, error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
@@ -127,12 +127,12 @@ export class PluginController {
     try {
       const startTime = Date.now();
       this.logger.log('Starting forced memory cleanup');
-      
+
       const result = await this.pluginLoader.forceMemoryCleanup();
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Memory cleanup completed successfully (${duration}ms)`);
-      
+
       return {
         ...result,
         timestamp: new Date().toISOString(),
@@ -140,7 +140,7 @@ export class PluginController {
       };
     } catch (error) {
       this.logger.error('Failed to perform memory cleanup:', error);
-      
+
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new HttpException(
         {

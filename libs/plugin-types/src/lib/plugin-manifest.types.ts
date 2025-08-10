@@ -19,16 +19,6 @@ export interface PluginCompatibility {
 export interface PluginPermissions {
   services?: string[];
   modules?: string[];
-  network?: {
-    outbound?: boolean;
-    inbound?: boolean;
-    allowedHosts?: string[];
-    allowedPorts?: number[];
-  };
-  environment?: {
-    canReadEnvVars?: boolean;
-    allowedEnvVars?: string[];
-  };
 }
 
 export interface PluginManifest {

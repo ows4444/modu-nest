@@ -1,11 +1,11 @@
 /**
  * String manipulation and validation utilities
- * 
+ *
  * This module provides comprehensive utilities for string manipulation,
  * validation, and transformation. All functions are designed to handle
  * edge cases gracefully and provide consistent behavior across different
  * input types.
- * 
+ *
  * @fileoverview String utilities with comprehensive validation and transformation
  * @version 1.0.0
  * @author Plugin System
@@ -14,34 +14,34 @@
 
 /**
  * Sanitizes a plugin name to contain only safe characters.
- * 
+ *
  * Converts the input to lowercase and replaces any character that is not
  * a lowercase letter, digit, hyphen, or underscore with a hyphen.
  * This ensures the resulting string is safe for use in file names,
  * URLs, and other contexts where special characters may cause issues.
- * 
+ *
  * @param {string} name - The plugin name to sanitize
- * 
+ *
  * @returns {string} A sanitized string containing only [a-z0-9-_] characters
- * 
+ *
  * @example
  * // Sanitize complex plugin name
  * const messy = 'My Plugin Name! (v2.0)';
  * const clean = sanitizePluginName(messy);
  * // Result: 'my-plugin-name---v2-0-'
- * 
+ *
  * @example
  * // Already clean name
  * const clean = 'my-plugin-name';
  * const stillClean = sanitizePluginName(clean);
  * // Result: 'my-plugin-name'
- * 
+ *
  * @example
  * // Handle special characters
  * const special = 'plugin@name#with$symbols';
  * const sanitized = sanitizePluginName(special);
  * // Result: 'plugin-name-with-symbols'
- * 
+ *
  * @since 1.0.0
  */
 export function sanitizePluginName(name: string): string {
@@ -50,29 +50,29 @@ export function sanitizePluginName(name: string): string {
 
 /**
  * Validates if a plugin name follows the expected format.
- * 
+ *
  * Checks that the plugin name contains only lowercase letters, digits,
  * hyphens, and underscores, and is between 2 and 50 characters long.
  * This validation ensures compatibility with file systems, package managers,
  * and URL structures.
- * 
+ *
  * @param {string} name - The plugin name to validate
- * 
+ *
  * @returns {boolean} True if the name is valid, false otherwise
- * 
+ *
  * @example
  * // Valid plugin names
  * console.log(isValidPluginName('my-plugin')); // true
  * console.log(isValidPluginName('plugin_name')); // true
  * console.log(isValidPluginName('plugin123')); // true
- * 
+ *
  * @example
  * // Invalid plugin names
  * console.log(isValidPluginName('My Plugin')); // false (contains spaces and uppercase)
  * console.log(isValidPluginName('a')); // false (too short)
  * console.log(isValidPluginName('')); // false (empty)
  * console.log(isValidPluginName('plugin@name')); // false (contains @)
- * 
+ *
  * @example
  * // Edge cases
  * console.log(isValidPluginName('ab')); // true (minimum length)
@@ -80,7 +80,7 @@ export function sanitizePluginName(name: string): string {
  * console.log(isValidPluginName(longName)); // true (maximum length)
  * const tooLong = 'a'.repeat(51);
  * console.log(isValidPluginName(tooLong)); // false (too long)
- * 
+ *
  * @since 1.0.0
  */
 export function isValidPluginName(name: string): boolean {
@@ -89,33 +89,33 @@ export function isValidPluginName(name: string): boolean {
 
 /**
  * Normalizes a string by trimming whitespace and converting to lowercase.
- * 
+ *
  * This function performs common string normalization by removing leading
  * and trailing whitespace and converting all characters to lowercase.
  * Useful for case-insensitive comparisons and clean data processing.
- * 
+ *
  * @param {string} str - The string to normalize
- * 
+ *
  * @returns {string} The normalized string (trimmed and lowercase)
- * 
+ *
  * @example
  * // Normalize user input
  * const userInput = '  Hello World  ';
  * const normalized = normalizeString(userInput);
  * // Result: 'hello world'
- * 
+ *
  * @example
  * // Handle mixed case
  * const mixed = 'CamelCase';
  * const normalized = normalizeString(mixed);
  * // Result: 'camelcase'
- * 
+ *
  * @example
  * // Handle whitespace variations
  * const messy = '\t  SpAcEd OuT  \n';
  * const clean = normalizeString(messy);
  * // Result: 'spaced out'
- * 
+ *
  * @since 1.0.0
  */
 export function normalizeString(str: string): string {

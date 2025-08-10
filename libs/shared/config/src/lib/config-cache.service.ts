@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 /**
  * Configuration cache service for optimizing config loading performance
- * 
+ *
  * Implements singleton pattern with memoization and lazy loading to prevent
  * redundant configuration loading across multiple services and modules.
  */
@@ -12,17 +12,17 @@ export class ConfigCacheService {
   private readonly cache = new Map<string, any>();
   private readonly computingPromises = new Map<string, Promise<any>>();
   private readonly logger = new Logger(ConfigCacheService.name);
-  
+
   /**
    * Cache timestamps for TTL support
    */
   private readonly cacheTimestamps = new Map<string, number>();
-  
+
   /**
    * Default TTL in milliseconds (5 minutes)
    */
   private readonly defaultTTL = 5 * 60 * 1000;
-  
+
   /**
    * Get singleton instance
    */
@@ -40,11 +40,7 @@ export class ConfigCacheService {
   /**
    * Get cached configuration or compute if not exists
    */
-  async get<T>(
-    key: string, 
-    factory: () => Promise<T> | T,
-    ttl: number = this.defaultTTL
-  ): Promise<T> {
+  async get<T>(key: string, factory: () => Promise<T> | T, ttl: number = this.defaultTTL): Promise<T> {
     // Check if value exists and is not expired
     if (this.has(key) && !this.isExpired(key, ttl)) {
       this.logger.debug(`Cache hit for key: ${key}`);
@@ -73,11 +69,7 @@ export class ConfigCacheService {
   /**
    * Synchronous get with memoization
    */
-  getSync<T>(
-    key: string,
-    factory: () => T,
-    ttl: number = this.defaultTTL
-  ): T {
+  getSync<T>(key: string, factory: () => T, ttl: number = this.defaultTTL): T {
     // Check if value exists and is not expired
     if (this.has(key) && !this.isExpired(key, ttl)) {
       this.logger.debug(`Sync cache hit for key: ${key}`);
@@ -171,19 +163,15 @@ export class ConfigCacheService {
     }, intervalMs);
   }
 
-  private async computeValue<T>(
-    key: string,
-    factory: () => Promise<T> | T,
-    ttl: number
-  ): Promise<T> {
+  private async computeValue<T>(key: string, factory: () => Promise<T> | T, ttl: number): Promise<T> {
     try {
       const startTime = Date.now();
       const result = await factory();
       const duration = Date.now() - startTime;
-      
+
       this.set(key, result);
       this.logger.debug(`Computed and cached value for key: ${key} in ${duration}ms`);
-      
+
       return result;
     } catch (error) {
       this.logger.error(`Failed to compute value for key: ${key}`, error);
@@ -194,7 +182,7 @@ export class ConfigCacheService {
   private isExpired(key: string, ttl: number): boolean {
     const timestamp = this.cacheTimestamps.get(key);
     if (!timestamp) return true;
-    
+
     const isExpired = Date.now() - timestamp > ttl;
     if (isExpired) {
       this.logger.debug(`Cache entry expired for key: ${key}`);

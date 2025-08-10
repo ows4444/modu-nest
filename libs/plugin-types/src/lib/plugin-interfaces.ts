@@ -39,7 +39,9 @@ export function isValidFilePath(value: string): value is FilePath {
 // Type constructors for branded types
 export function createPluginName(value: string): PluginName {
   if (!isValidPluginName(value)) {
-    throw new Error(`Invalid plugin name: ${value}. Must contain only lowercase letters, numbers, hyphens, and underscores, and be 2-50 characters long.`);
+    throw new Error(
+      `Invalid plugin name: ${value}. Must contain only lowercase letters, numbers, hyphens, and underscores, and be 2-50 characters long.`
+    );
   }
   return value as PluginName;
 }
@@ -83,7 +85,7 @@ export function parsePluginId(pluginId: PluginId): { name: PluginName; version: 
   if (parts.length !== 2) {
     throw new Error(`Invalid plugin ID format: ${pluginId}. Expected format: name@version`);
   }
-  
+
   const [name, version] = parts;
   return {
     name: createPluginName(name),

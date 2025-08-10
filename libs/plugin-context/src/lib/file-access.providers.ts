@@ -34,8 +34,6 @@ export const createRestrictedFileAccessProvider = (): Provider => ({
       defaultOptions: {
         allowedExtensions: ['.json', '.txt'],
         maxFileSize: 1 * 1024 * 1024, // 1MB
-        allowedPaths: ['./plugins/temp'],
-        blockedPaths: ['/etc', '/usr', '/bin', '/sbin', '/var', '/boot', '/root', '/home', './'],
       },
       enablePluginConfiguration: false,
     };
@@ -65,7 +63,7 @@ export const createPluginFileAccessServiceFactory = (): Provider => ({
         }
 
         let configService: FileAccessConfigService;
-        
+
         if (config) {
           const pluginConfig: FileAccessConfig = {
             ...baseConfigService.getDefaultOptions(),

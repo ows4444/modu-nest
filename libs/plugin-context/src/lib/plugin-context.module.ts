@@ -2,23 +2,31 @@ import { Module, DynamicModule, Global } from '@nestjs/common';
 import { FileAccessService } from './file-access.service';
 import { PluginPermissionService } from './plugin-permission.service';
 import { RestrictedPluginContextService } from './restricted-plugin-context.service';
+import { NetworkAccessService } from './network-access.service';
+import { DatabaseAccessService } from './database-access.service';
+import { PluginContextService } from './plugin-context.service';
+import { FileAccessConfigService, FILE_ACCESS_CONFIG, DEFAULT_FILE_ACCESS_CONFIG } from './file-access.config';
 import {
-  FileAccessConfigService,
-  FileAccessConfig,
-  FILE_ACCESS_CONFIG,
-  DEFAULT_FILE_ACCESS_CONFIG,
-} from './file-access.config';
+  PluginContextConfigService,
+  GlobalPluginContextConfig,
+  PLUGIN_CONTEXT_CONFIG,
+  DEFAULT_GLOBAL_CONTEXT_CONFIG,
+} from './plugin-context.config';
 
 @Global()
 @Module({})
 export class ModuNestPluginContextModule {
-  static forRoot(config?: Partial<FileAccessConfig>): DynamicModule {
+  static forRoot(config?: Partial<GlobalPluginContextConfig>): DynamicModule {
+    const pluginContextConfig = {
+      ...DEFAULT_GLOBAL_CONTEXT_CONFIG,
+      ...config,
+    };
+
+    // Legacy file access config for backward compatibility
     const fileAccessConfig = {
       ...DEFAULT_FILE_ACCESS_CONFIG,
-      ...config,
       defaultOptions: {
         ...DEFAULT_FILE_ACCESS_CONFIG.defaultOptions,
-        ...config?.defaultOptions,
       },
     };
 
@@ -26,19 +34,32 @@ export class ModuNestPluginContextModule {
       module: ModuNestPluginContextModule,
       providers: [
         {
+          provide: PLUGIN_CONTEXT_CONFIG,
+          useValue: pluginContextConfig,
+        },
+        {
           provide: FILE_ACCESS_CONFIG,
           useValue: fileAccessConfig,
         },
+        PluginContextConfigService,
         FileAccessConfigService,
         FileAccessService,
+        NetworkAccessService,
+        DatabaseAccessService,
         PluginPermissionService,
         RestrictedPluginContextService,
+        PluginContextService,
       ],
       exports: [
+        PluginContextService,
+        PluginContextConfigService,
         FileAccessService,
+        NetworkAccessService,
+        DatabaseAccessService,
         FileAccessConfigService,
         PluginPermissionService,
         RestrictedPluginContextService,
+        PLUGIN_CONTEXT_CONFIG,
         FILE_ACCESS_CONFIG,
       ],
       global: false,
@@ -46,7 +67,7 @@ export class ModuNestPluginContextModule {
   }
 
   static forRootAsync(options: {
-    useFactory: (...args: any[]) => FileAccessConfig | Promise<FileAccessConfig>;
+    useFactory: (...args: any[]) => GlobalPluginContextConfig | Promise<GlobalPluginContextConfig>;
     inject?: any[];
     imports?: any[];
   }): DynamicModule {
@@ -55,20 +76,33 @@ export class ModuNestPluginContextModule {
       imports: options.imports || [],
       providers: [
         {
-          provide: FILE_ACCESS_CONFIG,
+          provide: PLUGIN_CONTEXT_CONFIG,
           useFactory: options.useFactory,
           inject: options.inject || [],
         },
+        {
+          provide: FILE_ACCESS_CONFIG,
+          useValue: DEFAULT_FILE_ACCESS_CONFIG,
+        },
+        PluginContextConfigService,
         FileAccessConfigService,
         FileAccessService,
+        NetworkAccessService,
+        DatabaseAccessService,
         PluginPermissionService,
         RestrictedPluginContextService,
+        PluginContextService,
       ],
       exports: [
+        PluginContextService,
+        PluginContextConfigService,
         FileAccessService,
+        NetworkAccessService,
+        DatabaseAccessService,
         FileAccessConfigService,
         PluginPermissionService,
         RestrictedPluginContextService,
+        PLUGIN_CONTEXT_CONFIG,
         FILE_ACCESS_CONFIG,
       ],
       global: false,
@@ -80,15 +114,32 @@ export class ModuNestPluginContextModule {
       module: ModuNestPluginContextModule,
       providers: [
         {
+          provide: PLUGIN_CONTEXT_CONFIG,
+          useValue: DEFAULT_GLOBAL_CONTEXT_CONFIG,
+        },
+        {
           provide: FILE_ACCESS_CONFIG,
           useValue: DEFAULT_FILE_ACCESS_CONFIG,
         },
+        PluginContextConfigService,
         FileAccessConfigService,
         FileAccessService,
+        NetworkAccessService,
+        DatabaseAccessService,
+        PluginPermissionService,
+        RestrictedPluginContextService,
+        PluginContextService,
+      ],
+      exports: [
+        PluginContextService,
+        PluginContextConfigService,
+        FileAccessService,
+        NetworkAccessService,
+        DatabaseAccessService,
+        FileAccessConfigService,
         PluginPermissionService,
         RestrictedPluginContextService,
       ],
-      exports: [FileAccessService, FileAccessConfigService, PluginPermissionService, RestrictedPluginContextService],
       global: false,
     };
   }

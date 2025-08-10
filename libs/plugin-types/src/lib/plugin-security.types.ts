@@ -50,8 +50,6 @@ export interface ServiceVersionInfo {
 
 export interface FileAccessPermissions {
   allowedExtensions?: string[];
-  allowedPaths?: string[];
-  blockedPaths?: string[];
   maxFileSize?: number;
   canRead?: boolean;
   canWrite?: boolean;
