@@ -43,6 +43,7 @@ import {
   PluginLoadingStrategyFactory,
 } from './strategies';
 import { PluginStateMachine } from './state-machine';
+import { PluginRollbackService, RollbackOptions, RollbackResult, RollbackPlan } from './plugin-rollback.service';
 
 // Enhanced plugin discovery error interfaces
 export interface PluginDiscoveryError {
@@ -115,6 +116,7 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
   private adaptiveManifestCache: PluginAdaptiveManifestCacheService;
   private lifecycleHookDiscovery: PluginLifecycleHookDiscoveryService;
   private loadingState = new Map<string, PluginLoadingState>();
+  private rollbackService: PluginRollbackService;
 
   // Memory management for plugin cleanup - optimized with chunking and lazy cleanup
   private readonly pluginWeakRefs = new Map<string, WeakRef<Record<string, unknown>>>();
@@ -192,6 +194,10 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
 
     // Initialize dependency resolver
     this.dependencyResolver = new PluginDependencyResolver(this.eventEmitter, this.stateMachine);
+
+    // Initialize rollback service
+    this.rollbackService = new PluginRollbackService();
+    this.rollbackService.initialize(this.eventEmitter, this.stateMachine, this.loadedPlugins);
   }
 
   getLoadedPlugins(): Map<string, LoadedPlugin> {
@@ -4199,6 +4205,266 @@ export class PluginLoaderService implements PluginLoaderContext, IPluginEventSub
     this.logger.debug(`Updated tracking configuration for ${pluginName}:`, updates);
     return true;
   }
+
+  // ====================
+  // Plugin Rollback API
+  // ====================
+
+  /**
+   * Create a snapshot of the current plugin state
+   * Snapshots enable rollback to previous working states
+   */
+  async createPluginSnapshot(pluginName: string, description?: string): Promise<string> {
+    const loadedPlugin = this.loadedPlugins.get(pluginName);
+    if (!loadedPlugin) {
+      throw new Error(`Plugin ${pluginName} is not loaded, cannot create snapshot`);
+    }
+
+    try {
+      const snapshotId = await this.rollbackService.createSnapshot(pluginName, description);
+      this.logger.log(`Created snapshot ${snapshotId} for plugin ${pluginName}`);
+      
+      // Record snapshot creation in metrics if available
+      this.metricsService?.recordPluginSnapshot(pluginName, 'created');
+      
+      return snapshotId;
+    } catch (error) {
+      this.logger.error(`Failed to create snapshot for plugin ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * List all snapshots for a plugin
+   */
+  getPluginSnapshots(pluginName: string) {
+    return this.rollbackService.getSnapshots(pluginName);
+  }
+
+  /**
+   * Get a specific plugin snapshot
+   */
+  getPluginSnapshot(pluginName: string, snapshotId: string) {
+    return this.rollbackService.getSnapshot(pluginName, snapshotId);
+  }
+
+  /**
+   * Delete a plugin snapshot
+   */
+  async deletePluginSnapshot(pluginName: string, snapshotId: string): Promise<boolean> {
+    const deleted = this.rollbackService.deleteSnapshot(pluginName, snapshotId);
+    
+    if (deleted) {
+      this.metricsService?.recordPluginSnapshot(pluginName, 'deleted');
+      this.logger.debug(`Deleted snapshot ${snapshotId} for plugin ${pluginName}`);
+    }
+    
+    return deleted;
+  }
+
+  /**
+   * Rollback plugin to a previous version or snapshot
+   */
+  async rollbackPlugin(pluginName: string, options: RollbackOptions): Promise<RollbackResult> {
+    const loadedPlugin = this.loadedPlugins.get(pluginName);
+    if (!loadedPlugin && !options.targetSnapshot) {
+      throw new Error(`Plugin ${pluginName} is not loaded and no snapshot specified`);
+    }
+
+    try {
+      this.logger.log(
+        `Starting rollback for plugin ${pluginName} using ${options.rollbackStrategy} strategy`
+      );
+
+      // Record rollback attempt in metrics
+      this.metricsService?.recordPluginRollback(pluginName, 'started', options.rollbackStrategy);
+
+      const result = await this.rollbackService.rollbackPlugin(pluginName, options);
+
+      // Update plugin state after successful rollback
+      if (result.success) {
+        // Refresh plugin in our loaded plugins map if it was reloaded
+        if (options.rollbackStrategy === 'snapshot' || options.rollbackStrategy === 'version') {
+          await this.refreshPluginAfterRollback(pluginName, result);
+        }
+
+        this.metricsService?.recordPluginRollback(pluginName, 'completed', options.rollbackStrategy);
+        this.logger.log(
+          `Successfully rolled back ${pluginName} in ${result.duration}ms (${result.rollbackType})`
+        );
+      } else {
+        this.metricsService?.recordPluginRollback(pluginName, 'failed', options.rollbackStrategy);
+        this.logger.error(`Rollback failed for ${pluginName}: ${result.errors.join(', ')}`);
+      }
+
+      return result;
+    } catch (error) {
+      this.metricsService?.recordPluginRollback(pluginName, 'failed', options.rollbackStrategy);
+      this.logger.error(`Rollback error for plugin ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a rollback plan without executing it
+   * Useful for previewing rollback impact and required steps
+   */
+  async generateRollbackPlan(pluginName: string, options: RollbackOptions): Promise<RollbackPlan> {
+    try {
+      const plan = await this.rollbackService.generateRollbackPlan(pluginName, options);
+      
+      this.logger.debug(
+        `Generated rollback plan for ${pluginName}: ${plan.steps.length} steps, ` +
+        `estimated ${plan.estimatedDuration}ms duration`
+      );
+      
+      return plan;
+    } catch (error) {
+      this.logger.error(`Failed to generate rollback plan for ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get active rollback operations
+   */
+  getActiveRollbacks(): string[] {
+    return this.rollbackService.getActiveRollbacks();
+  }
+
+  /**
+   * Cancel an active rollback operation
+   */
+  async cancelRollback(pluginName: string): Promise<boolean> {
+    try {
+      const cancelled = await this.rollbackService.cancelRollback(pluginName);
+      
+      if (cancelled) {
+        this.metricsService?.recordPluginRollback(pluginName, 'cancelled', 'unknown');
+        this.logger.warn(`Cancelled rollback operation for plugin ${pluginName}`);
+      }
+      
+      return cancelled;
+    } catch (error) {
+      this.logger.error(`Failed to cancel rollback for ${pluginName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get rollback history for a plugin or all plugins
+   */
+  getRollbackHistory(pluginName?: string, limit = 20) {
+    return this.rollbackService.getRollbackHistory(pluginName, limit);
+  }
+
+  /**
+   * Enhanced plugin reload with automatic snapshot creation
+   */
+  async reloadPluginWithSnapshot(pluginName: string, reason = 'manual-reload'): Promise<void> {
+    const loadedPlugin = this.loadedPlugins.get(pluginName);
+    if (!loadedPlugin) {
+      throw new Error(`Plugin ${pluginName} is not loaded`);
+    }
+
+    try {
+      // Create snapshot before reload
+      const snapshotId = await this.createPluginSnapshot(
+        pluginName, 
+        `Pre-reload snapshot (${reason})`
+      );
+
+      this.logger.debug(`Created pre-reload snapshot ${snapshotId} for ${pluginName}`);
+
+      // Perform reload
+      await this.unloadPlugin(pluginName, 'reload');
+      await this.loadPlugin(pluginName);
+
+      this.logger.log(`Successfully reloaded plugin ${pluginName} with snapshot backup`);
+    } catch (error) {
+      this.logger.error(`Failed to reload plugin ${pluginName} with snapshot:`, error);
+      
+      // Attempt automatic rollback on reload failure
+      try {
+        const snapshots = this.getPluginSnapshots(pluginName);
+        if (snapshots.length > 0) {
+          const latestSnapshot = snapshots[0];
+          this.logger.warn(`Attempting automatic rollback to snapshot ${latestSnapshot.timestamp}`);
+          
+          await this.rollbackPlugin(pluginName, {
+            reason: 'auto-recovery-from-reload-failure',
+            rollbackStrategy: 'snapshot',
+            targetSnapshot: `${pluginName}-${latestSnapshot.timestamp.getTime()}`,
+            cascadeRollback: false,
+            maxRollbackDepth: 1,
+            rollbackTimeout: 30000,
+            preserveUserData: true,
+          });
+          
+          this.logger.warn(`Auto-recovery successful for plugin ${pluginName}`);
+        }
+      } catch (rollbackError) {
+        this.logger.error(`Auto-recovery failed for plugin ${pluginName}:`, rollbackError);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Rollback plugin to previous working state (convenience method)
+   */
+  async rollbackToPreviousState(pluginName: string): Promise<RollbackResult> {
+    const snapshots = this.getPluginSnapshots(pluginName);
+    if (snapshots.length === 0) {
+      throw new Error(`No snapshots available for plugin ${pluginName}`);
+    }
+
+    // Find the most recent snapshot
+    const latestSnapshot = snapshots[0];
+    
+    return this.rollbackPlugin(pluginName, {
+      reason: 'rollback-to-previous-state',
+      rollbackStrategy: 'snapshot',
+      targetSnapshot: `${pluginName}-${latestSnapshot.timestamp.getTime()}`,
+      cascadeRollback: false,
+      maxRollbackDepth: 1,
+      rollbackTimeout: this.defaultRollbackTimeout || 60000,
+      preserveUserData: true,
+    });
+  }
+
+  /**
+   * Refresh plugin state after rollback
+   * This updates the internal plugin tracking after a successful rollback
+   */
+  private async refreshPluginAfterRollback(pluginName: string, rollbackResult: RollbackResult): Promise<void> {
+    try {
+      // Update state machine if needed
+      if (rollbackResult.success && this.stateMachine) {
+        const currentState = this.stateMachine.getCurrentState(pluginName);
+        if (currentState === PluginState.FAILED || currentState === PluginState.UNLOADED) {
+          // Attempt to transition back to loaded state
+          this.stateMachine.transition(pluginName, PluginTransition.REDISCOVER);
+          this.stateMachine.transition(pluginName, PluginTransition.START_LOADING);
+          this.stateMachine.transition(pluginName, PluginTransition.COMPLETE_LOADING);
+        }
+      }
+
+      // Clear any circuit breaker state
+      this.circuitBreaker.reset(pluginName);
+
+      // Refresh caches
+      const pluginPattern = PluginCacheKeyBuilder.pluginPattern(pluginName);
+      this.cacheService.invalidatePattern(pluginPattern);
+
+      this.logger.debug(`Refreshed plugin state after rollback for ${pluginName}`);
+    } catch (error) {
+      this.logger.warn(`Failed to refresh plugin state after rollback for ${pluginName}:`, error);
+    }
+  }
+
+  private readonly defaultRollbackTimeout = 60000; // 1 minute
 }
 
 // Supporting types for enhanced plugin loading
