@@ -11,7 +11,11 @@ import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
 import { SharedConfigModule } from '@modu-nest/config';
-import { ModuNestPluginContextModule } from '@modu-nest/plugin-context';
+import { 
+  ModuNestPluginContextModule, 
+  RestrictedPluginContextService,
+  PluginPermissionService 
+} from '@modu-nest/plugin-context';
 import {
   PluginGuardInterceptor,
   PluginGuardRegistryService,
@@ -88,7 +92,9 @@ export class AppModule implements OnModuleInit {
     private pluginLoader: PluginLoaderService,
     private metricsService: PluginMetricsService,
     private guardRegistry: PluginGuardRegistryService,
-    private guardInterceptor: PluginGuardInterceptor
+    private guardInterceptor: PluginGuardInterceptor,
+    private contextService: RestrictedPluginContextService,
+    private permissionService: PluginPermissionService
   ) {}
 
   async onModuleInit() {
@@ -99,6 +105,10 @@ export class AppModule implements OnModuleInit {
 
     // Set up guard registry in plugin loader
     this.pluginLoader.setGuardRegistry(this.guardRegistry);
+    
+    // Set up context and permission services
+    this.pluginLoader.setContextService(this.contextService);
+    this.pluginLoader.setPermissionService(this.permissionService);
 
     const loadedPlugins = this.pluginLoader.getLoadedPlugins();
     this.instanceLogger.log(`Active plugins: ${Array.from(loadedPlugins.keys()).join(', ')}`);

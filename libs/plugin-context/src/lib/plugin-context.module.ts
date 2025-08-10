@@ -1,12 +1,15 @@
-import { Module, DynamicModule } from '@nestjs/common';
+import { Module, DynamicModule, Global } from '@nestjs/common';
 import { FileAccessService } from './file-access.service';
-import { 
-  FileAccessConfigService, 
-  FileAccessConfig, 
-  FILE_ACCESS_CONFIG, 
-  DEFAULT_FILE_ACCESS_CONFIG 
+import { PluginPermissionService } from './plugin-permission.service';
+import { RestrictedPluginContextService } from './restricted-plugin-context.service';
+import {
+  FileAccessConfigService,
+  FileAccessConfig,
+  FILE_ACCESS_CONFIG,
+  DEFAULT_FILE_ACCESS_CONFIG,
 } from './file-access.config';
 
+@Global()
 @Module({})
 export class ModuNestPluginContextModule {
   static forRoot(config?: Partial<FileAccessConfig>): DynamicModule {
@@ -28,8 +31,16 @@ export class ModuNestPluginContextModule {
         },
         FileAccessConfigService,
         FileAccessService,
+        PluginPermissionService,
+        RestrictedPluginContextService,
       ],
-      exports: [FileAccessService, FileAccessConfigService, FILE_ACCESS_CONFIG],
+      exports: [
+        FileAccessService,
+        FileAccessConfigService,
+        PluginPermissionService,
+        RestrictedPluginContextService,
+        FILE_ACCESS_CONFIG,
+      ],
       global: false,
     };
   }
@@ -50,8 +61,16 @@ export class ModuNestPluginContextModule {
         },
         FileAccessConfigService,
         FileAccessService,
+        PluginPermissionService,
+        RestrictedPluginContextService,
       ],
-      exports: [FileAccessService, FileAccessConfigService, FILE_ACCESS_CONFIG],
+      exports: [
+        FileAccessService,
+        FileAccessConfigService,
+        PluginPermissionService,
+        RestrictedPluginContextService,
+        FILE_ACCESS_CONFIG,
+      ],
       global: false,
     };
   }
@@ -66,8 +85,10 @@ export class ModuNestPluginContextModule {
         },
         FileAccessConfigService,
         FileAccessService,
+        PluginPermissionService,
+        RestrictedPluginContextService,
       ],
-      exports: [FileAccessService, FileAccessConfigService],
+      exports: [FileAccessService, FileAccessConfigService, PluginPermissionService, RestrictedPluginContextService],
       global: false,
     };
   }

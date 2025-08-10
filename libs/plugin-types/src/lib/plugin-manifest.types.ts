@@ -16,6 +16,21 @@ export interface PluginCompatibility {
   nodeVersion: string;
 }
 
+export interface PluginPermissions {
+  services?: string[];
+  modules?: string[];
+  network?: {
+    outbound?: boolean;
+    inbound?: boolean;
+    allowedHosts?: string[];
+    allowedPorts?: number[];
+  };
+  environment?: {
+    canReadEnvVars?: boolean;
+    allowedEnvVars?: string[];
+  };
+}
+
 export interface PluginManifest {
   name: string;
   version: string;
@@ -27,6 +42,8 @@ export interface PluginManifest {
   critical?: boolean;
   security?: PluginSecurity;
   compatibility?: PluginCompatibility;
+  permissions?: PluginPermissions;
+  config?: Record<string, any>;
   module: PluginModuleMeta;
 }
 

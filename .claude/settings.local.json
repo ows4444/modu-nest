@@ -1,6 +1,14 @@
 {
   "permissions": {
-    "allow": ["Bash(node:*)"],
+    "allow": [
+      "Bash(node:*)",
+      "Bash(nx run:*)",
+      "Bash(git add:*)",
+      "Bash(npx nx:*)",
+      "Bash(nx build:*)",
+      "Bash(nx serve:*)",
+      "Bash(curl:*)"
+    ],
     "deny": []
   }
 }
