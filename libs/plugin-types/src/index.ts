@@ -75,6 +75,9 @@ export * from './lib/plugin-cache.service';
 // Plugin version utilities
 export * from './lib/plugin-version-utils';
 
+// Plugin compatibility checking system
+export * from './lib/plugin-compatibility-checker';
+
 // Plugin event system
 export * from './lib/plugin-events';
 export * from './lib/plugin-event-emitter';
