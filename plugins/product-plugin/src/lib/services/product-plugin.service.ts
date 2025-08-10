@@ -1,4 +1,4 @@
-import { PluginInjectable } from '@modu-nest/plugin-types';
+import { PluginInjectable } from '@modu-nest/plugin-decorators';
 import { PluginContext } from '@modu-nest/plugin-context';
 import { NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { Product, CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';

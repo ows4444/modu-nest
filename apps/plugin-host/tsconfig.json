@@ -10,6 +10,12 @@
       "path": "../../libs/plugin-types"
     },
     {
+      "path": "../../libs/plugin-core"
+    },
+    {
+      "path": "../../libs/plugin-services"
+    },
+    {
       "path": "../../libs/plugin-context"
     },
     {

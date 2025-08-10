@@ -20,6 +20,9 @@
       "path": "../../libs/plugin-context/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/plugin-decorators/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/plugin-types/tsconfig.lib.json"
     }
   ],

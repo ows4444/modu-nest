@@ -22,9 +22,11 @@ import {
   PluginGuardInterceptor,
   PluginGuardRegistryService,
   PluginPermissionInterceptor,
+} from '@modu-nest/plugin-services';
+import {
   DefaultPluginPermissionService,
   PLUGIN_PERMISSION_SERVICE,
-} from '@modu-nest/plugin-types';
+} from '@modu-nest/plugin-core';
 
 @Module({})
 export class AppModule implements OnModuleInit {

@@ -1,1 +1,2 @@
-export * from './lib/environment.enum';
+// Re-export from shared-core for backward compatibility
+export * from '@modu-nest/shared-core';

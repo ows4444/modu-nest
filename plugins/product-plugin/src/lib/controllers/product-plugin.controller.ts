@@ -9,13 +9,13 @@ import {
   PluginLifecycleHookDecorator,
   ICrossPluginService,
   CROSS_PLUGIN_SERVICE_TOKEN,
-} from '@modu-nest/plugin-types';
+} from '@modu-nest/plugin-decorators';
 import { Body, Param, Query, Request, ValidationPipe, UsePipes, Logger, HttpException, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { ProductPluginService } from '../services/product-plugin.service';
 import type { CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
 import { ErrorHandler, ApiResponse } from '@modu-nest/shared/utils';
 
-@PluginRoute('products')
+@PluginRoutePrefix('products')
 export class ProductPluginController {
   private readonly logger = new Logger(ProductPluginController.name);
 

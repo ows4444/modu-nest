@@ -26,6 +26,12 @@
       "path": "../../libs/plugin-types/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/plugin-core/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/plugin-services/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/plugin-context/tsconfig.lib.json"
     },
     {

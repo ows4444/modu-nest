@@ -38,6 +38,24 @@
     },
     {
       "path": "./libs/plugin-context"
+    },
+    {
+      "path": "./libs/plugin-core"
+    },
+    {
+      "path": "./libs/plugin-services"
+    },
+    {
+      "path": "./libs/plugin-decorators"
+    },
+    {
+      "path": "./libs/plugin-validation"
+    },
+    {
+      "path": "./libs/shared/core"
+    },
+    {
+      "path": "./libs/shared/app-common"
     }
   ]
 }

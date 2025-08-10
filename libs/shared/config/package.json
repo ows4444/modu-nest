@@ -23,7 +23,9 @@
     "tslib": "^2.3.0",
     "@nestjs/config": "^4.0.2",
     "@modu-nest/const": "0.0.1",
+    "@modu-nest/shared-core": "*",
     "@modu-nest/utils": "0.0.1",
-    "@nestjs/common": "^11.0.0"
+    "@nestjs/common": "^11.0.0",
+    "joi": "^17.12.0"
   }
 }

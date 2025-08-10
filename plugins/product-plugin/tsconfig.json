@@ -7,6 +7,9 @@
       "path": "../../libs/plugin-context"
     },
     {
+      "path": "../../libs/plugin-decorators"
+    },
+    {
       "path": "../../libs/plugin-types"
     },
     {

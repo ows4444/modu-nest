@@ -1,4 +1,4 @@
-import { EnvironmentType } from '@modu-nest/const';
+import { EnvironmentType } from '@modu-nest/shared-core';
 
 export const ENVIRONMENT_ENV = 'ENVIRONMENT_ENV';
 export interface Environment {

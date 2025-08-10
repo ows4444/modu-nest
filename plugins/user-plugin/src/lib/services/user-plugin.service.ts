@@ -1,4 +1,4 @@
-import { PluginInjectable } from '@modu-nest/plugin-types';
+import { PluginInjectable } from '@modu-nest/plugin-decorators';
 import { FileAccessService } from '@modu-nest/plugin-context';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { User, CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';

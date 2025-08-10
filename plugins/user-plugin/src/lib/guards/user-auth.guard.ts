@@ -1,5 +1,5 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard } from '@modu-nest/plugin-types';
+import { BasePluginGuard, RegisterPluginGuard } from '@modu-nest/plugin-decorators';
 
 @RegisterPluginGuard({
   name: 'user-auth',

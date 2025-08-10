@@ -1,5 +1,5 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard } from '@modu-nest/plugin-types';
+import { BasePluginGuard, RegisterPluginGuard } from '@modu-nest/plugin-decorators';
 
 @RegisterPluginGuard({
   name: 'admin-role',

@@ -1,21 +1,23 @@
 import {
-  PluginRoute,
   PluginGet,
   PluginPost,
   PluginPut,
   PluginDelete,
   PluginUseGuards,
   PluginPermissions,
+  PluginRoutePrefix,
   PluginLifecycleHookDecorator,
+} from '@modu-nest/plugin-decorators';
+import {
   ICrossPluginService,
   CROSS_PLUGIN_SERVICE_TOKEN,
-} from '@modu-nest/plugin-types';
+} from '@modu-nest/plugin-core';
 import { Body, Param, Query, ValidationPipe, UsePipes, Logger, HttpException, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
 import type { CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
-import { ErrorHandler, ApiResponse } from '@modu-nest/shared/utils';
+import { ApiResponse, ErrorHandler } from '@modu-nest/utils';
 
-@PluginRoute('users')
+@PluginRoutePrefix('users')
 export class UserPluginController {
   private readonly logger = new Logger(UserPluginController.name);
 

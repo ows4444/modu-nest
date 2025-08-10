@@ -8,7 +8,9 @@
       "Bash(nx build:*)",
       "Bash(nx serve:*)",
       "Bash(curl:*)",
-      "Bash(nx sync:*)"
+      "Bash(nx sync:*)",
+      "Bash(find:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

@@ -1,5 +1,5 @@
 import { ExecutionContext, ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard, IAuthenticationService, AUTHENTICATION_SERVICE_TOKEN } from '@modu-nest/plugin-types';
+import { BasePluginGuard, RegisterPluginGuard, IAuthenticationService, AUTHENTICATION_SERVICE_TOKEN } from '@modu-nest/plugin-decorators';
 
 @RegisterPluginGuard({
   name: 'product-ownership',
