@@ -1,10 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { 
-  PluginManifest, 
-  LoadedPlugin, 
-  PluginEventEmitter,
-  IPluginEventSubscriber 
-} from '@modu-nest/plugin-types';
+import { PluginManifest, LoadedPlugin, PluginEventEmitter, IPluginEventSubscriber } from '@modu-nest/plugin-types';
 
 // Conflict detection interfaces
 export interface ConflictDetectionResult {
@@ -138,7 +133,7 @@ export interface ConflictResolutionResult {
 
 /**
  * Advanced Plugin Conflict Detection and Resolution Service
- * 
+ *
  * Detects and resolves various types of conflicts between plugins:
  * - Service token conflicts (multiple plugins exporting same service)
  * - Version incompatibilities
@@ -184,10 +179,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
   /**
    * Initialize with required dependencies
    */
-  initialize(
-    loadedPlugins: Map<string, LoadedPlugin>,
-    eventEmitter: PluginEventEmitter
-  ): void {
+  initialize(loadedPlugins: Map<string, LoadedPlugin>, eventEmitter: PluginEventEmitter): void {
     this.loadedPluginsRef = loadedPlugins;
     this.eventEmitter = eventEmitter;
     this.subscribeToEvents(eventEmitter);
@@ -211,25 +203,25 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
       const warnings: PluginWarning[] = [];
 
       // Service token conflicts
-      conflicts.push(...await this.detectServiceTokenConflicts(plugins));
+      conflicts.push(...(await this.detectServiceTokenConflicts(plugins)));
 
       // Version incompatibilities
-      conflicts.push(...await this.detectVersionConflicts(plugins));
+      conflicts.push(...(await this.detectVersionConflicts(plugins)));
 
       // Dependency conflicts
-      conflicts.push(...await this.detectDependencyConflicts(plugins));
+      conflicts.push(...(await this.detectDependencyConflicts(plugins)));
 
       // Capability conflicts
-      conflicts.push(...await this.detectCapabilityConflicts(plugins));
+      conflicts.push(...(await this.detectCapabilityConflicts(plugins)));
 
       // Guard conflicts
-      conflicts.push(...await this.detectGuardConflicts(plugins));
+      conflicts.push(...(await this.detectGuardConflicts(plugins)));
 
       // Export collisions
-      conflicts.push(...await this.detectExportCollisions(plugins));
+      conflicts.push(...(await this.detectExportCollisions(plugins)));
 
       // Namespace pollution
-      conflicts.push(...await this.detectNamespacePollution(plugins));
+      conflicts.push(...(await this.detectNamespacePollution(plugins)));
 
       // Generate warnings
       for (const [pluginName, plugin] of plugins) {
@@ -265,7 +257,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
       this.logger.log(
         `Conflict detection completed: ${conflicts.length} conflicts, ${warnings.length} warnings ` +
-        `in ${Date.now() - startTime}ms`
+          `in ${Date.now() - startTime}ms`
       );
 
       return result;
@@ -277,40 +269,32 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
   /**
    * Detect conflicts for a specific plugin before loading
    */
-  async detectConflictsForPlugin(
-    pluginName: string,
-    manifest: PluginManifest
-  ): Promise<ConflictDetectionResult> {
+  async detectConflictsForPlugin(pluginName: string, manifest: PluginManifest): Promise<ConflictDetectionResult> {
     const tempPlugins = new Map(this.loadedPluginsRef || []);
-    
+
     // Add the new plugin temporarily for conflict detection
     const mockLoadedPlugin: LoadedPlugin = {
       manifest,
       module: {}, // We don't need the actual module for conflict detection
-      crossPluginServices: [],
-      isLoaded: false,
-      loadedAt: new Date(),
+      instance: null,
     };
-    
+
     tempPlugins.set(pluginName, mockLoadedPlugin);
 
     // Use the temporary plugin set for detection
     const oldRef = this.loadedPluginsRef;
     this.loadedPluginsRef = tempPlugins;
-    
+
     try {
       const result = await this.detectConflicts([pluginName]);
-      
+
       // Filter results to only include conflicts involving the new plugin
-      result.conflicts = result.conflicts.filter(conflict => 
-        conflict.conflictingPlugins.includes(pluginName)
-      );
-      result.warnings = result.warnings.filter(warning => 
-        warning.pluginName === pluginName
-      );
+      result.conflicts = result.conflicts.filter((conflict) => conflict.conflictingPlugins.includes(pluginName));
+      result.warnings = result.warnings.filter((warning) => warning.pluginName === pluginName);
 
       return result;
     } finally {
+      // Restore the original loaded plugins reference
       this.loadedPluginsRef = oldRef;
     }
   }
@@ -358,8 +342,9 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
       return [];
     }
 
-    const autoResolvableConflicts = Array.from(this.detectedConflicts.values())
-      .filter(conflict => conflict.autoResolvable);
+    const autoResolvableConflicts = Array.from(this.detectedConflicts.values()).filter(
+      (conflict) => conflict.autoResolvable
+    );
 
     const results: ConflictResolutionResult[] = [];
 
@@ -396,7 +381,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
       for (const service of plugin.manifest.module.crossPluginServices) {
         const token = service.token || service.serviceName;
-        
+
         if (!tokenMap.has(token)) {
           tokenMap.set(token, []);
         }
@@ -422,7 +407,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           ],
           metadata: {
             tokens: [token],
-            versions: pluginNames.map(name => plugins.get(name)?.manifest.version || 'unknown'),
+            versions: pluginNames.map((name) => plugins.get(name)?.manifest.version || 'unknown'),
           },
         });
       }
@@ -460,10 +445,10 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
       if (versions.length > 1) {
         // Check semantic version compatibility
         const incompatibleVersions = this.findIncompatibleVersions(versions);
-        
+
         if (incompatibleVersions.length > 0) {
-          const conflictingPlugins = incompatibleVersions.flatMap(v => versionMap.get(v) || []);
-          
+          const conflictingPlugins = incompatibleVersions.flatMap((v) => versionMap.get(v) || []);
+
           conflicts.push({
             type: ConflictType.VERSION_INCOMPATIBLE,
             severity: ConflictSeverity.MEDIUM,
@@ -490,13 +475,13 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
   private async detectDependencyConflicts(plugins: Map<string, LoadedPlugin>): Promise<PluginConflict[]> {
     const conflicts: PluginConflict[] = [];
-    
+
     // Build dependency graph
     const dependencyGraph = this.buildDependencyGraph(plugins);
-    
+
     // Detect circular dependencies
     const circularDeps = this.detectCircularDependencies(dependencyGraph);
-    
+
     for (const cycle of circularDeps) {
       conflicts.push({
         type: ConflictType.DEPENDENCY_CIRCULAR,
@@ -506,10 +491,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
         description: `Circular dependency detected: ${cycle.join(' -> ')}`,
         detectedAt: new Date(),
         autoResolvable: false,
-        resolutionStrategies: [
-          ResolutionStrategy.DEPENDENCY_INJECTION,
-          ResolutionStrategy.MANUAL_RESOLUTION,
-        ],
+        resolutionStrategies: [ResolutionStrategy.DEPENDENCY_INJECTION, ResolutionStrategy.MANUAL_RESOLUTION],
         metadata: {
           cycle,
         },
@@ -518,7 +500,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
     // Detect missing dependencies
     const missingDeps = this.detectMissingDependencies(plugins, dependencyGraph);
-    
+
     for (const [pluginName, missingDep] of missingDeps) {
       conflicts.push({
         type: ConflictType.DEPENDENCY_MISSING,
@@ -528,10 +510,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
         description: `Plugin '${pluginName}' has missing dependency: '${missingDep}'`,
         detectedAt: new Date(),
         autoResolvable: false,
-        resolutionStrategies: [
-          ResolutionStrategy.GRACEFUL_DEGRADATION,
-          ResolutionStrategy.PLUGIN_DISABLE,
-        ],
+        resolutionStrategies: [ResolutionStrategy.GRACEFUL_DEGRADATION, ResolutionStrategy.PLUGIN_DISABLE],
         metadata: {
           missingDependency: missingDep,
         },
@@ -547,7 +526,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
     for (const [pluginName, plugin] of plugins) {
       const capabilities: string[] = []; // Simplified - capabilities would be defined in manifest
-      
+
       for (const capability of capabilities) {
         if (!capabilityMap.has(capability)) {
           capabilityMap.set(capability, []);
@@ -558,7 +537,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
     // Find duplicated capabilities that shouldn't be duplicated
     const exclusiveCapabilities = ['database-migration', 'system-configuration', 'authentication-provider'];
-    
+
     for (const [capability, pluginNames] of capabilityMap) {
       if (pluginNames.length > 1 && exclusiveCapabilities.includes(capability)) {
         conflicts.push({
@@ -569,10 +548,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           description: `Multiple plugins provide exclusive capability '${capability}': ${pluginNames.join(', ')}`,
           detectedAt: new Date(),
           autoResolvable: true,
-          resolutionStrategies: [
-            ResolutionStrategy.PLUGIN_PRIORITIZATION,
-            ResolutionStrategy.GRACEFUL_DEGRADATION,
-          ],
+          resolutionStrategies: [ResolutionStrategy.PLUGIN_PRIORITIZATION, ResolutionStrategy.GRACEFUL_DEGRADATION],
           metadata: {
             capability,
           },
@@ -589,10 +565,10 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
     for (const [pluginName, plugin] of plugins) {
       const guards = plugin.manifest.module.guards || [];
-      
+
       for (const guard of guards) {
         const guardName = guard.name;
-        
+
         if (!guardMap.has(guardName)) {
           guardMap.set(guardName, []);
         }
@@ -611,10 +587,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           description: `Guard name '${guardName}' is used by multiple plugins: ${pluginNames.join(', ')}`,
           detectedAt: new Date(),
           autoResolvable: true,
-          resolutionStrategies: [
-            ResolutionStrategy.NAMESPACE_ISOLATION,
-            ResolutionStrategy.PLUGIN_PRIORITIZATION,
-          ],
+          resolutionStrategies: [ResolutionStrategy.NAMESPACE_ISOLATION, ResolutionStrategy.PLUGIN_PRIORITIZATION],
           metadata: {
             guardName,
           },
@@ -631,7 +604,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
     for (const [pluginName, plugin] of plugins) {
       const exports = plugin.manifest.module.exports || [];
-      
+
       for (const exportName of exports) {
         if (!exportMap.has(exportName)) {
           exportMap.set(exportName, []);
@@ -651,10 +624,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           description: `Export '${exportName}' is provided by multiple plugins: ${pluginNames.join(', ')}`,
           detectedAt: new Date(),
           autoResolvable: true,
-          resolutionStrategies: [
-            ResolutionStrategy.NAMESPACE_ISOLATION,
-            ResolutionStrategy.SERVICE_ALIASING,
-          ],
+          resolutionStrategies: [ResolutionStrategy.NAMESPACE_ISOLATION, ResolutionStrategy.SERVICE_ALIASING],
           metadata: {
             exportName,
           },
@@ -667,19 +637,19 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
   private async detectNamespacePollution(plugins: Map<string, LoadedPlugin>): Promise<PluginConflict[]> {
     const conflicts: PluginConflict[] = [];
-    
+
     // This is a simplified implementation - real namespace pollution detection
     // would need deeper analysis of the plugin modules
-    
+
     const globalExports = new Map<string, string[]>();
-    
+
     for (const [pluginName, plugin] of plugins) {
       const services = plugin.manifest.module.crossPluginServices || [];
-      
+
       for (const service of services) {
         if (service.global) {
           const serviceName = service.serviceName;
-          
+
           if (!globalExports.has(serviceName)) {
             globalExports.set(serviceName, []);
           }
@@ -687,13 +657,13 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
         }
       }
     }
-    
+
     // Check for too many global exports from single plugin
     for (const [pluginName, plugin] of plugins) {
-      const globalServiceCount = (plugin.manifest.module.crossPluginServices || [])
-        .filter(s => s.global).length;
-        
-      if (globalServiceCount > 10) { // Threshold for namespace pollution
+      const globalServiceCount = (plugin.manifest.module.crossPluginServices || []).filter((s) => s.global).length;
+
+      if (globalServiceCount > 10) {
+        // Threshold for namespace pollution
         conflicts.push({
           type: ConflictType.NAMESPACE_POLLUTION,
           severity: ConflictSeverity.LOW,
@@ -702,9 +672,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           description: `Plugin '${pluginName}' exports ${globalServiceCount} global services, potentially polluting namespace`,
           detectedAt: new Date(),
           autoResolvable: false,
-          resolutionStrategies: [
-            ResolutionStrategy.NAMESPACE_ISOLATION,
-          ],
+          resolutionStrategies: [ResolutionStrategy.NAMESPACE_ISOLATION],
           metadata: {
             globalServiceCount,
           },
@@ -777,7 +745,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     for (const conflict of conflicts) {
       const conflictId = this.generateConflictId(conflict);
       const strategy = this.selectOptimalResolutionStrategy(conflict);
-      
+
       resolutions.push({
         conflictId,
         strategy,
@@ -794,12 +762,12 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
   }
 
   private analyzeConflictImpact(conflicts: PluginConflict[], warnings: PluginWarning[]): ConflictImpactAnalysis {
-    const criticalConflicts = conflicts.filter(c => c.severity === ConflictSeverity.CRITICAL).length;
-    const highConflicts = conflicts.filter(c => c.severity === ConflictSeverity.HIGH).length;
-    
+    const criticalConflicts = conflicts.filter((c) => c.severity === ConflictSeverity.CRITICAL).length;
+    const highConflicts = conflicts.filter((c) => c.severity === ConflictSeverity.HIGH).length;
+
     const affectedPlugins = new Set<string>();
-    conflicts.forEach(c => c.conflictingPlugins.forEach(p => affectedPlugins.add(p)));
-    
+    conflicts.forEach((c) => c.conflictingPlugins.forEach((p) => affectedPlugins.add(p)));
+
     let systemStability: ConflictImpactAnalysis['systemStability'] = 'stable';
     if (criticalConflicts > 0) {
       systemStability = 'critical';
@@ -816,7 +784,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     if (highConflicts > 0) {
       recommendedActions.push('Schedule resolution of high-severity conflicts within 24 hours');
     }
-    if (conflicts.some(c => c.autoResolvable)) {
+    if (conflicts.some((c) => c.autoResolvable)) {
       recommendedActions.push('Enable automatic conflict resolution for eligible conflicts');
     }
 
@@ -832,8 +800,8 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
   private updateConflictRegistry(conflicts: PluginConflict[]): void {
     // Clear resolved conflicts
-    const currentConflictIds = new Set(conflicts.map(c => this.generateConflictId(c)));
-    
+    const currentConflictIds = new Set(conflicts.map((c) => this.generateConflictId(c)));
+
     for (const [conflictId] of this.detectedConflicts) {
       if (!currentConflictIds.has(conflictId)) {
         this.detectedConflicts.delete(conflictId);
@@ -851,8 +819,8 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     const scanTime = Date.now() - startTime;
     this.conflictMetrics.totalScans++;
     this.conflictMetrics.conflictsDetected += conflictCount;
-    this.conflictMetrics.averageScanTime = 
-      (this.conflictMetrics.averageScanTime * (this.conflictMetrics.totalScans - 1) + scanTime) / 
+    this.conflictMetrics.averageScanTime =
+      (this.conflictMetrics.averageScanTime * (this.conflictMetrics.totalScans - 1) + scanTime) /
       this.conflictMetrics.totalScans;
     this.lastScanTime = Date.now();
   }
@@ -866,7 +834,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     if (conflict.resolutionStrategies.length > 0) {
       return conflict.resolutionStrategies[0];
     }
-    
+
     switch (conflict.type) {
       case ConflictType.SERVICE_TOKEN:
         return ResolutionStrategy.SERVICE_ALIASING;
@@ -879,15 +847,18 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     }
   }
 
-  private async resolveConflict(conflict: PluginConflict, options: ConflictResolutionOptions): Promise<ConflictResolutionResult> {
+  private async resolveConflict(
+    conflict: PluginConflict,
+    options: ConflictResolutionOptions
+  ): Promise<ConflictResolutionResult> {
     const startTime = Date.now();
     const conflictId = this.generateConflictId(conflict);
 
     try {
       // This is a simplified implementation
-      // Real resolution would involve modifying plugin configurations, 
+      // Real resolution would involve modifying plugin configurations,
       // service tokens, dependency injection setup, etc.
-      
+
       this.logger.log(`Resolving conflict ${conflictId} using strategy ${options.strategy}`);
 
       // Simulate resolution based on strategy
@@ -982,12 +953,12 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
 
   private buildDependencyGraph(plugins: Map<string, LoadedPlugin>): Map<string, string[]> {
     const graph = new Map<string, string[]>();
-    
+
     for (const [pluginName, plugin] of plugins) {
       const dependencies = plugin.manifest.dependencies || [];
       graph.set(pluginName, dependencies);
     }
-    
+
     return graph;
   }
 
@@ -1027,9 +998,12 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     return cycles;
   }
 
-  private detectMissingDependencies(plugins: Map<string, LoadedPlugin>, graph: Map<string, string[]>): Array<[string, string]> {
+  private detectMissingDependencies(
+    plugins: Map<string, LoadedPlugin>,
+    graph: Map<string, string[]>
+  ): Array<[string, string]> {
     const missing: Array<[string, string]> = [];
-    
+
     for (const [pluginName, dependencies] of graph) {
       for (const dep of dependencies) {
         if (!plugins.has(dep)) {
@@ -1037,7 +1011,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
         }
       }
     }
-    
+
     return missing;
   }
 
@@ -1069,7 +1043,10 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     ];
   }
 
-  private assessResolutionRisk(conflict: PluginConflict, strategy: ResolutionStrategy): 'low' | 'medium' | 'high' | 'critical' {
+  private assessResolutionRisk(
+    conflict: PluginConflict,
+    strategy: ResolutionStrategy
+  ): 'low' | 'medium' | 'high' | 'critical' {
     if (conflict.severity === ConflictSeverity.CRITICAL) return 'high';
     if (strategy === ResolutionStrategy.MANUAL_RESOLUTION) return 'medium';
     return 'low';
@@ -1083,28 +1060,24 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
   }
 
   private generateRollbackPlan(conflict: PluginConflict, strategy: ResolutionStrategy): string[] {
-    return [
-      'Create system state snapshot',
-      'Record conflict resolution state',
-      'Prepare rollback procedures',
-    ];
+    return ['Create system state snapshot', 'Record conflict resolution state', 'Prepare rollback procedures'];
   }
 
   private generatePreventiveMessages(conflicts: PluginConflict[], warnings: PluginWarning[]): string[] {
     const messages: string[] = [];
-    
-    if (conflicts.some(c => c.type === ConflictType.SERVICE_TOKEN)) {
+
+    if (conflicts.some((c) => c.type === ConflictType.SERVICE_TOKEN)) {
       messages.push('Use unique, descriptive service tokens to avoid conflicts');
     }
-    
-    if (conflicts.some(c => c.type === ConflictType.VERSION_INCOMPATIBLE)) {
+
+    if (conflicts.some((c) => c.type === ConflictType.VERSION_INCOMPATIBLE)) {
       messages.push('Follow semantic versioning and maintain backward compatibility');
     }
-    
-    if (warnings.some(w => w.type === WarningType.DEPRECATED_SERVICE)) {
+
+    if (warnings.some((w) => w.type === WarningType.DEPRECATED_SERVICE)) {
       messages.push('Regularly update plugins to avoid deprecated service dependencies');
     }
-    
+
     return messages;
   }
 
@@ -1113,7 +1086,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     this.conflictPreventionRules.set('unique-tokens', (manifest) => {
       const warnings: PluginWarning[] = [];
       const services = manifest.module.crossPluginServices || [];
-      
+
       for (const service of services) {
         if (!service.token || service.token === service.serviceName) {
           warnings.push({
@@ -1125,7 +1098,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           });
         }
       }
-      
+
       return warnings;
     });
   }
@@ -1137,7 +1110,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
           const result = await this.detectConflicts();
           if (result.hasConflicts) {
             this.logger.warn(`Periodic scan detected ${result.conflicts.length} conflicts`);
-            
+
             if (this.autoResolveConflictsEnabled) {
               await this.autoResolveConflicts();
             }
@@ -1163,9 +1136,10 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     scanInProgress: boolean;
     metrics: typeof this.conflictMetrics;
   } {
-    const criticalConflicts = Array.from(this.detectedConflicts.values())
-      .filter(c => c.severity === ConflictSeverity.CRITICAL).length;
-    
+    const criticalConflicts = Array.from(this.detectedConflicts.values()).filter(
+      (c) => c.severity === ConflictSeverity.CRITICAL
+    ).length;
+
     let systemStability = 'stable';
     if (criticalConflicts > 0) systemStability = 'critical';
     else if (this.detectedConflicts.size > 5) systemStability = 'degraded';
@@ -1183,9 +1157,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
    * Get resolution history
    */
   getResolutionHistory(limit = 50): ConflictResolutionResult[] {
-    return this.resolutionHistory
-      .sort((a, b) => b.duration - a.duration)
-      .slice(0, limit);
+    return this.resolutionHistory.sort((a, b) => b.duration - a.duration).slice(0, limit);
   }
 
   /**

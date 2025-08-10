@@ -20,12 +20,10 @@
     "exports": ["ProductPluginService"],
     "guards": [
       {
-        "name": "auth",
-        "class": "AuthGuard",
-        "description": "Generic authentication guard using configurable auth service",
-        "source": "product-plugin",
-        "exported": true,
-        "scope": "local"
+        "name": "user-auth",
+        "source": "user-plugin",
+        "description": "Checks if user is authenticated",
+        "scope": "external"
       },
       {
         "name": "product-access",
