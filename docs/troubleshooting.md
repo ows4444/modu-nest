@@ -1,5 +1,368 @@
 # Troubleshooting and Debugging
 
+## Plugin Development Debugging Guide
+
+### Quick Debugging Checklist
+
+When encountering plugin issues, follow this systematic debugging approach:
+
+1. **Verify Plugin State**: `GET /plugins/stats` - Check if plugin is loaded correctly
+2. **Check Dependencies**: Verify all plugin dependencies are loaded before your plugin
+3. **Validate Manifest**: Ensure plugin.manifest.json follows correct schema
+4. **Review Logs**: Check application logs for specific error messages
+5. **Test Isolation**: Try loading plugin independently to isolate issues
+
+### Common Plugin Development Issues
+
+#### 1. Plugin Loading Failures
+
+**Symptoms:**
+- Plugin fails to load during startup
+- Plugin stuck in LOADING state
+- Dependencies not resolved
+
+**Debugging Steps:**
+
+```bash
+# Check plugin discovery and loading status
+curl http://localhost:4001/plugins/stats | jq
+
+# Check specific plugin state
+curl http://localhost:4001/plugins | jq '.[] | select(.name=="my-plugin")'
+
+# Enable debug logging for detailed output
+export LOG_LEVEL=debug
+export DEBUG=plugin:loader,plugin:dependency
+```
+
+**Common Causes and Solutions:**
+
+```typescript
+// 1. Missing dependency declaration in manifest
+{
+  "dependencies": ["required-plugin"], // Ensure all dependencies are listed
+  "loadOrder": 200 // Set appropriate load order
+}
+
+// 2. Circular dependency resolution
+// Solution: Break circular dependencies or adjust loadOrder values
+const dependencyGraph = await pluginLoader.analyzeDependencies();
+console.log('Circular dependencies:', dependencyGraph.circularDependencies);
+
+// 3. Plugin module export issues
+// Ensure plugin exports proper NestJS module
+@Module({
+  controllers: [MyPluginController],
+  providers: [MyPluginService],
+  exports: [MyPluginService], // Export services needed by other plugins
+})
+export class MyPluginModule {}
+```
+
+#### 2. Cross-Plugin Communication Issues
+
+**Symptoms:**
+- Services not found between plugins
+- Cross-plugin calls failing
+- Guard dependencies not resolved
+
+**Debugging Steps:**
+
+```typescript
+// Check cross-plugin service registration
+const crossPluginManager = app.get(CrossPluginServiceManager);
+const services = crossPluginManager.getRegisteredServices();
+console.log('Available services:', services);
+
+// Verify trust levels for cross-plugin calls
+const trustManager = app.get(PluginTrustManager);
+const trustLevel = await trustManager.getTrustLevel('source-plugin', 'target-plugin');
+console.log('Trust level:', trustLevel);
+
+// Debug service resolution
+try {
+  const service = await crossPluginManager.getService('TARGET_SERVICE_TOKEN');
+  console.log('Service resolved:', !!service);
+} catch (error) {
+  console.error('Service resolution failed:', error.message);
+}
+```
+
+**Solutions:**
+
+```typescript
+// 1. Proper service token declaration in manifest
+{
+  "module": {
+    "crossPluginServices": [
+      {
+        "serviceName": "MyService",
+        "token": "MY_SERVICE_TOKEN",
+        "global": true, // Make service available globally
+        "description": "My plugin service"
+      }
+    ]
+  }
+}
+
+// 2. Correct service injection in consuming plugin
+@Injectable()
+export class ConsumerService {
+  constructor(
+    @Inject('MY_SERVICE_TOKEN') private myService: any
+  ) {}
+}
+
+// 3. Guard dependency resolution
+{
+  "module": {
+    "guards": [
+      {
+        "name": "my-guard",
+        "class": "MyGuard",
+        "dependencies": ["auth-guard"], // Specify guard dependencies
+        "scope": "local",
+        "exported": true
+      }
+    ]
+  }
+}
+```
+
+#### 3. Plugin Security and Trust Issues
+
+**Symptoms:**
+- Plugin marked as quarantined
+- Security scan failures
+- Trust policy violations
+
+**Debugging Steps:**
+
+```bash
+# Check plugin security status
+curl http://localhost:6001/plugins/my-plugin | jq '.security'
+
+# View security scan results
+curl http://localhost:6001/plugins/my-plugin/security-scan | jq
+
+# Check trust policy compliance
+curl http://localhost:6001/plugins/my-plugin/trust-validation | jq
+```
+
+**Solutions:**
+
+```typescript
+// 1. Remove unsafe imports
+// Before (causes security violations)
+import * as fs from 'fs';
+import { exec } from 'child_process';
+
+// After (secure alternatives)
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class SecurePluginService {
+  constructor(private configService: ConfigService) {}
+  
+  // Use framework-provided services instead of direct system access
+  async readConfig(): Promise<any> {
+    return this.configService.get('plugin.config');
+  }
+}
+
+// 2. Proper capability declaration
+{
+  "security": {
+    "trustLevel": "community",
+    "capabilities": [
+      "network:http-client", // Only declare needed capabilities
+      "database:read-only"
+    ],
+    "sandbox": {
+      "enabled": true,
+      "resourceLimits": {
+        "maxMemory": 134217728, // 128MB
+        "maxExecutionTime": 30000 // 30 seconds
+      }
+    }
+  }
+}
+```
+
+#### 4. Plugin Performance Issues
+
+**Symptoms:**
+- Slow plugin loading times
+- High memory usage
+- API response timeouts
+
+**Debugging Steps:**
+
+```typescript
+// Monitor plugin performance metrics
+const metricsService = app.get(PluginMetricsService);
+const metrics = await metricsService.getPluginMetrics('my-plugin');
+console.log('Performance metrics:', {
+  loadTime: metrics.loadTime,
+  memoryUsage: metrics.memoryUsage,
+  responseTime: metrics.averageResponseTime
+});
+
+// Enable performance profiling
+process.env.PLUGIN_PROFILING_ENABLED = 'true';
+process.env.PLUGIN_PROFILING_SAMPLE_RATE = '1.0';
+
+// Memory usage analysis
+const memoryUsage = process.memoryUsage();
+console.log('Memory usage:', {
+  heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+  heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+});
+```
+
+**Optimization Solutions:**
+
+```typescript
+// 1. Implement proper cleanup in lifecycle hooks
+@Injectable()
+export class OptimizedPluginService implements OnModuleDestroy {
+  private timers: NodeJS.Timeout[] = [];
+  private subscriptions: any[] = [];
+
+  async onModuleDestroy() {
+    // Clear all timers
+    this.timers.forEach(timer => clearTimeout(timer));
+    this.timers = [];
+
+    // Unsubscribe from all subscriptions
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
+  }
+
+  addTimer(timer: NodeJS.Timeout) {
+    this.timers.push(timer);
+  }
+
+  addSubscription(subscription: any) {
+    this.subscriptions.push(subscription);
+  }
+}
+
+// 2. Use lazy loading for heavy resources
+@Injectable()
+export class LazyLoadedService {
+  private heavyResource?: any;
+
+  async getHeavyResource() {
+    if (!this.heavyResource) {
+      this.heavyResource = await this.loadHeavyResource();
+    }
+    return this.heavyResource;
+  }
+
+  private async loadHeavyResource() {
+    // Load heavy resource only when needed
+  }
+}
+
+// 3. Implement caching for expensive operations
+@Injectable()
+export class CachedPluginService {
+  private cache = new Map<string, any>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  async getData(key: string): Promise<any> {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data;
+    }
+
+    const data = await this.expensiveOperation(key);
+    this.cache.set(key, { data, timestamp: Date.now() });
+    return data;
+  }
+}
+```
+
+#### 5. Plugin Testing and Validation Issues
+
+**Debugging Steps:**
+
+```bash
+# Run plugin validation
+nx run my-plugin:plugin-validate
+
+# Check build output
+nx run my-plugin:plugin-build --verbose
+
+# Test plugin loading in isolation
+curl -X POST http://localhost:4001/plugins/my-plugin/reload
+
+# Validate plugin manifest schema
+npx ajv validate -s plugin-manifest.schema.json -d plugin.manifest.json
+```
+
+**Testing Best Practices:**
+
+```typescript
+// 1. Plugin unit testing with proper mocking
+describe('MyPluginService', () => {
+  let service: MyPluginService;
+  let mockDependency: jest.Mocked<DependencyService>;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        MyPluginService,
+        {
+          provide: 'DEPENDENCY_TOKEN',
+          useValue: {
+            getData: jest.fn(),
+            processData: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<MyPluginService>(MyPluginService);
+    mockDependency = module.get('DEPENDENCY_TOKEN');
+  });
+
+  it('should handle dependencies correctly', async () => {
+    mockDependency.getData.mockResolvedValue({ data: 'test' });
+    
+    const result = await service.processData('input');
+    
+    expect(mockDependency.getData).toHaveBeenCalledWith('input');
+    expect(result).toEqual({ processed: 'test' });
+  });
+});
+
+// 2. Integration testing with plugin lifecycle
+describe('MyPlugin Integration', () => {
+  let app: INestApplication;
+  let pluginLoader: PluginLoaderService;
+
+  beforeEach(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    pluginLoader = app.get<PluginLoaderService>(PluginLoaderService);
+    await app.init();
+  });
+
+  it('should load plugin successfully', async () => {
+    await pluginLoader.loadPlugin('my-plugin');
+    
+    const state = pluginLoader.getPluginState('my-plugin');
+    expect(state).toBe(PluginState.LOADED);
+  });
+});
+```
+
 ## Plugin Loading Issues
 
 ### Comprehensive Plugin State Checking
