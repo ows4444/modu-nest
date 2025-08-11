@@ -1,6 +1,6 @@
 import { DynamicModule, Global, Module, Provider } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import { SharedConfigModule } from '@libs/shared-config';
+import { SharedConfigModule } from '@shared/config';
 import { StandardErrorHandlingInterceptor } from '../interceptors/error-handling.interceptor';
 import { GlobalExceptionFilter } from '../filters/global-exception.filter';
 

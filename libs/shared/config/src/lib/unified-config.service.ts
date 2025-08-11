@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 import { UnifiedConfig, ConfigFactory } from './unified-config.types';
-import { EnvironmentType } from '@libs/shared-core';
+import { EnvironmentType } from '@shared/core';
 import { IStandardConfigService, ConfigValidationResult } from './interfaces/base-config.interface';
-import { isValidUrl, parseBoolean } from '@libs/shared-utils';
+import { isValidUrl, parseBoolean } from '@shared/utils';
 
 @Injectable()
 export class UnifiedConfigService implements IStandardConfigService<UnifiedConfig> {
@@ -164,7 +164,7 @@ export class UnifiedConfigService implements IStandardConfigService<UnifiedConfi
       this.cacheStats.hits++;
       return value;
     }
-    
+
     this.cacheStats.misses++;
     return defaultValue !== undefined ? defaultValue : value;
   }
@@ -182,13 +182,13 @@ export class UnifiedConfigService implements IStandardConfigService<UnifiedConfi
   getCategory(category: string): Record<string, any> {
     const categoryConfig: Record<string, any> = {};
     const upperCategory = category.toUpperCase();
-    
+
     for (const [key, value] of Object.entries(this.config)) {
       if (key.startsWith(upperCategory)) {
         categoryConfig[key] = value;
       }
     }
-    
+
     return categoryConfig;
   }
 
@@ -199,12 +199,12 @@ export class UnifiedConfigService implements IStandardConfigService<UnifiedConfi
     return this.config.NODE_ENV;
   }
 
-  /**
-   * Check if running in development mode
-   */
-  get isDevelopment(): boolean {
-    return this.config.NODE_ENV === EnvironmentType.Development;
-  }
+  // /**
+  //  * Check if running in development mode
+  //  */
+  // get isDevelopment(): boolean {
+  //   return this.config.NODE_ENV === EnvironmentType.Development;
+  // }
 
   /**
    * Check if running in development mode (implements interface)
@@ -213,12 +213,12 @@ export class UnifiedConfigService implements IStandardConfigService<UnifiedConfi
     return this.config.NODE_ENV === EnvironmentType.Development;
   }
 
-  /**
-   * Check if running in production mode
-   */
-  get isProduction(): boolean {
-    return this.config.NODE_ENV === EnvironmentType.Production;
-  }
+  // /**
+  //  * Check if running in production mode
+  //  */
+  // get isProduction(): boolean {
+  //   return this.config.NODE_ENV === EnvironmentType.Production;
+  // }
 
   /**
    * Check if running in production mode (implements interface)
@@ -366,20 +366,20 @@ export class UnifiedConfigService implements IStandardConfigService<UnifiedConfi
    */
   getMetadata(): Record<string, any> {
     return {
-      NODE_ENV: { 
+      NODE_ENV: {
         description: 'Application environment mode',
         defaultValue: 'development',
-        category: 'core'
+        category: 'core',
       },
-      PORT: { 
+      PORT: {
         description: 'Application port number',
         defaultValue: 4001,
-        category: 'core'
+        category: 'core',
       },
       PLUGIN_REGISTRY_URL: {
         description: 'URL of the plugin registry service',
         defaultValue: 'http://localhost:6001',
-        category: 'plugin'
+        category: 'plugin',
       },
       // Add more metadata as needed
     };

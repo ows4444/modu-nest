@@ -1,5 +1,5 @@
-import { EnvironmentType } from '@libs/shared-const';
-import { parseBoolean } from '@libs/shared-utils';
+import { EnvironmentType } from '@shared/const';
+import { parseBoolean } from '@shared/utils';
 import { Expose, Transform } from 'class-transformer';
 import { IsBoolean, IsNumber, IsOptional, IsString, Min, Max, IsEnum, ValidateIf, IsPort } from 'class-validator';
 import {

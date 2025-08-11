@@ -1,5 +1,5 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard } from '@libs/plugin-decorators';
+import { BasePluginGuard, RegisterPluginGuard } from '@plugin/decorators';
 
 @RegisterPluginGuard({
   name: 'admin-role',

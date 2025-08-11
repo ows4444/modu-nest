@@ -1,7 +1,7 @@
-import { FileAccessService } from '@libs/plugin-context';
+import { FileAccessService } from '@plugin/context';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { User, CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
-import { PluginInjectable } from '@libs/plugin-core';
+import { PluginInjectable } from '@plugin/core';
 
 @PluginInjectable()
 export class UserPluginService {

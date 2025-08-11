@@ -1,7 +1,6 @@
 {
-  "name": "@libs/shared-const",
-  "version": "1.0.0",
-  "private": true,
+  "name": "@shared/const",
+  "version": "0.0.1",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,8 +13,11 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
   "dependencies": {
-    "tslib": "^2.3.0",
-    "@libs/shared-core": "1.0.0"
+    "tslib": "^2.3.0"
   }
 }

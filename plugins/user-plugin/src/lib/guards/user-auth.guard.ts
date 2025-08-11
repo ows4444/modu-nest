@@ -1,5 +1,5 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard } from '@libs/plugin-decorators';
+import { BasePluginGuard, RegisterPluginGuard } from '@plugin/decorators';
 
 @RegisterPluginGuard({
   name: 'user-auth',

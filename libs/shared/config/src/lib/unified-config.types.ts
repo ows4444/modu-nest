@@ -1,4 +1,4 @@
-import { EnvironmentType } from '@libs/shared-core';
+import { EnvironmentType } from '@shared/core';
 
 /**
  * Unified configuration interface for all modu-nest applications

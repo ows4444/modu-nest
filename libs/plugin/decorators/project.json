@@ -1,0 +1,20 @@
+{
+  "name": "plugin-decorators",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/plugin/decorators/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/plugin/decorators",
+        "tsConfig": "libs/plugin/decorators/tsconfig.lib.json",
+        "packageJson": "libs/plugin/decorators/package.json",
+        "main": "libs/plugin/decorators/src/index.ts",
+        "assets": ["libs/plugin/decorators/*.md"]
+      }
+    }
+  }
+}

@@ -157,15 +157,15 @@ export function isValidServiceToken(token: string): boolean {
 export function isValidPluginFile(filename: string): boolean {
   const allowedExtensions = ['.js', '.json', '.md', '.txt', '.ts', '.d.ts'];
   const allowedDirs = ['dist/', 'src/', 'lib/', 'assets/', 'docs/'];
-  
+
   // Check if file has valid extension
-  const hasValidExtension = allowedExtensions.some(ext => filename.endsWith(ext));
-  
+  const hasValidExtension = allowedExtensions.some((ext) => filename.endsWith(ext));
+
   // Check if file is in allowed directory or at root level
-  const isInAllowedDir = allowedDirs.some(dir => filename.startsWith(dir)) || !filename.includes('/');
-  
+  const isInAllowedDir = allowedDirs.some((dir) => filename.startsWith(dir)) || !filename.includes('/');
+
   // Reject potentially dangerous files
   const isDangerous = filename.includes('..') || filename.startsWith('/') || filename.includes('node_modules');
-  
+
   return hasValidExtension && isInAllowedDir && !isDangerous;
 }

@@ -2,7 +2,7 @@
 
 /**
  * Library Dependency Analyzer
- * 
+ *
  * Analyzes dependencies between libraries in the monorepo to detect:
  * - Circular dependencies
  * - Dependency depth issues
@@ -27,7 +27,7 @@ class LibraryDependencyAnalyzer {
    */
   analyze() {
     console.log('🔍 Analyzing library dependencies...\n');
-    
+
     this.discoverLibraries();
     this.buildDependencyGraph();
     this.detectCircularDependencies();
@@ -41,13 +41,13 @@ class LibraryDependencyAnalyzer {
   discoverLibraries() {
     const findPackageJsons = (dir, basePath = '') => {
       const entries = fs.readdirSync(dir, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         if (entry.name === 'node_modules') continue;
-        
+
         const fullPath = path.join(dir, entry.name);
         const relativePath = path.join(basePath, entry.name);
-        
+
         if (entry.isDirectory()) {
           findPackageJsons(fullPath, relativePath);
         } else if (entry.name === 'package.json') {
@@ -61,7 +61,7 @@ class LibraryDependencyAnalyzer {
                 fullPath: fullPath,
                 dependencies: packageJson.dependencies || {},
                 devDependencies: packageJson.devDependencies || {},
-                peerDependencies: packageJson.peerDependencies || {}
+                peerDependencies: packageJson.peerDependencies || {},
               });
             }
           } catch (error) {
@@ -81,20 +81,20 @@ class LibraryDependencyAnalyzer {
   buildDependencyGraph() {
     for (const [libName, libInfo] of this.libraries) {
       const deps = new Set();
-      
+
       // Add all types of dependencies that are internal libraries
       const allDeps = {
         ...libInfo.dependencies,
         ...libInfo.devDependencies,
-        ...libInfo.peerDependencies
+        ...libInfo.peerDependencies,
       };
-      
+
       for (const [depName, depVersion] of Object.entries(allDeps)) {
         if (depName.startsWith('@libs/') && this.libraries.has(depName)) {
           deps.add(depName);
         }
       }
-      
+
       this.dependencyGraph.set(libName, deps);
     }
   }
@@ -154,7 +154,7 @@ class LibraryDependencyAnalyzer {
       const allDeps = {
         ...libInfo.dependencies,
         ...libInfo.devDependencies,
-        ...libInfo.peerDependencies
+        ...libInfo.peerDependencies,
       };
 
       for (const [depName, depVersion] of Object.entries(allDeps)) {
@@ -173,7 +173,7 @@ class LibraryDependencyAnalyzer {
       if (uniqueVersions.size > 1) {
         this.versionMismatches.push({
           dependency: depName,
-          versions: Array.from(versions.entries())
+          versions: Array.from(versions.entries()),
         });
       }
     }
@@ -272,12 +272,12 @@ class LibraryDependencyAnalyzer {
 
     // General recommendations
     console.log('🏗️ Architecture Recommendations:');
-    
+
     // Find libraries with high dependency count
     const highDependencyLibs = Array.from(this.dependencyGraph.entries())
       .filter(([, deps]) => deps.size >= 3)
       .sort(([, a], [, b]) => b.size - a.size);
-    
+
     if (highDependencyLibs.length > 0) {
       console.log('   📊 Libraries with high dependency count:');
       highDependencyLibs.slice(0, 3).forEach(([libName, deps]) => {
@@ -295,12 +295,13 @@ class LibraryDependencyAnalyzer {
       }
     }
 
-    const leafLibraries = Array.from(this.libraries.keys())
-      .filter(lib => !dependents.has(lib) || dependents.get(lib).size === 0);
-    
+    const leafLibraries = Array.from(this.libraries.keys()).filter(
+      (lib) => !dependents.has(lib) || dependents.get(lib).size === 0
+    );
+
     if (leafLibraries.length > 0) {
       console.log('   🍃 Potential unused libraries:');
-      leafLibraries.slice(0, 3).forEach(lib => {
+      leafLibraries.slice(0, 3).forEach((lib) => {
         console.log(`      ${lib}`);
       });
     }
@@ -312,18 +313,16 @@ class LibraryDependencyAnalyzer {
   exportGraph(format = 'json') {
     const graphData = {
       libraries: Object.fromEntries(this.libraries),
-      dependencies: Object.fromEntries(
-        Array.from(this.dependencyGraph.entries()).map(([k, v]) => [k, Array.from(v)])
-      ),
+      dependencies: Object.fromEntries(Array.from(this.dependencyGraph.entries()).map(([k, v]) => [k, Array.from(v)])),
       analysis: {
         circularDependencies: this.circularDependencies,
         versionMismatches: this.versionMismatches,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     };
 
     const outputPath = path.join(process.cwd(), `dependency-graph.${format}`);
-    
+
     if (format === 'json') {
       fs.writeFileSync(outputPath, JSON.stringify(graphData, null, 2));
     } else if (format === 'dot') {
@@ -331,13 +330,13 @@ class LibraryDependencyAnalyzer {
       let dotContent = 'digraph LibraryDependencies {\n';
       dotContent += '  rankdir=TB;\n';
       dotContent += '  node [shape=box, style=rounded];\n\n';
-      
+
       for (const [lib, deps] of this.dependencyGraph) {
         for (const dep of deps) {
           dotContent += `  "${lib}" -> "${dep}";\n`;
         }
       }
-      
+
       dotContent += '}\n';
       fs.writeFileSync(outputPath, dotContent);
     }
@@ -350,7 +349,7 @@ class LibraryDependencyAnalyzer {
 function main() {
   const args = process.argv.slice(2);
   const libsPath = args[0] || path.join(process.cwd(), 'libs');
-  
+
   if (!fs.existsSync(libsPath)) {
     console.error(`❌ Error: libs directory not found at ${libsPath}`);
     process.exit(1);
@@ -363,7 +362,7 @@ function main() {
   if (args.includes('--export-json')) {
     analyzer.exportGraph('json');
   }
-  
+
   if (args.includes('--export-dot')) {
     analyzer.exportGraph('dot');
   }

@@ -1,0 +1,17 @@
+{
+  "name": "plugin-host-e2e",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "implicitDependencies": ["plugin-host"],
+  "targets": {
+    "e2e": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{e2eProjectRoot}"],
+      "options": {
+        "jestConfig": "apps/plugin/host-e2e/jest.config.ts",
+        "passWithNoTests": true
+      },
+      "dependsOn": ["plugin-host:build", "plugin-host:serve"]
+    }
+  }
+}

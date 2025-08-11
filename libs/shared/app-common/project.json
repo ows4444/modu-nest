@@ -1,0 +1,20 @@
+{
+  "name": "shared-app-common",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/app-common/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/shared/app-common",
+        "tsConfig": "libs/shared/app-common/tsconfig.lib.json",
+        "packageJson": "libs/shared/app-common/package.json",
+        "main": "libs/shared/app-common/src/index.ts",
+        "assets": ["libs/shared/app-common/*.md"]
+      }
+    }
+  }
+}

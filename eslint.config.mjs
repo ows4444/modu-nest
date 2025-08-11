@@ -13,7 +13,7 @@ export default [
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: ['**/dist', '**/out-tsc', '**/node_modules', '**/coverage', '**/build', '**/tmp', '**/.cache'],
+    ignores: ['**/dist'],
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
@@ -31,13 +31,22 @@ export default [
           ],
         },
       ],
-      '@typescript-eslint/no-unsafe-function-type': 'off',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
     },
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.cts', '**/*.mts', '**/*.js', '**/*.jsx', '**/*.cjs', '**/*.mjs'],
     // Override or add rules here
-    rules: {},
+    rules: {
+      '@typescript-eslint/no-unsafe-function-type': 'off',
+    },
+  },
+  {
+    files: ['**/package.json', '**/generators.json', '**/package.json', '**/generators.json', '**/executors.json'],
+    rules: {
+      '@nx/nx-plugin-checks': 'error',
+    },
+    languageOptions: {
+      parser: await import('jsonc-eslint-parser'),
+    },
   },
 ];

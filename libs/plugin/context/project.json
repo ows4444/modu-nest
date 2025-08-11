@@ -1,0 +1,20 @@
+{
+  "name": "plugin-context",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/plugin/context/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/plugin/context",
+        "tsConfig": "libs/plugin/context/tsconfig.lib.json",
+        "packageJson": "libs/plugin/context/package.json",
+        "main": "libs/plugin/context/src/index.ts",
+        "assets": ["libs/plugin/context/*.md"]
+      }
+    }
+  }
+}

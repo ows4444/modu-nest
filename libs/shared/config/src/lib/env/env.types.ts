@@ -1,4 +1,4 @@
-import { EnvironmentType } from '@libs/shared-core';
+import { EnvironmentType } from '@shared/core';
 
 export const ENVIRONMENT_ENV = 'ENVIRONMENT_ENV';
 export interface Environment {

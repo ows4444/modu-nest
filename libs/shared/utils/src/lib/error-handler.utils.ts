@@ -1,9 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { 
-  ErrorFactory, 
-  ErrorUtils, 
-  StandardErrorResponse 
-} from './standard-errors';
+import { ErrorFactory, ErrorUtils, StandardErrorResponse } from './standard-errors';
 
 /**
  * @deprecated Use ErrorFactory and BaseFrameworkError classes for new code
@@ -43,7 +39,7 @@ export class ErrorHandler {
     // Convert to standardized framework error
     const frameworkError = ErrorUtils.normalize(error, { context });
     const logInfo = ErrorUtils.extractForLogging(frameworkError);
-    
+
     this.logger.error(
       `[${logInfo.correlationId}] ${logInfo.category}:${logInfo.code} - ${logInfo.message}`,
       logInfo.context
@@ -71,14 +67,20 @@ export class ErrorHandler {
   /**
    * Handle errors with standardized response format
    */
-  static handleErrorStandardized(error: unknown, path?: string, method?: string, context?: Record<string, any>): StandardErrorResponse {
+  static handleErrorStandardized(
+    error: unknown,
+    path?: string,
+    method?: string,
+    context?: Record<string, any>
+  ): StandardErrorResponse {
     const frameworkError = ErrorUtils.normalize(error, context);
     const logInfo = ErrorUtils.extractForLogging(frameworkError);
-    
-    this.logger.error(
-      `[${logInfo.correlationId}] ${logInfo.category}:${logInfo.code} - ${logInfo.message}`,
-      { path, method, ...logInfo.context }
-    );
+
+    this.logger.error(`[${logInfo.correlationId}] ${logInfo.category}:${logInfo.code} - ${logInfo.message}`, {
+      path,
+      method,
+      ...logInfo.context,
+    });
 
     return ErrorUtils.toApiResponse(frameworkError, path, method);
   }
@@ -123,7 +125,12 @@ export class ErrorHandler {
     throw ErrorFactory.configuration(configKey, reason, context).toHttpException();
   }
 
-  static throwNetwork(operation: string, target?: string, originalError?: Error, context: Record<string, any> = {}): never {
+  static throwNetwork(
+    operation: string,
+    target?: string,
+    originalError?: Error,
+    context: Record<string, any> = {}
+  ): never {
     throw ErrorFactory.network(operation, target, originalError, context).toHttpException();
   }
 
@@ -131,15 +138,30 @@ export class ErrorHandler {
     throw ErrorFactory.timeout(operation, timeoutMs, context).toHttpException();
   }
 
-  static throwDatabase(operation: string, table?: string, originalError?: Error, context: Record<string, any> = {}): never {
+  static throwDatabase(
+    operation: string,
+    table?: string,
+    originalError?: Error,
+    context: Record<string, any> = {}
+  ): never {
     throw ErrorFactory.database(operation, table, originalError, context).toHttpException();
   }
 
-  static throwFileSystem(operation: string, path?: string, originalError?: Error, context: Record<string, any> = {}): never {
+  static throwFileSystem(
+    operation: string,
+    path?: string,
+    originalError?: Error,
+    context: Record<string, any> = {}
+  ): never {
     throw ErrorFactory.fileSystem(operation, path, originalError, context).toHttpException();
   }
 
-  static throwRateLimit(limit: number, windowMs: number, retryAfterMs?: number, context: Record<string, any> = {}): never {
+  static throwRateLimit(
+    limit: number,
+    windowMs: number,
+    retryAfterMs?: number,
+    context: Record<string, any> = {}
+  ): never {
     throw ErrorFactory.rateLimit(limit, windowMs, retryAfterMs, context).toHttpException();
   }
 

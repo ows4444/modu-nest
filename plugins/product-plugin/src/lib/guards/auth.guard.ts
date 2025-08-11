@@ -1,6 +1,6 @@
 import { ExecutionContext, ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard } from '@libs/plugin-decorators';
-import { AUTHENTICATION_SERVICE_TOKEN, type IAuthenticationService } from '@libs/plugin-core';
+import { BasePluginGuard, RegisterPluginGuard } from '@plugin/decorators';
+import { AUTHENTICATION_SERVICE_TOKEN, type IAuthenticationService } from '@plugin/core';
 
 @RegisterPluginGuard({
   name: 'auth',
@@ -11,7 +11,10 @@ import { AUTHENTICATION_SERVICE_TOKEN, type IAuthenticationService } from '@libs
 })
 @Injectable()
 export class AuthGuard extends BasePluginGuard {
-  constructor(@Inject(AUTHENTICATION_SERVICE_TOKEN) private authService?: IAuthenticationService) {
+  constructor(
+    @Inject(AUTHENTICATION_SERVICE_TOKEN)
+    private authService?: IAuthenticationService
+  ) {
     super();
   }
 

@@ -1,7 +1,7 @@
-import { PluginContext } from '@libs/plugin-context';
+import { PluginContext } from '@plugin/context';
 import { NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { Product, CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
-import { PluginInjectable } from '@libs/plugin-core';
+import { PluginInjectable } from '@plugin/core';
 
 @PluginInjectable()
 export class ProductPluginService {
@@ -47,7 +47,7 @@ export class ProductPluginService {
       await this.syncProductsToDatabase();
 
       // Show metrics
-      const metrics = await this.context.utils.getMetrics();
+      const metrics = await this.context?.utils.getMetrics();
       this.logger.log('Plugin context metrics:', metrics);
     } catch (error) {
       this.logger.error('Error demonstrating context usage:', error);

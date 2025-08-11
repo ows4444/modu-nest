@@ -1,13 +1,12 @@
 # Code Architect Review Prompt
 
-As a code architect, your goal is to **deeply review** the provided documentation (`@CLAUDE.md`, `@docs`) and the current codebase.  
+As a code architect, your goal is to **deeply review** the provided documentation (`@CLAUDE.md`) and the current codebase.  
 Focus only on:
 
 - **Plugins**
 - **Apps**
 - **Tools**
 - **Libs**
-- **Docs**
 - **CLAUDE.md**
 
 Ignore frontend, Docker, and testing-related concerns.
@@ -57,16 +56,10 @@ Where possible, include **recommended fixes** or patterns to apply.
 - Identify **duplicated logic** that should be centralized in libs.
 - Ensure libs are **lightweight and efficient**.
 
-### 5. **Docs** (`@docs`)
 
-- Check **accuracy** against current implementation.
-- Evaluate **developer onboarding effectiveness**.
-- Review **consistency** in structure, tone, and formatting.
-- Identify **missing sections** (e.g., flow diagrams, plugin loading sequence).
+### 5. **CLAUDE.md**
 
-### 6. **CLAUDE.md**
-
-- Verify **alignment with actual code and docs** (no contradictions).
+- Verify **alignment with actual code** (no contradictions).
 - Ensure **guidelines are actionable** (clear, unambiguous).
 - Suggest **enforcement mechanisms** (lint rules, pre-commit hooks).
 - Recommend updates for **maintainability and clarity**.
@@ -77,7 +70,7 @@ Where possible, include **recommended fixes** or patterns to apply.
 
 Produce a `TODO.md` file with:
 
-- **Categories:** Plugins, Apps, Tools, Libs, Docs, CLAUDE.md
+- **Categories:** Plugins, Apps, Tools, Libs, CLAUDE.md
 - **Each item contains:**
   - [ ] **Description** of the task.
   - **File/Module Path** (where applicable).
@@ -119,13 +112,6 @@ Produce a `TODO.md` file with:
   - **Rationale:** Duplicate logic increases maintenance cost.
   - **Priority:** Low
   - **Suggested Fix:** Create a shared `libs/datetime` module.
-
-## Docs
-
-- [ ] Update `@docs/plugin-system.md` with latest manifest schema.
-  - **Rationale:** Current doc refers to outdated plugin loader API.
-  - **Priority:** Medium
-  - **Suggested Fix:** Sync docs with code from `src/core/plugin-loader.ts`.
 
 ## CLAUDE.md
 

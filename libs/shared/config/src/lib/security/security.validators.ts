@@ -1,5 +1,5 @@
 import { ValidationOptions, registerDecorator, ValidationArguments } from 'class-validator';
-import { isValidUrl } from '@libs/shared-utils';
+import { isValidUrl } from '@shared/utils';
 
 /**
  * Custom validators for security configuration

@@ -7,8 +7,8 @@ import {
   PluginPermissions,
   PluginRoutePrefix,
   PluginLifecycleHookDecorator,
-} from '@libs/plugin-decorators';
-import { type ICrossPluginService, CROSS_PLUGIN_SERVICE_TOKEN } from '@libs/plugin-core';
+} from '@plugin/decorators';
+import { type ICrossPluginService, CROSS_PLUGIN_SERVICE_TOKEN } from '@plugin/core';
 import {
   Body,
   Param,
@@ -23,7 +23,7 @@ import {
 } from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
 import type { CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
-import { ApiResponse, ErrorHandler } from '@libs/shared-utils';
+import { ApiResponse, ErrorHandler } from '@shared/utils';
 
 @PluginRoutePrefix('users')
 export class UserPluginController {
@@ -31,7 +31,9 @@ export class UserPluginController {
 
   constructor(
     private readonly userPluginService: UserPluginService,
-    @Optional() @Inject(CROSS_PLUGIN_SERVICE_TOKEN) private readonly crossPluginService?: ICrossPluginService
+    @Optional()
+    @Inject(CROSS_PLUGIN_SERVICE_TOKEN)
+    private readonly crossPluginService?: ICrossPluginService
   ) {}
 
   @PluginGet()
@@ -192,7 +194,10 @@ export class UserPluginController {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error(`Failed to update user: ${id}`, { error, dto: updateUserDto });
+      this.logger.error(`Failed to update user: ${id}`, {
+        error,
+        dto: updateUserDto,
+      });
       throw new HttpException(ErrorHandler.handleError(error, 'updateUser'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -225,26 +230,38 @@ export class UserPluginController {
 
   @PluginGet('test/no-auth')
   testNoAuth() {
-    return { message: 'This endpoint requires no authentication', timestamp: new Date() };
+    return {
+      message: 'This endpoint requires no authentication',
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/auth-only')
   @PluginUseGuards('user-auth')
   testAuthOnly() {
-    return { message: 'This endpoint requires only user authentication', timestamp: new Date() };
+    return {
+      message: 'This endpoint requires only user authentication',
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/admin-only')
   @PluginUseGuards('user-auth', 'admin-role')
   @PluginPermissions(['admin:*'])
   testAdminOnly() {
-    return { message: 'This endpoint requires admin role', timestamp: new Date() };
+    return {
+      message: 'This endpoint requires admin role',
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/ownership/:id')
   @PluginUseGuards('user-auth', 'user-ownership')
   testOwnership(@Param('id') id: string) {
-    return { message: `This endpoint requires ownership of user ${id}`, timestamp: new Date() };
+    return {
+      message: `This endpoint requires ownership of user ${id}`,
+      timestamp: new Date(),
+    };
   }
 
   // === CROSS-PLUGIN INTEGRATION ===
@@ -365,7 +382,10 @@ export class UserPluginController {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error('Failed to create user with product', { error, userData });
+      this.logger.error('Failed to create user with product', {
+        error,
+        userData,
+      });
       throw new HttpException(
         ErrorHandler.handleError(error, 'createUserWithProduct'),
         HttpStatus.INTERNAL_SERVER_ERROR

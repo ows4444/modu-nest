@@ -1,0 +1,25 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "../decorators"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../validation"
+    },
+    {
+      "path": "../../shared/interfaces"
+    },
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    }
+  ]
+}

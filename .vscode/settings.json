@@ -33,35 +33,23 @@
     "**/.DS_Store": true,
     "**/Thumbs.db": true,
     ".yarn*": true,
-    // ".vscode": true,
     ".nx": true,
-    // ".husky": true,
-    // "apps/**/assets": true,
-    // "apps/**/webpack.config.js": true,
-    // "{apps,libs}/**/.spec.swcrc": true,
-    // "{apps,libs}/**/tsconfig.json": true,
-    // "{apps,libs}/**/package.json": true,
-    // "{apps,libs}/**/eslint.config.mjs": true,
-    // "{apps,libs}/**/jest.config.ts": true,
-    // "{apps,libs}/**/README.md": true,
-    // "tsconfig.json": true,
-    // "eslint.config.mjs": true,
-    // "jest.*": true,
-    // "*.lock": true,
-    // ".prettier*": true,
-    // "tools": true,
     "**/dist": true,
-    "apps/**/*-e2e": true,
+    // "apps/**/*-e2e": true,
     "tmp": true,
     "**/out-tsc": true,
     "**/node_modules": true
   },
   "nxConsole.generateAiAgentRules": true,
-  "cSpell.words": ["Modu"],
+  "cSpell.words": ["modu"],
   "eslint.useFlatConfig": true,
   "eslint.enable": true,
-  "eslint.workingDirectories": [{ "mode": "auto" }],
-  "eslint.validate": ["typescript", "javascript"],
+  "eslint.workingDirectories": [
+    {
+      "mode": "auto"
+    }
+  ],
+  "eslint.validate": ["typescript", "javascript", "json"],
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "always"
   }

@@ -50,40 +50,17 @@
       "options": {
         "targetName": "test"
       },
-      "exclude": ["apps/plugin-registry-e2e/**/*", "apps/plugin-host-e2e/**/*"]
-    },
-    {
-      "plugin": "@nx/js/typescript",
-      "include": ["libs/plugin-types/*", "plugins/sss/*"],
-      "options": {
-        "typecheck": {
-          "targetName": "typecheck"
-        }
-      },
-      "exclude": ["libs/plugin-types/*"]
-    },
-    {
-      "plugin": "@nx/js/typescript",
-      "include": ["libs/plugin-context/*"],
-      "options": {
-        "typecheck": {
-          "targetName": "typecheck"
-        }
-      },
-      "exclude": ["libs/plugin-context/*"]
+      "exclude": ["apps/plugin/host-e2e/**/*", "apps/plugin/registry-e2e/**/*"]
     }
   ],
   "targetDefaults": {
     "test": {
       "dependsOn": ["^build"]
-    },
-    "@nx/js:tsc": {
-      "cache": true,
-      "dependsOn": ["^build"],
-      "inputs": ["production", "^production"]
     }
   },
-  "tui": {
-    "enabled": false
+  "release": {
+    "version": {
+      "preVersionCommand": "npx nx run-many -t build"
+    }
   }
 }

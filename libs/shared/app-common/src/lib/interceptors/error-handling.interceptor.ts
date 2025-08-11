@@ -23,24 +23,19 @@ export class StandardErrorHandlingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(() => {
         const duration = Date.now() - startTime;
-        this.logger.log(
-          `${request.method} ${request.url} ${response.statusCode} - ${duration}ms`
-        );
+        this.logger.log(`${request.method} ${request.url} ${response.statusCode} - ${duration}ms`);
       }),
       catchError((error) => {
         const duration = Date.now() - startTime;
-        
+
         // Log the error with context
-        this.logger.error(
-          `${request.method} ${request.url} - ${error.message}`,
-          {
-            error: error.stack,
-            requestId: request.headers['x-request-id'],
-            userAgent: request.headers['user-agent'],
-            ip: request.ip,
-            duration,
-          }
-        );
+        this.logger.error(`${request.method} ${request.url} - ${error.message}`, {
+          error: error.stack,
+          requestId: request.headers['x-request-id'],
+          userAgent: request.headers['user-agent'],
+          ip: request.ip,
+          duration,
+        });
 
         // Ensure we have a proper HTTP exception
         if (error instanceof HttpException) {

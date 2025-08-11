@@ -1,11 +1,4 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 @Catch()
@@ -24,7 +17,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      
+
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
@@ -34,7 +27,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      
+
       // Log the full error details in development
       if (process.env.NODE_ENV === 'development') {
         details = {
@@ -45,18 +38,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     // Log error details
-    this.logger.error(
-      `${request.method} ${request.url} ${status} - ${message}`,
-      {
-        exception: exception instanceof Error ? exception.stack : exception,
-        requestId: request.headers['x-request-id'],
-        userAgent: request.headers['user-agent'],
-        ip: request.ip,
-        body: request.body,
-        query: request.query,
-        params: request.params,
-      }
-    );
+    this.logger.error(`${request.method} ${request.url} ${status} - ${message}`, {
+      exception: exception instanceof Error ? exception.stack : exception,
+      requestId: request.headers['x-request-id'],
+      userAgent: request.headers['user-agent'],
+      ip: request.ip,
+      body: request.body,
+      query: request.query,
+      params: request.params,
+    });
 
     const errorResponse = {
       statusCode: status,

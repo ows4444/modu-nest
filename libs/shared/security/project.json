@@ -1,0 +1,20 @@
+{
+  "name": "shared-security",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/security/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/shared/security",
+        "tsConfig": "libs/shared/security/tsconfig.lib.json",
+        "packageJson": "libs/shared/security/package.json",
+        "main": "libs/shared/security/src/index.ts",
+        "assets": ["libs/shared/security/*.md"]
+      }
+    }
+  }
+}

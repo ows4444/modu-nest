@@ -10,10 +10,7 @@ export class ConfigServiceFactory {
    * Create a configuration service adapter that wraps legacy services
    * to implement the standard interface
    */
-  static createAdapter<T = any>(
-    legacyService: any,
-    mappings?: ConfigServiceMappings
-  ): IStandardConfigService<T> {
+  static createAdapter<T = any>(legacyService: any, mappings?: ConfigServiceMappings): IStandardConfigService<T> {
     return new ConfigServiceAdapter<T>(legacyService, mappings);
   }
 
@@ -22,14 +19,24 @@ export class ConfigServiceFactory {
    */
   static validateService<T = any>(service: any): service is IStandardConfigService<T> {
     const requiredMethods = [
-      'get', 'getAll', 'has', 'getCategory', 'validate', 'getValidationErrors',
-      'clearCache', 'refresh', 'getCacheStats', 'getEnvironment', 
-      'isDevelopment', 'isProduction', 'isTest', 'getSchema', 'getMetadata'
+      'get',
+      'getAll',
+      'has',
+      'getCategory',
+      'validate',
+      'getValidationErrors',
+      'clearCache',
+      'refresh',
+      'getCacheStats',
+      'getEnvironment',
+      'isDevelopment',
+      'isProduction',
+      'isTest',
+      'getSchema',
+      'getMetadata',
     ];
 
-    return requiredMethods.every(method => 
-      typeof service[method] === 'function'
-    );
+    return requiredMethods.every((method) => typeof service[method] === 'function');
   }
 }
 
@@ -56,14 +63,11 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
     lastRefresh: new Date(),
   };
 
-  constructor(
-    private readonly legacyService: any,
-    private readonly mappings: ConfigServiceMappings = {}
-  ) {}
+  constructor(private readonly legacyService: any, private readonly mappings: ConfigServiceMappings = {}) {}
 
   get<K extends keyof T>(key: K, defaultValue?: T[K]): T[K] {
     const methodName = this.mappings.get || 'get';
-    
+
     if (typeof this.legacyService[methodName] === 'function') {
       return this.legacyService[methodName](key, defaultValue);
     }
@@ -74,7 +78,7 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
 
   getAll(): T {
     const methodName = this.mappings.getAll || 'getAll';
-    
+
     if (typeof this.legacyService[methodName] === 'function') {
       return this.legacyService[methodName]();
     }
@@ -85,7 +89,7 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
 
   has<K extends keyof T>(key: K): boolean {
     const methodName = this.mappings.has || 'has';
-    
+
     if (typeof this.legacyService[methodName] === 'function') {
       return this.legacyService[methodName](key);
     }
@@ -98,19 +102,19 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
     // Try to find methods that might return category configs
     const categoryConfig: Record<string, any> = {};
     const config = this.getAll();
-    
+
     for (const [key, value] of Object.entries(config as any)) {
       if (key.toLowerCase().includes(category.toLowerCase())) {
         categoryConfig[key] = value;
       }
     }
-    
+
     return categoryConfig;
   }
 
   validate(): boolean {
     const methodName = this.mappings.validate || 'validate';
-    
+
     if (typeof this.legacyService[methodName] === 'function') {
       return this.legacyService[methodName]();
     }
@@ -130,7 +134,7 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
 
   clearCache(): void {
     const methodName = this.mappings.clearCache || 'clearCache';
-    
+
     if (typeof this.legacyService[methodName] === 'function') {
       this.legacyService[methodName]();
     }
@@ -141,7 +145,7 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
 
   refresh(): void {
     const methodName = this.mappings.refresh || 'refresh';
-    
+
     if (typeof this.legacyService[methodName] === 'function') {
       this.legacyService[methodName]();
     }
@@ -160,7 +164,7 @@ class ConfigServiceAdapter<T = any> implements IStandardConfigService<T> {
   getEnvironment(): string {
     // Try common environment property names
     const envKeys = ['NODE_ENV', 'environment', 'env'];
-    
+
     for (const key of envKeys) {
       if (this.has(key as keyof T)) {
         return String(this.get(key as keyof T));
@@ -237,18 +241,26 @@ export class ConfigMigrationHelper {
     };
 
     const requiredMethods = [
-      'get', 'getAll', 'has', 'getCategory', 'validate', 'getValidationErrors',
-      'clearCache', 'refresh', 'getCacheStats', 'getEnvironment', 
-      'isDevelopment', 'isProduction', 'isTest', 'getSchema', 'getMetadata'
+      'get',
+      'getAll',
+      'has',
+      'getCategory',
+      'validate',
+      'getValidationErrors',
+      'clearCache',
+      'refresh',
+      'getCacheStats',
+      'getEnvironment',
+      'isDevelopment',
+      'isProduction',
+      'isTest',
+      'getSchema',
+      'getMetadata',
     ];
 
-    const existingMethods = requiredMethods.filter(method => 
-      typeof service[method] === 'function'
-    );
+    const existingMethods = requiredMethods.filter((method) => typeof service[method] === 'function');
 
-    analysis.missingMethods = requiredMethods.filter(method => 
-      typeof service[method] !== 'function'
-    );
+    analysis.missingMethods = requiredMethods.filter((method) => typeof service[method] !== 'function');
 
     analysis.compatibilityScore = (existingMethods.length / requiredMethods.length) * 100;
     analysis.hasStandardInterface = analysis.missingMethods.length === 0;

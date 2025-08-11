@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { EnvironmentType } from '@libs/shared-const';
+import { EnvironmentType } from '@shared/const';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { DatabaseConfigSchema } from './database.schema';
@@ -23,7 +23,9 @@ export const databaseLoader = registerAs(DATABASE_CONFIG, (): DatabaseConfig => 
   if (errors.length > 0) {
     const errorMessages = errors
       .flatMap((error) => {
-        const constraints = error.constraints ?? { [error.property]: 'Invalid value' };
+        const constraints = error.constraints ?? {
+          [error.property]: 'Invalid value',
+        };
         return Object.values(constraints).map((message) => `${error.property}: ${message}`);
       })
       .join('\n- ');

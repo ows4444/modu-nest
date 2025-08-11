@@ -92,9 +92,7 @@ export interface IEnvironmentConfigService<T = any> extends IConfigService<T> {
 /**
  * Combined interface for full-featured configuration services
  */
-export interface IStandardConfigService<T = any> 
-  extends ICacheableConfigService<T>, IEnvironmentConfigService<T> {
-  
+export interface IStandardConfigService<T = any> extends ICacheableConfigService<T>, IEnvironmentConfigService<T> {
   /**
    * Get configuration schema for validation
    */

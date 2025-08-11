@@ -7,7 +7,7 @@ import {
   PluginUseGuards,
   PluginPermissions,
   PluginLifecycleHookDecorator,
-} from '@libs/plugin-decorators';
+} from '@plugin/decorators';
 import {
   Body,
   Param,
@@ -23,8 +23,8 @@ import {
 } from '@nestjs/common';
 import { ProductPluginService } from '../services/product-plugin.service';
 import type { CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
-import { ErrorHandler, ApiResponse } from '@libs/shared-utils';
-import { CROSS_PLUGIN_SERVICE_TOKEN, type ICrossPluginService } from '@libs/plugin-core';
+import { ErrorHandler, ApiResponse } from '@shared/utils';
+import { CROSS_PLUGIN_SERVICE_TOKEN, type ICrossPluginService } from '@plugin/core';
 
 @PluginRoutePrefix('products')
 export class ProductPluginController {
@@ -32,7 +32,9 @@ export class ProductPluginController {
 
   constructor(
     private readonly productPluginService: ProductPluginService,
-    @Optional() @Inject(CROSS_PLUGIN_SERVICE_TOKEN) private readonly crossPluginService?: ICrossPluginService
+    @Optional()
+    @Inject(CROSS_PLUGIN_SERVICE_TOKEN)
+    private readonly crossPluginService?: ICrossPluginService
   ) {}
 
   @PluginGet()
@@ -203,7 +205,10 @@ export class ProductPluginController {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error('Failed to create product', { error, dto: createProductDto });
+      this.logger.error('Failed to create product', {
+        error,
+        dto: createProductDto,
+      });
       throw new HttpException(ErrorHandler.handleError(error, 'createProduct'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -228,7 +233,10 @@ export class ProductPluginController {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error(`Failed to update product: ${id}`, { error, dto: updateProductDto });
+      this.logger.error(`Failed to update product: ${id}`, {
+        error,
+        dto: updateProductDto,
+      });
       throw new HttpException(ErrorHandler.handleError(error, 'updateProduct'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -261,31 +269,46 @@ export class ProductPluginController {
 
   @PluginGet('test/no-auth')
   testNoAuth() {
-    return { message: 'This endpoint requires no authentication', timestamp: new Date() };
+    return {
+      message: 'This endpoint requires no authentication',
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/auth-only')
   @PluginUseGuards('auth')
   testAuthOnly() {
-    return { message: 'This endpoint requires only user authentication', timestamp: new Date() };
+    return {
+      message: 'This endpoint requires only user authentication',
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/product-access')
   @PluginUseGuards('auth', 'product-access')
   testProductAccess() {
-    return { message: 'This endpoint requires product access permissions', timestamp: new Date() };
+    return {
+      message: 'This endpoint requires product access permissions',
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/ownership/:id')
   @PluginUseGuards('auth', 'product-ownership')
   testOwnership(@Param('id') id: string) {
-    return { message: `This endpoint requires ownership of product ${id}`, timestamp: new Date() };
+    return {
+      message: `This endpoint requires ownership of product ${id}`,
+      timestamp: new Date(),
+    };
   }
 
   @PluginGet('test/full-access/:id')
   @PluginUseGuards('auth', 'product-access', 'product-ownership')
   testFullAccess(@Param('id') id: string) {
-    return { message: `This endpoint requires full access to product ${id}`, timestamp: new Date() };
+    return {
+      message: `This endpoint requires full access to product ${id}`,
+      timestamp: new Date(),
+    };
   }
 
   // === CROSS-PLUGIN INTEGRATION ===
@@ -419,7 +442,10 @@ export class ProductPluginController {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error(`Failed to transfer product ownership: ${productId}`, { error, newOwnerId });
+      this.logger.error(`Failed to transfer product ownership: ${productId}`, {
+        error,
+        newOwnerId,
+      });
       throw new HttpException(ErrorHandler.handleError(error, 'transferOwnership'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }

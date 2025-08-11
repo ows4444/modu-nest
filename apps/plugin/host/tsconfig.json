@@ -1,0 +1,31 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "../../../libs/shared/const"
+    },
+    {
+      "path": "../../../libs/plugin/core"
+    },
+    {
+      "path": "../../../libs/plugin/types"
+    },
+    {
+      "path": "../../../libs/plugin/services"
+    },
+    {
+      "path": "../../../libs/plugin/context"
+    },
+    {
+      "path": "../../../libs/shared/config"
+    },
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    }
+  ]
+}

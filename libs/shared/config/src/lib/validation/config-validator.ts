@@ -1,5 +1,5 @@
-import { EnvironmentType } from '@libs/shared-const';
-import { isValidUrl, parseBoolean } from '@libs/shared-utils';
+import { EnvironmentType } from '@shared/const';
+import { isValidUrl, parseBoolean } from '@shared/utils';
 
 /**
  * Comprehensive configuration validator with security checks and documentation

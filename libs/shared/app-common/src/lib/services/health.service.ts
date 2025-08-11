@@ -6,11 +6,14 @@ export interface HealthCheckResult {
   uptime: number;
   version: string;
   environment: string;
-  checks: Record<string, {
-    status: 'pass' | 'fail';
-    message?: string;
-    data?: any;
-  }>;
+  checks: Record<
+    string,
+    {
+      status: 'pass' | 'fail';
+      message?: string;
+      data?: any;
+    }
+  >;
 }
 
 export interface HealthChecker {
@@ -43,7 +46,7 @@ export class HealthService {
       try {
         const result = await checker.check();
         checks[name] = result;
-        
+
         if (result.status === 'fail') {
           overallStatus = overallStatus === 'healthy' ? 'degraded' : 'unhealthy';
         }
@@ -71,9 +74,12 @@ export class HealthService {
     return { status: 'alive' };
   }
 
-  async getReadiness(): Promise<{ status: 'ready' | 'not-ready'; message?: string }> {
+  async getReadiness(): Promise<{
+    status: 'ready' | 'not-ready';
+    message?: string;
+  }> {
     const health = await this.getHealth();
-    
+
     if (health.status === 'unhealthy') {
       return {
         status: 'not-ready',

@@ -4,19 +4,16 @@
   "include": [],
   "references": [
     {
-      "path": "../../libs/plugin-context"
+      "path": "../../libs/plugin/context"
     },
     {
       "path": "../../libs/shared/utils"
     },
     {
-      "path": "../../libs/plugin-core"
+      "path": "../../libs/plugin/core"
     },
     {
-      "path": "../../libs/plugin-decorators"
-    },
-    {
-      "path": "../../libs/plugin-types"
+      "path": "../../libs/plugin/decorators"
     },
     {
       "path": "./tsconfig.lib.json"

@@ -17,19 +17,16 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
-      "path": "../../libs/plugin-context/tsconfig.lib.json"
+      "path": "../../libs/plugin/context/tsconfig.lib.json"
     },
     {
-      "path": "../../libs/plugin-core/tsconfig.lib.json"
+      "path": "../../libs/plugin/core/tsconfig.lib.json"
     },
     {
       "path": "../../libs/shared/utils/tsconfig.lib.json"
     },
     {
-      "path": "../../libs/plugin-decorators/tsconfig.lib.json"
-    },
-    {
-      "path": "../../libs/plugin-types/tsconfig.lib.json"
+      "path": "../../libs/plugin/decorators/tsconfig.lib.json"
     }
   ],
   "exclude": ["jest.config.ts", "src/**/*.spec.ts", "src/**/*.test.ts"]

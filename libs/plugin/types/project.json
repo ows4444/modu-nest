@@ -1,0 +1,20 @@
+{
+  "name": "plugin-types",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/plugin/types/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/plugin/types",
+        "tsConfig": "libs/plugin/types/tsconfig.lib.json",
+        "packageJson": "libs/plugin/types/package.json",
+        "main": "libs/plugin/types/src/index.ts",
+        "assets": ["libs/plugin/types/*.md"]
+      }
+    }
+  }
+}

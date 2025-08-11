@@ -1,2 +1,2 @@
 // Re-export from shared-core for backward compatibility
-export * from '@libs/shared-core';
+export * from '@shared/core';
