@@ -4,16 +4,18 @@ import {
   PluginMetadata,
   PluginManifest,
   CreatePluginDto,
-  RegistryStats,
   PluginListResponseDto,
-  PluginEventEmitter,
+} from '@libs/plugin-types';
+import {
+  RegistryStats,
   IPluginEventSubscriber,
   PluginManifestError,
   handlePluginError,
   PluginErrorMetrics,
   PluginError,
   PluginRegistryError,
-} from '@modu-nest/plugin-types';
+} from '@libs/plugin-core';
+import { PluginEventEmitter } from '@libs/plugin-services';
 import { PluginValidationService } from './plugin-validation.service';
 import { PluginSecurityService } from './plugin-security.service';
 import { PluginSignatureService } from './plugin-signature.service';
@@ -285,14 +287,14 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       this.logger.log(
         `Plugin ${metadata.name} v${metadata.version} uploaded successfully (checksum: ${checksum.substring(0, 8)}...)`
       );
-      
+
       // Record successful upload metrics
       this.metricsService.recordUpload(Date.now() - startTime, true, finalPluginBuffer.length, {
         pluginName: metadata.name,
         version: metadata.version,
-        optimized: finalPluginBuffer !== pluginBuffer
+        optimized: finalPluginBuffer !== pluginBuffer,
       });
-      
+
       return metadata;
     } catch (error) {
       // Record error metrics if it's a plugin error
@@ -309,7 +311,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       // Record failed upload metrics
       this.metricsService.recordUpload(Date.now() - startTime, false, pluginBuffer.length, {
         pluginName,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
 
       // Use standardized error handling
@@ -337,7 +339,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     metadata: PluginMetadata;
   }> {
     const startTime = Date.now();
-    
+
     try {
       const downloadResult = await this.storageOrchestrator.downloadPlugin(name, userAgent, ipAddress);
 
@@ -463,13 +465,13 @@ export class PluginRegistryService implements IPluginEventSubscriber {
    */
   async searchPlugins(query: string): Promise<PluginResponseDto[]> {
     const startTime = Date.now();
-    
+
     try {
       const results = await this.storageOrchestrator.searchPlugins(query);
-      
+
       // Record successful search metrics
       this.metricsService.recordSearch(query, Date.now() - startTime, results.length, true);
-      
+
       return results;
     } catch (error) {
       // Record failed search metrics
@@ -1212,11 +1214,11 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     } = {}
   ): Promise<BatchUploadResult> {
     const { continueOnError = false, batchSize = 5, reportProgress, useTransaction = false } = options;
-    
+
     const startTime = Date.now();
     const totalPlugins = pluginBuffers.length;
     let processedCount = 0;
-    
+
     const results: BatchUploadResult = {
       successful: [],
       failed: [],
@@ -1229,7 +1231,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     };
 
     this.logger.log(`Starting batch upload of ${totalPlugins} plugins with batch size ${batchSize}`);
-    
+
     // Emit batch operation started event
     this.eventEmitter.emit('batch-upload-started', {
       totalPlugins,
@@ -1244,7 +1246,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         const batch = pluginBuffers.slice(i, i + batchSize);
         const batchNumber = Math.floor(i / batchSize) + 1;
         const totalBatches = Math.ceil(totalPlugins / batchSize);
-        
+
         this.logger.debug(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} plugins)`);
 
         // Process batch with optional transaction support
@@ -1254,7 +1256,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
             try {
               const metadata = await this.uploadPlugin(buffer);
               processedCount++;
-              
+
               results.successful.push({
                 pluginName: metadata.name,
                 version: metadata.version,
@@ -1262,7 +1264,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
                 index: globalIndex,
                 filename,
               });
-              
+
               // Report progress if callback provided
               if (reportProgress) {
                 reportProgress({
@@ -1275,12 +1277,12 @@ export class PluginRegistryService implements IPluginEventSubscriber {
                   status: 'processing',
                 });
               }
-              
+
               return { success: true, metadata, index: globalIndex };
             } catch (error) {
               processedCount++;
               const pluginError = this.toPluginError(error, 'batchUpload', filename || `plugin-${globalIndex}`);
-              
+
               results.failed.push({
                 pluginName: filename || `plugin-${globalIndex}`,
                 error: pluginError,
@@ -1317,13 +1319,12 @@ export class PluginRegistryService implements IPluginEventSubscriber {
 
         // Small delay between batches to prevent overwhelming the system
         if (i + batchSize < pluginBuffers.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
-
     } catch (error) {
       this.logger.error('Batch upload operation failed:', error);
-      
+
       // Emit batch operation failed event
       this.eventEmitter.emit('batch-upload-failed', {
         totalPlugins,
@@ -1331,7 +1332,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date(),
       });
-      
+
       if (!continueOnError) {
         throw error;
       }
@@ -1380,11 +1381,11 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     } = {}
   ): Promise<BatchValidationResult> {
     const { batchSize = 10, reportProgress, validationLevel = 'full' } = options;
-    
+
     const startTime = Date.now();
     const totalPlugins = pluginBuffers.length;
     let processedCount = 0;
-    
+
     const results: BatchValidationResult = {
       valid: [],
       invalid: [],
@@ -1410,38 +1411,43 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         const batch = pluginBuffers.slice(i, i + batchSize);
         const batchNumber = Math.floor(i / batchSize) + 1;
         const totalBatches = Math.ceil(totalPlugins / batchSize);
-        
+
         // Process batch
-        const batchResults = await Promise.allSettled(
+        await Promise.allSettled(
           batch.map(async ({ buffer, filename }, batchIndex) => {
             const globalIndex = i + batchIndex;
             try {
               let pluginName = filename || `plugin-${globalIndex}`;
-              
+
               // Security: Check file size
               this.securityService.validateFileSize(buffer);
-              
+
               // Extract and validate manifest
               const extractedManifest = await this.validationService.extractAndValidateManifest(buffer);
               pluginName = extractedManifest.name;
-              
+
               // Create metadata for validation
               const metadata = this.storageOrchestrator.createPluginMetadata(extractedManifest, buffer);
-              
+
               // Perform validation based on level
+              const manifestValidation = await this.validationService.validateManifestWithCache(extractedManifest, metadata.checksum);
+              const structureValidation = validationLevel === 'full'
+                ? await this.validationService.validatePluginStructureWithCache(buffer, metadata.checksum)
+                : { isValid: true, warnings: [], errors: [] };
+              const securityValidation = validationLevel === 'full'
+                ? await this.securityService.validatePluginSecurityWithCache(buffer, metadata.checksum)
+                : { isValid: true, warnings: [], errors: [] };
+
               const validationResults = {
-                manifest: await this.validationService.validateManifestWithCache(extractedManifest, metadata.checksum),
-                structure: validationLevel === 'full' 
-                  ? await this.validationService.validatePluginStructureWithCache(buffer, metadata.checksum)
-                  : { isValid: true, warnings: [], errors: [] },
-                security: validationLevel === 'full'
-                  ? await this.securityService.validatePluginSecurityWithCache(buffer, metadata.checksum)
-                  : { isValid: true, warnings: [], errors: [] },
+                manifest: manifestValidation || { isValid: false, warnings: [], errors: ['Manifest validation failed'] },
+                structure: structureValidation || { isValid: false, warnings: [], errors: ['Structure validation failed'] },
+                security: securityValidation || { isValid: false, warnings: [], errors: ['Security validation failed'] },
               };
 
-              const isValid = validationResults.manifest.isValid && 
-                            validationResults.structure.isValid && 
-                            validationResults.security.isValid;
+              const isValid =
+                validationResults.manifest.isValid &&
+                validationResults.structure.isValid &&
+                validationResults.security.isValid;
 
               processedCount++;
 
@@ -1477,7 +1483,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
             } catch (error) {
               processedCount++;
               const pluginError = this.toPluginError(error, 'batchValidation', filename || `plugin-${globalIndex}`);
-              
+
               const result = {
                 pluginName: filename || `plugin-${globalIndex}`,
                 filename,
@@ -1485,24 +1491,23 @@ export class PluginRegistryService implements IPluginEventSubscriber {
                 error: pluginError,
                 isValid: false,
               };
-              
+
               results.invalid.push(result);
               return result;
             }
           })
         );
       }
-
     } catch (error) {
       this.logger.error('Batch validation operation failed:', error);
-      
+
       this.eventEmitter.emit('batch-validation-failed', {
         totalPlugins,
         processedCount,
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date(),
       });
-      
+
       throw error;
     }
 
@@ -1550,11 +1555,11 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     } = {}
   ): Promise<BatchDeleteResult> {
     const { continueOnError = true, batchSize = 5, reason = 'batch-delete', reportProgress, dryRun = false } = options;
-    
+
     const startTime = Date.now();
     const totalPlugins = pluginNames.length;
     let processedCount = 0;
-    
+
     const results: BatchDeleteResult = {
       deleted: [],
       failed: [],
@@ -1584,15 +1589,15 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         const batch = pluginNames.slice(i, i + batchSize);
         const batchNumber = Math.floor(i / batchSize) + 1;
         const totalBatches = Math.ceil(totalPlugins / batchSize);
-        
+
         // Process batch
-        const batchResults = await Promise.allSettled(
+        await Promise.allSettled(
           batch.map(async (pluginName, batchIndex) => {
             const globalIndex = i + batchIndex;
             try {
               // Check if plugin exists first
               const plugin = await this.getPlugin(pluginName).catch(() => null);
-              
+
               if (!plugin) {
                 processedCount++;
                 results.notFound.push({
@@ -1632,7 +1637,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
             } catch (error) {
               processedCount++;
               const pluginError = this.toPluginError(error, 'batchDelete', pluginName);
-              
+
               results.failed.push({
                 pluginName,
                 error: pluginError,
@@ -1648,10 +1653,9 @@ export class PluginRegistryService implements IPluginEventSubscriber {
           })
         );
       }
-
     } catch (error) {
       this.logger.error('Batch delete operation failed:', error);
-      
+
       this.eventEmitter.emit('batch-delete-failed', {
         totalPlugins,
         processedCount,
@@ -1659,7 +1663,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         dryRun,
         timestamp: new Date(),
       });
-      
+
       if (!continueOnError) {
         throw error;
       }
@@ -1672,7 +1676,9 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     results.notFoundCount = results.notFound.length;
 
     this.logger.log(
-      `Batch ${dryRun ? 'dry-run ' : ''}delete completed: ${results.deletedCount} deleted, ${results.failedCount} failed, ${results.notFoundCount} not found in ${results.duration}ms`
+      `Batch ${dryRun ? 'dry-run ' : ''}delete completed: ${results.deletedCount} deleted, ${
+        results.failedCount
+      } failed, ${results.notFoundCount} not found in ${results.duration}ms`
     );
 
     // Emit batch operation completed event

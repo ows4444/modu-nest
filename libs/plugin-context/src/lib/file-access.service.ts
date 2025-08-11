@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { FileAccessPermissions } from '@modu-nest/plugin-types';
+import { FileAccessPermissions } from '@libs/plugin-core';
 import { FileAccessConfigService, FileAccessServiceOptions } from './file-access.config';
 
 export interface PluginFileAccessConfig extends FileAccessPermissions {

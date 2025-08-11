@@ -46,7 +46,7 @@ import {
   PluginCircuitBreakerEvent,
   PluginCacheEvent,
   PluginErrorEvent,
-} from '@modu-nest/plugin-core';
+} from '@libs/plugin-core';
 
 /**
  * Base event validator class

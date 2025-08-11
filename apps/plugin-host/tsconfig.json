@@ -7,10 +7,10 @@
       "path": "../../libs/shared/const"
     },
     {
-      "path": "../../libs/plugin-types"
+      "path": "../../libs/plugin-core"
     },
     {
-      "path": "../../libs/plugin-core"
+      "path": "../../libs/plugin-types"
     },
     {
       "path": "../../libs/plugin-services"

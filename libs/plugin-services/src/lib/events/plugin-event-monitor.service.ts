@@ -33,7 +33,7 @@ import {
   PluginCircuitBreakerEvent,
   PluginCacheEvent,
   PluginErrorEvent,
-} from '@modu-nest/plugin-core';
+} from '@libs/plugin-core';
 import { PluginEventEmitter } from './plugin-event-emitter';
 
 export interface EventMetrics {

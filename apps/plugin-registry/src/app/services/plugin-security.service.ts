@@ -7,7 +7,7 @@ import {
   PluginTimeoutError,
   handlePluginError,
   PluginErrorMetrics,
-} from '@modu-nest/plugin-types';
+} from '@libs/plugin-core';
 
 export interface SecurityValidationResult {
   isValid: boolean;

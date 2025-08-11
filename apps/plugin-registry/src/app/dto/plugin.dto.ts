@@ -10,8 +10,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CREATE_PLUGIN_VALIDATION } from '@modu-nest/plugin-types';
-import type { CreatePluginDto, PluginModuleMeta } from '@modu-nest/plugin-types';
+import type { CreatePluginDto, PluginModuleMeta } from '@libs/plugin-types';
+import { CREATE_PLUGIN_VALIDATION } from '@libs/plugin-core';
 
 export class CreatePluginValidationDto implements CreatePluginDto {
   @IsString()

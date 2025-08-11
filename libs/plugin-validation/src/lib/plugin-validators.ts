@@ -4,7 +4,7 @@ import {
   LocalGuardEntry,
   ExternalGuardEntry,
   PluginSecurity,
-} from '@modu-nest/plugin-core';
+} from '@libs/plugin-core';
 
 export class PluginValidator {
   private static readonly REQUIRED_FIELDS: (keyof PluginManifest)[] = [

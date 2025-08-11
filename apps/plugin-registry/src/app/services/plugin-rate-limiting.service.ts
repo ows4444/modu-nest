@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginSecurityError, PluginErrorMetrics } from '@modu-nest/plugin-types';
+import { PluginSecurityError, PluginErrorMetrics } from '@libs/plugin-core';
 
 export interface RateLimitRule {
   name: string;

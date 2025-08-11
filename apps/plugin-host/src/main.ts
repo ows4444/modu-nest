@@ -2,12 +2,12 @@ import { Logger, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { Environment, ENVIRONMENT_ENV } from '@modu-nest/config';
-import { EnvironmentType } from '@modu-nest/const';
+import { Environment, ENVIRONMENT_ENV } from '@libs/shared-config';
+import { EnvironmentType } from '@libs/shared-const';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
-import { PluginGuardInterceptor } from '@modu-nest/plugin-types';
 import helmet from 'helmet';
+import { PluginGuardInterceptor } from '@libs/plugin-services';
 
 async function Bootstrap() {
   const dynamicAppModule = await AppModule.register();

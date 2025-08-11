@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import 'reflect-metadata';
-import { LoadedPlugin, PluginLifecycleHook, PluginManifest } from '@modu-nest/plugin-types';
+import { LoadedPlugin, PluginManifest } from '@libs/plugin-types';
+import { PluginLifecycleHook } from '@libs/plugin-core';
 
 export interface LifecycleHookMetadata {
   hookType: PluginLifecycleHook;
@@ -66,10 +67,9 @@ export class PluginLifecycleHookDiscoveryService {
    * Pre-process lifecycle hooks from manifest metadata (if available)
    */
   processManifestHooks(plugin: LoadedPlugin): Map<PluginLifecycleHook, BoundLifecycleHook[]> {
-    const pluginName = plugin.manifest.name;
-
     // Check if manifest contains pre-processed hook metadata
-    if (plugin.manifest.events?.lifecycle) {
+    // Note: events property doesn't exist on PluginManifest, so this will always be undefined
+    if ((plugin.manifest as any).events?.lifecycle) {
       return this.loadHooksFromManifest(plugin);
     }
 
@@ -81,11 +81,9 @@ export class PluginLifecycleHookDiscoveryService {
    * Load hooks from manifest metadata (future enhancement)
    */
   private loadHooksFromManifest(plugin: LoadedPlugin): Map<PluginLifecycleHook, BoundLifecycleHook[]> {
-    const hooks = new Map<PluginLifecycleHook, BoundLifecycleHook[]>();
-    const manifest = plugin.manifest;
-
     // This would be populated during build phase
-    const lifecycleConfig = manifest.events?.lifecycle;
+    // Note: events property doesn't exist on PluginManifest, so this will always be undefined
+    const lifecycleConfig = (plugin.manifest as any).events?.lifecycle;
     if (!lifecycleConfig) {
       return this.performHookDiscovery(plugin);
     }

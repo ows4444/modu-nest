@@ -14,7 +14,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PluginValidationResult } from '@modu-nest/plugin-core';
+import { PluginValidationResult } from '@libs/plugin-core';
 
 export class BaseGuardEntryValidator {
   @IsString()

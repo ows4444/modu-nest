@@ -1,5 +1,5 @@
 {
-  "name": "@modu-nest/source",
+  "name": "@workspace/source",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
@@ -26,7 +26,7 @@
     "affected:test": "nx affected --target=test",
     "affected:lint": "nx affected --target=lint",
     "release": "nx run-many --target=plugin-zip --projects=tag:plugin",
-    "plugin:create": "nx g @modu-nest/plugin:plugin",
+    "plugin:create": "nx g @tools/plugin:plugin",
     "quality:check": "npm run lint && npm run typecheck && npm run validate:architecture",
     "ci": "npm run quality:check && npm run test && npm run build"
   },

@@ -20,8 +20,8 @@ import {
   LoadedPlugin,
   PluginState,
   PluginTransition,
-} from '@modu-nest/plugin-core';
-import { PluginEventValidator, EventValidationResult } from '@modu-nest/plugin-validation';
+} from '@libs/plugin-core';
+import { PluginEventValidator, EventValidationResult } from '@libs/plugin-validation';
 
 /**
  * Event batching configuration

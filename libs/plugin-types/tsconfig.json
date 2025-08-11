@@ -4,15 +4,6 @@
   "include": [],
   "references": [
     {
-      "path": "../plugin-validation"
-    },
-    {
-      "path": "../plugin-decorators"
-    },
-    {
-      "path": "../plugin-services"
-    },
-    {
       "path": "../plugin-core"
     },
     {

@@ -1,6 +1,6 @@
 import { DynamicModule, Global, Module, Provider } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import { SharedConfigModule } from '@modu-nest/config';
+import { SharedConfigModule } from '@libs/shared-config';
 import { StandardErrorHandlingInterceptor } from '../interceptors/error-handling.interceptor';
 import { GlobalExceptionFilter } from '../filters/global-exception.filter';
 
@@ -10,18 +10,18 @@ export interface CoreAppModuleOptions {
    * @default true
    */
   enableErrorHandling?: boolean;
-  
+
   /**
    * Enable global exception filter
    * @default true
    */
   enableGlobalFilter?: boolean;
-  
+
   /**
    * Additional providers to register globally
    */
   providers?: Provider[];
-  
+
   /**
    * Additional imports for the module
    */
@@ -36,12 +36,7 @@ export interface CoreAppModuleOptions {
 @Module({})
 export class CoreAppModule {
   static forRoot(options: CoreAppModuleOptions = {}): DynamicModule {
-    const {
-      enableErrorHandling = true,
-      enableGlobalFilter = true,
-      providers = [],
-      imports = [],
-    } = options;
+    const { enableErrorHandling = true, enableGlobalFilter = true, providers = [], imports = [] } = options;
 
     const coreProviders: Provider[] = [];
 
@@ -61,17 +56,9 @@ export class CoreAppModule {
 
     return {
       module: CoreAppModule,
-      imports: [
-        SharedConfigModule.forRoot({ isGlobal: true }),
-        ...imports,
-      ],
-      providers: [
-        ...coreProviders,
-        ...providers,
-      ],
-      exports: [
-        SharedConfigModule,
-      ],
+      imports: [SharedConfigModule.forRoot({ isGlobal: true }), ...imports],
+      providers: [...coreProviders, ...providers],
+      exports: [SharedConfigModule],
     };
   }
 }

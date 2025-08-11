@@ -1,4 +1,4 @@
-import { parseBoolean } from '@modu-nest/utils';
+import { parseBoolean } from '@libs/shared-utils';
 import { Expose, Transform } from 'class-transformer';
 import { IsBoolean, IsOptional, IsString, ValidateIf } from 'class-validator';
 

@@ -6,8 +6,8 @@ import {
   PluginFileAccessConfig,
   PluginNetworkAccessConfig,
   PluginDatabaseAccessConfig,
-} from '@modu-nest/plugin-context';
-import { PluginManifest } from '@modu-nest/plugin-types';
+} from '@libs/plugin-context';
+import { PluginManifest } from '@libs/plugin-types';
 import path from 'path';
 import fs from 'fs';
 
@@ -112,24 +112,48 @@ export class PluginContextLoaderService {
         const fileContent = fs.readFileSync(contextConfigPath, 'utf8');
         const fileConfig: PluginContextConfigFile = JSON.parse(fileContent);
 
-        // Merge file configuration
+        // Merge file configuration with proper type handling
         if (fileConfig.fileAccess) {
-          config.fileAccess = { ...config.fileAccess, ...fileConfig.fileAccess };
+          config.fileAccess = {
+            ...config.fileAccess,
+            ...(fileConfig.fileAccess as PluginFileAccessConfig)
+          };
         }
         if (fileConfig.networkAccess) {
-          config.networkAccess = { ...config.networkAccess, ...fileConfig.networkAccess };
+          config.networkAccess = {
+            ...config.networkAccess,
+            ...(fileConfig.networkAccess as PluginNetworkAccessConfig)
+          };
         }
         if (fileConfig.databaseAccess) {
-          config.databaseAccess = { ...config.databaseAccess, ...fileConfig.databaseAccess };
+          config.databaseAccess = {
+            ...config.databaseAccess,
+            ...(fileConfig.databaseAccess as PluginDatabaseAccessConfig)
+          };
         }
         if (fileConfig.resourceLimits) {
-          config.resourceLimits = { ...config.resourceLimits, ...fileConfig.resourceLimits };
+          config.resourceLimits = {
+            ...config.resourceLimits,
+            ...Object.fromEntries(
+              Object.entries(fileConfig.resourceLimits).filter(([, value]) => value !== undefined)
+            )
+          } as { maxMemoryUsage: number; maxCpuTime: number; maxExecutionTime: number; maxConcurrentOperations: number; };
         }
         if (fileConfig.sandbox) {
-          config.sandbox = { ...config.sandbox, ...fileConfig.sandbox };
+          config.sandbox = {
+            ...config.sandbox,
+            ...Object.fromEntries(
+              Object.entries(fileConfig.sandbox).filter(([, value]) => value !== undefined)
+            )
+          } as { enabled: boolean; isolateMemory: boolean; restrictSystemCalls: boolean; };
         }
         if (fileConfig.logging) {
-          config.logging = { ...config.logging, ...fileConfig.logging };
+          config.logging = {
+            ...config.logging,
+            ...Object.fromEntries(
+              Object.entries(fileConfig.logging).filter(([, value]) => value !== undefined)
+            )
+          } as { level: 'debug' | 'info' | 'warn' | 'error'; maxLogSize: number; enableMetrics: boolean; };
         }
 
         this.logger.debug(`Merged context configuration from file for plugin: ${pluginName}`);
@@ -148,7 +172,8 @@ export class PluginContextLoaderService {
   }
 
   private applyPluginTypeDefaults(config: Partial<PluginContextConfig>, manifest: PluginManifest): void {
-    const pluginType = manifest.module?.type || 'general';
+    // Since PluginModuleMeta doesn't have a type property, we'll determine type from other manifest properties
+    const pluginType = this.determinePluginType(manifest);
 
     switch (pluginType) {
       case 'data-processor':
@@ -278,7 +303,7 @@ export class PluginContextLoaderService {
         }
 
         if (config.databaseAccess) {
-          config.databaseAccess.allowedOperations = ['SELECT', 'INSERT'] as any; // No DELETE/UPDATE for untrusted
+          config.databaseAccess.allowedOperations = ['SELECT', 'INSERT'] as ('SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'CREATE' | 'DROP' | 'ALTER')[]; // No DELETE/UPDATE for untrusted
           config.databaseAccess.allowStoredProcedures = false;
           config.databaseAccess.maxResultSize = Math.min(config.databaseAccess.maxResultSize || 100, 100);
         }
@@ -335,5 +360,22 @@ export class PluginContextLoaderService {
     } catch (error) {
       this.logger.warn(`Failed to create directories for plugin ${pluginName}:`, error);
     }
+  }
+
+  private determinePluginType(manifest: PluginManifest): string {
+    // Determine plugin type from manifest properties
+    if (manifest.name.includes('data') || manifest.description.toLowerCase().includes('data')) {
+      return 'data-processor';
+    }
+    if (manifest.name.includes('network') || manifest.description.toLowerCase().includes('network')) {
+      return 'network-service';
+    }
+    if (manifest.name.includes('auth') || manifest.description.toLowerCase().includes('auth')) {
+      return 'auth-service';
+    }
+    if (manifest.name.includes('ui') || manifest.description.toLowerCase().includes('user interface')) {
+      return 'ui-component';
+    }
+    return 'general';
   }
 }

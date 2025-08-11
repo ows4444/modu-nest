@@ -1,7 +1,8 @@
 import { Injectable, Logger, Type, ClassProvider, ValueProvider, FactoryProvider } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Mutex } from 'async-mutex';
-import { CrossPluginServiceConfig, PluginManifest, ServiceVersionInfo } from '@modu-nest/plugin-types';
+import { CrossPluginServiceConfig, ServiceVersionInfo } from '@libs/plugin-core';
+import { PluginManifest } from '@libs/plugin-types';
 
 // Cross-plugin service provider - a union of NestJS Provider types
 export type CrossPluginServiceProvider = ClassProvider<any> | ValueProvider<any> | FactoryProvider<any> | Type<any>;
@@ -1251,7 +1252,7 @@ export class CrossPluginServiceManager {
    * Check for potential service conflicts before registration
    */
   async checkServiceConflicts(
-    pluginName: string, 
+    pluginName: string,
     manifest: PluginManifest
   ): Promise<{
     hasConflicts: boolean;
@@ -1268,7 +1269,7 @@ export class CrossPluginServiceManager {
 
     for (const service of services) {
       const token = service.token || service.serviceName;
-      
+
       // Check for token conflicts
       const existingEntry = this.serviceRegistry.get(token);
       if (existingEntry && existingEntry.pluginName !== pluginName) {
@@ -1285,7 +1286,7 @@ export class CrossPluginServiceManager {
       const serviceVersions = this.versionRegistry.get(service.serviceName);
       if (serviceVersions) {
         const requestedVersion = service.version || '1.0.0';
-        
+
         for (const [existingVersion, existingEntry] of serviceVersions.entries()) {
           if (existingEntry.pluginName !== pluginName) {
             const compatibility = this.checkVersionCompatibility(
@@ -1346,11 +1347,11 @@ export class CrossPluginServiceManager {
     for (const entry of this.serviceRegistry.values()) {
       const key = `${entry.serviceName}:${entry.version}`;
       tokenCounts.set(key, (tokenCounts.get(key) || 0) + 1);
-      
+
       if (entry.deprecationInfo?.isDeprecated) {
         deprecatedCount++;
       }
-      
+
       if (entry.isGlobal) {
         globalCount++;
       }
@@ -1363,9 +1364,9 @@ export class CrossPluginServiceManager {
       }
     }
 
-    const duplicateTokens = Array.from(tokenCounts.values()).filter(count => count > 1).length;
-    const namespaceCollisions = Array.from(this.globalTokens).filter(token => 
-      token.split('-').length < 2 || token.length < 10
+    const duplicateTokens = Array.from(tokenCounts.values()).filter((count) => count > 1).length;
+    const namespaceCollisions = Array.from(this.globalTokens).filter(
+      (token) => token.split('-').length < 2 || token.length < 10
     ).length;
 
     return {
@@ -1459,14 +1460,14 @@ export class CrossPluginServiceManager {
     const serviceVersions = this.versionRegistry.get(serviceName);
     if (!serviceVersions) return;
 
-    for (const [version, entry] of serviceVersions.entries()) {
+    for (const [_version, entry] of serviceVersions.entries()) {
       if (entry.pluginName === pluginName) {
         // Create alias entry
         const aliasEntry: ServiceRegistryEntry = {
           ...entry,
           serviceName: aliasToken,
         };
-        
+
         this.serviceRegistry.set(aliasToken, aliasEntry);
         this.logger.debug(`Created service alias: ${serviceName} -> ${aliasToken} for plugin ${pluginName}`);
         break;

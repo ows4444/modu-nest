@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Param, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { PluginLoaderService } from '../plugin-loader.service';
+import { PluginLoaderService } from '../plugin-loader-primary.service';
 import { RegistryClientService } from '../registry-client.service';
-import { PluginUpdateInfo } from '@modu-nest/plugin-types';
+import { PluginUpdateInfo } from '@libs/plugin-types';
 
 @Controller('plugins')
 export class PluginController {

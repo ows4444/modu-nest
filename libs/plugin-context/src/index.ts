@@ -15,3 +15,5 @@ export * from './lib/file-access-validator';
 // Permission and context services
 export * from './lib/plugin-permission.service';
 export { RestrictedPluginContextService } from './lib/restricted-plugin-context.service';
+
+export type { PluginContextInterface } from './lib/restricted-plugin-context.service';

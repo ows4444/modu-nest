@@ -1,5 +1,5 @@
 import {
-  PluginRoute,
+  PluginRoutePrefix,
   PluginGet,
   PluginPost,
   PluginPut,
@@ -7,13 +7,24 @@ import {
   PluginUseGuards,
   PluginPermissions,
   PluginLifecycleHookDecorator,
-  ICrossPluginService,
-  CROSS_PLUGIN_SERVICE_TOKEN,
-} from '@modu-nest/plugin-decorators';
-import { Body, Param, Query, Request, ValidationPipe, UsePipes, Logger, HttpException, HttpStatus, Inject, Optional } from '@nestjs/common';
+} from '@libs/plugin-decorators';
+import {
+  Body,
+  Param,
+  Query,
+  Request,
+  ValidationPipe,
+  UsePipes,
+  Logger,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Optional,
+} from '@nestjs/common';
 import { ProductPluginService } from '../services/product-plugin.service';
 import type { CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
-import { ErrorHandler, ApiResponse } from '@modu-nest/shared/utils';
+import { ErrorHandler, ApiResponse } from '@libs/shared-utils';
+import { CROSS_PLUGIN_SERVICE_TOKEN, type ICrossPluginService } from '@libs/plugin-core';
 
 @PluginRoutePrefix('products')
 export class ProductPluginController {
@@ -32,31 +43,31 @@ export class ProductPluginController {
   @PluginLifecycleHookDecorator('beforeLoad')
   onPluginBeforeLoad() {
     this.logger.log(`Product plugin is initializing before load at ${new Date().toISOString()}`);
-    
+
     // Initialize product management system
-    return { 
+    return {
       message: 'Product plugin is initializing product management system',
       timestamp: new Date(),
-      status: 'initializing'
+      status: 'initializing',
     };
   }
 
   @PluginLifecycleHookDecorator('afterLoad')
   onPluginAfterLoad() {
     this.logger.log(`Product plugin has loaded successfully at ${new Date().toISOString()}`);
-    
+
     // Confirm product management system is ready
-    return { 
+    return {
       message: 'Product plugin management system ready',
       timestamp: new Date(),
-      status: 'ready'
+      status: 'ready',
     };
   }
 
   @PluginLifecycleHookDecorator('beforeUnload')
   onPluginBeforeUnload() {
     this.logger.log(`Product plugin is preparing to unload at ${new Date().toISOString()}`);
-    
+
     // Cleanup product management resources
     try {
       // Here you would cleanup caches, close connections, etc.
@@ -64,34 +75,37 @@ export class ProductPluginController {
     } catch (error) {
       this.logger.error('Error during product management cleanup', error);
     }
-    
-    return { 
+
+    return {
       message: 'Product plugin is cleaning up management resources',
       timestamp: new Date(),
-      status: 'cleaning-up'
+      status: 'cleaning-up',
     };
   }
 
   @PluginLifecycleHookDecorator('afterUnload')
   onPluginAfterUnload() {
     this.logger.log(`Product plugin has unloaded successfully at ${new Date().toISOString()}`);
-    return { 
+    return {
       message: 'Product plugin has unloaded successfully',
       timestamp: new Date(),
-      status: 'unloaded'
+      status: 'unloaded',
     };
   }
 
   @PluginLifecycleHookDecorator('onError')
   onPluginError(error: Error) {
-    this.logger.error(`Product plugin encountered an error: ${error.message} at ${new Date().toISOString()}`, error.stack);
-    
+    this.logger.error(
+      `Product plugin encountered an error: ${error.message} at ${new Date().toISOString()}`,
+      error.stack
+    );
+
     // Handle plugin-specific errors
     if (error.message.includes('product')) {
       this.logger.error('Product management error detected');
     }
-    
-    return { 
+
+    return {
       message: 'Product plugin encountered an error',
       error: {
         message: error.message,
@@ -99,7 +113,7 @@ export class ProductPluginController {
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
       timestamp: new Date(),
-      status: 'error'
+      status: 'error',
     };
   }
 
@@ -114,10 +128,7 @@ export class ProductPluginController {
       return ErrorHandler.createSuccessResponse(products);
     } catch (error) {
       this.logger.error('Failed to get all products', error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'getAllProducts'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'getAllProducts'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -133,10 +144,7 @@ export class ProductPluginController {
       return ErrorHandler.createSuccessResponse(products);
     } catch (error) {
       this.logger.error(`Failed to search products with query: ${query}`, error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'searchProducts'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'searchProducts'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -159,22 +167,19 @@ export class ProductPluginController {
       if (!id || id.trim() === '') {
         ErrorHandler.throwBadRequest('Product ID is required');
       }
-      
+
       const product = await this.productPluginService.getProductById(id);
       if (!product) {
         ErrorHandler.throwNotFound('Product', id);
       }
-      
+
       return ErrorHandler.createSuccessResponse(product);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to get product by ID: ${id}`, error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'getProductById'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'getProductById'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -182,13 +187,16 @@ export class ProductPluginController {
   @PluginUseGuards('auth', 'product-access')
   @PluginPermissions(['products:write:own'])
   @UsePipes(new ValidationPipe())
-  async createProduct(@Body() createProductDto: CreateProductDto, @Request() req: { user?: { id: string } }): Promise<ApiResponse> {
+  async createProduct(
+    @Body() createProductDto: CreateProductDto,
+    @Request() req: { user?: { id: string } }
+  ): Promise<ApiResponse> {
     try {
       const userId = req.user?.id;
       if (!userId) {
         ErrorHandler.throwUnauthorized('User ID not found in request');
       }
-      
+
       const product = await this.productPluginService.createProduct(createProductDto, userId);
       return ErrorHandler.createSuccessResponse(product);
     } catch (error) {
@@ -196,10 +204,7 @@ export class ProductPluginController {
         throw error;
       }
       this.logger.error('Failed to create product', { error, dto: createProductDto });
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'createProduct'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'createProduct'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -212,22 +217,19 @@ export class ProductPluginController {
       if (!id || id.trim() === '') {
         ErrorHandler.throwBadRequest('Product ID is required');
       }
-      
+
       const updatedProduct = await this.productPluginService.updateProduct(id, updateProductDto);
       if (!updatedProduct) {
         ErrorHandler.throwNotFound('Product', id);
       }
-      
+
       return ErrorHandler.createSuccessResponse(updatedProduct);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to update product: ${id}`, { error, dto: updateProductDto });
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'updateProduct'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'updateProduct'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -239,25 +241,19 @@ export class ProductPluginController {
       if (!id || id.trim() === '') {
         ErrorHandler.throwBadRequest('Product ID is required');
       }
-      
-      const deleted = await this.productPluginService.deleteProduct(id);
-      if (!deleted) {
-        ErrorHandler.throwNotFound('Product', id);
-      }
-      
-      return ErrorHandler.createSuccessResponse({ 
+
+      await this.productPluginService.deleteProduct(id);
+
+      return ErrorHandler.createSuccessResponse({
         message: 'Product deleted successfully',
-        id 
+        id,
       });
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to delete product: ${id}`, error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'deleteProduct'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'deleteProduct'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -316,7 +312,7 @@ export class ProductPluginController {
   async getProductsWithUsers(): Promise<ApiResponse> {
     try {
       const products = await this.productPluginService.getAllProducts();
-      
+
       if (!this.crossPluginService) {
         this.logger.warn('Cross-plugin service not available, returning products without user data');
         return ErrorHandler.createSuccessResponse({
@@ -339,19 +335,21 @@ export class ProductPluginController {
       const enrichedProducts = await Promise.all(
         products.map(async (product: any) => {
           try {
-            const userInfo = await this.crossPluginService!.callServiceMethod(
+            const userInfo = await this.crossPluginService?.callServiceMethod(
               'USER_PLUGIN_SERVICE',
               'getUserById',
               product.ownerId
             );
-            
+
             return {
               ...product,
-              owner: userInfo ? {
-                id: userInfo.id,
-                username: userInfo.username,
-                email: userInfo.email
-              } : null,
+              owner: userInfo
+                ? {
+                    id: userInfo.id,
+                    username: userInfo.username,
+                    email: userInfo.email,
+                  }
+                : null,
             };
           } catch (error) {
             this.logger.error(`Failed to get user data for product ${product.id}`, error);
@@ -379,7 +377,10 @@ export class ProductPluginController {
   @PluginPost('transfer/:productId')
   @PluginUseGuards('auth', 'product-ownership')
   @UsePipes(new ValidationPipe())
-  async transferOwnership(@Param('productId') productId: string, @Body() data: { newOwnerId: string }): Promise<ApiResponse> {
+  async transferOwnership(
+    @Param('productId') productId: string,
+    @Body() data: { newOwnerId: string }
+  ): Promise<ApiResponse> {
     const { newOwnerId } = data;
 
     try {
@@ -394,7 +395,7 @@ export class ProductPluginController {
           'getUserById',
           newOwnerId
         );
-        
+
         if (!userExists) {
           ErrorHandler.throwBadRequest(`User with ID '${newOwnerId}' does not exist`);
         }
@@ -419,10 +420,7 @@ export class ProductPluginController {
         throw error;
       }
       this.logger.error(`Failed to transfer product ownership: ${productId}`, { error, newOwnerId });
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'transferOwnership'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'transferOwnership'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

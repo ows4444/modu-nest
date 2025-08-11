@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GuardEntry, LocalGuardEntry } from '@modu-nest/plugin-core';
+import { GuardEntry, LocalGuardEntry } from '@libs/plugin-core';
 
 export interface GuardNode {
   name: string;

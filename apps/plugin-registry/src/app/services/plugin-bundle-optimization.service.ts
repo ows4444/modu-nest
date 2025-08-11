@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createGzip, createBrotliCompress, constants } from 'zlib';
 import JSZip from 'jszip';
-import { PluginValidationError, handlePluginError, PluginErrorMetrics } from '@modu-nest/plugin-types';
+import { PluginValidationError, handlePluginError, PluginErrorMetrics } from '@libs/plugin-core';
 
 export interface BundleOptimizationResult {
   originalSize: number;

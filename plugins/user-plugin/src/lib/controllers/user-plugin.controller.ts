@@ -7,15 +7,23 @@ import {
   PluginPermissions,
   PluginRoutePrefix,
   PluginLifecycleHookDecorator,
-} from '@modu-nest/plugin-decorators';
+} from '@libs/plugin-decorators';
+import { type ICrossPluginService, CROSS_PLUGIN_SERVICE_TOKEN } from '@libs/plugin-core';
 import {
-  ICrossPluginService,
-  CROSS_PLUGIN_SERVICE_TOKEN,
-} from '@modu-nest/plugin-core';
-import { Body, Param, Query, ValidationPipe, UsePipes, Logger, HttpException, HttpStatus, Inject, Optional } from '@nestjs/common';
+  Body,
+  Param,
+  Query,
+  ValidationPipe,
+  UsePipes,
+  Logger,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Optional,
+} from '@nestjs/common';
 import { UserPluginService } from '../services/user-plugin.service';
 import type { CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
-import { ApiResponse, ErrorHandler } from '@modu-nest/utils';
+import { ApiResponse, ErrorHandler } from '@libs/shared-utils';
 
 @PluginRoutePrefix('users')
 export class UserPluginController {
@@ -36,31 +44,31 @@ export class UserPluginController {
   @PluginLifecycleHookDecorator('beforeLoad')
   onPluginBeforeLoad() {
     this.logger.log(`User plugin is initializing before load at ${new Date().toISOString()}`);
-    
+
     // Initialize user authentication system
-    return { 
+    return {
       message: 'User plugin is initializing authentication system',
       timestamp: new Date(),
-      status: 'initializing'
+      status: 'initializing',
     };
   }
 
   @PluginLifecycleHookDecorator('afterLoad')
   onPluginAfterLoad() {
     this.logger.log(`User plugin has loaded successfully at ${new Date().toISOString()}`);
-    
+
     // Confirm authentication system is ready
-    return { 
+    return {
       message: 'User plugin authentication system ready',
       timestamp: new Date(),
-      status: 'ready'
+      status: 'ready',
     };
   }
 
   @PluginLifecycleHookDecorator('beforeUnload')
   onPluginBeforeUnload() {
     this.logger.log(`User plugin is preparing to unload at ${new Date().toISOString()}`);
-    
+
     // Cleanup authentication sessions
     try {
       // Here you would cleanup active sessions, cache, etc.
@@ -68,34 +76,34 @@ export class UserPluginController {
     } catch (error) {
       this.logger.error('Error during authentication cleanup', error);
     }
-    
-    return { 
+
+    return {
       message: 'User plugin is cleaning up authentication resources',
       timestamp: new Date(),
-      status: 'cleaning-up'
+      status: 'cleaning-up',
     };
   }
 
   @PluginLifecycleHookDecorator('afterUnload')
   onPluginAfterUnload() {
     this.logger.log(`User plugin has unloaded successfully at ${new Date().toISOString()}`);
-    return { 
+    return {
       message: 'User plugin has unloaded successfully',
       timestamp: new Date(),
-      status: 'unloaded'
+      status: 'unloaded',
     };
   }
 
   @PluginLifecycleHookDecorator('onError')
   onPluginError(error: Error) {
     this.logger.error(`User plugin encountered an error: ${error.message} at ${new Date().toISOString()}`, error.stack);
-    
+
     // Handle plugin-specific errors
     if (error.message.includes('authentication')) {
       this.logger.error('Authentication system error detected');
     }
-    
-    return { 
+
+    return {
       message: 'User plugin encountered an error',
       error: {
         message: error.message,
@@ -103,7 +111,7 @@ export class UserPluginController {
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
       timestamp: new Date(),
-      status: 'error'
+      status: 'error',
     };
   }
 
@@ -131,22 +139,19 @@ export class UserPluginController {
       if (!id || id.trim() === '') {
         ErrorHandler.throwBadRequest('User ID is required');
       }
-      
+
       const user = await this.userPluginService.getUserById(id);
       if (!user) {
         ErrorHandler.throwNotFound('User', id);
       }
-      
+
       return ErrorHandler.createSuccessResponse(user);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to get user by ID: ${id}`, error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'getUserById'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'getUserById'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -163,10 +168,7 @@ export class UserPluginController {
         throw error;
       }
       this.logger.error('Failed to create user', { error, dto: createUserDto });
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'createUser'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'createUser'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -179,22 +181,19 @@ export class UserPluginController {
       if (!id || id.trim() === '') {
         ErrorHandler.throwBadRequest('User ID is required');
       }
-      
+
       const updatedUser = await this.userPluginService.updateUser(id, updateUserDto);
       if (!updatedUser) {
         ErrorHandler.throwNotFound('User', id);
       }
-      
+
       return ErrorHandler.createSuccessResponse(updatedUser);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to update user: ${id}`, { error, dto: updateUserDto });
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'updateUser'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'updateUser'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -206,25 +205,19 @@ export class UserPluginController {
       if (!id || id.trim() === '') {
         ErrorHandler.throwBadRequest('User ID is required');
       }
-      
-      const deleted = await this.userPluginService.deleteUser(id);
-      if (!deleted) {
-        ErrorHandler.throwNotFound('User', id);
-      }
-      
-      return ErrorHandler.createSuccessResponse({ 
+
+      await this.userPluginService.deleteUser(id);
+
+      return ErrorHandler.createSuccessResponse({
         message: 'User deleted successfully',
-        id 
+        id,
       });
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to delete user: ${id}`, error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'deleteUser'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'deleteUser'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -285,11 +278,12 @@ export class UserPluginController {
         try {
           const productService = await this.crossPluginService.getService('PRODUCT_PLUGIN_SERVICE');
           if (productService) {
-            products = await this.crossPluginService.callServiceMethod(
-              'PRODUCT_PLUGIN_SERVICE',
-              'getProductsByOwner',
-              userId
-            ) || [];
+            products =
+              (await this.crossPluginService.callServiceMethod(
+                'PRODUCT_PLUGIN_SERVICE',
+                'getProductsByOwner',
+                userId
+              )) || [];
           } else {
             this.logger.warn('Product service not available via cross-plugin communication');
           }
@@ -305,7 +299,7 @@ export class UserPluginController {
           id: user.id,
           username: user.username,
           email: user.email,
-          roles: user.roles
+          roles: user.roles,
         },
         products,
         productsCount: products.length,
@@ -316,10 +310,7 @@ export class UserPluginController {
         throw error;
       }
       this.logger.error(`Failed to get products for user: ${userId}`, error);
-      throw new HttpException(
-        ErrorHandler.handleError(error, 'getUserProducts'),
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw new HttpException(ErrorHandler.handleError(error, 'getUserProducts'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -337,7 +328,7 @@ export class UserPluginController {
       }
 
       let product: any = null;
-      
+
       // Try to create a default product for the user if product data provided
       if (productData && this.crossPluginService) {
         try {
@@ -366,7 +357,7 @@ export class UserPluginController {
       return ErrorHandler.createSuccessResponse({
         user: newUser,
         product,
-        message: product 
+        message: product
           ? 'User and product created successfully via cross-plugin integration'
           : 'User created successfully (product creation skipped)',
       });
@@ -380,6 +371,5 @@ export class UserPluginController {
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
-  }
   }
 }

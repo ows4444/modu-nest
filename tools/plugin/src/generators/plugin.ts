@@ -15,7 +15,7 @@ export async function pluginGenerator(tree: Tree, options: PluginGeneratorSchema
     sourceRoot: `${projectRoot}/src`,
     targets: {
       'plugin-build': {
-        executor: '@modu-nest/plugin:plugin-build',
+        executor: '@libs/plugin:plugin-build',
         options: {
           outputPath: 'dist',
           tsConfig: 'tsconfig.lib.json',
@@ -23,20 +23,20 @@ export async function pluginGenerator(tree: Tree, options: PluginGeneratorSchema
         },
       },
       'plugin-validate': {
-        executor: '@modu-nest/plugin:plugin-validate',
+        executor: '@libs/plugin:plugin-validate',
         options: {
           tsConfig: 'tsconfig.lib.json',
         },
       },
       'plugin-publish': {
-        executor: '@modu-nest/plugin:plugin-publish',
+        executor: '@libs/plugin:plugin-publish',
         options: {
           outputPath: 'dist',
           pluginsDir: './plugins',
         },
       },
       'plugin-registry-publish': {
-        executor: '@modu-nest/plugin:plugin-registry-publish',
+        executor: '@libs/plugin:plugin-registry-publish',
         options: {
           outputPath: 'dist',
           registryUrl: 'http://localhost:3001',

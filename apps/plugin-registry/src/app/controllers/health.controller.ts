@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { PluginRegistryService } from '../services/plugin-registry.service';
-import type { HealthResponse, RootResponse, RegistryStats } from '@modu-nest/plugin-types';
+import type { HealthResponse, RootResponse } from '@libs/plugin-types';
+import { RegistryStats } from '@libs/plugin-core';
 
 @Controller()
 export class HealthController {

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import semver from 'semver';
-import { sanitizePluginName, isValidPluginName } from '@modu-nest/utils';
-import { formatFileSize } from '@modu-nest/utils';
+import { sanitizePluginName, isValidPluginName } from '@libs/shared-utils';
+import { formatFileSize } from '@libs/shared-utils';
 
 /**
  * Utility functions for plugin management
@@ -32,7 +32,7 @@ export class PluginUtils {
 
   /**
    * Sanitize plugin name for file system use
-   * @deprecated Use sanitizePluginName from @modu-nest/shared/utils instead
+   * @deprecated Use sanitizePluginName from @modu-nest/utils instead
    */
   static sanitizePluginName(name: string): string {
     return sanitizePluginName(name);
@@ -56,7 +56,7 @@ export class PluginUtils {
 
   /**
    * Format file size in human readable format
-   * @deprecated Use formatFileSize from @modu-nest/shared/utils instead
+   * @deprecated Use formatFileSize from @modu-nest/utils instead
    */
   static formatFileSize(bytes: number): string {
     return formatFileSize(bytes);
@@ -64,7 +64,7 @@ export class PluginUtils {
 
   /**
    * Validate plugin name format
-   * @deprecated Use isValidPluginName from @modu-nest/shared/utils instead
+   * @deprecated Use isValidPluginName from @modu-nest/utils instead
    */
   static isValidPluginName(name: string): boolean {
     return isValidPluginName(name);

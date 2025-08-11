@@ -21,7 +21,7 @@ import { SecurityEventLoggerService } from './services/security-event-logger.ser
 import { PluginRegistryMetricsService } from './services/plugin-registry-metrics.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
-import { SharedConfigModule } from '@modu-nest/config';
+import { SharedConfigModule } from '@libs/shared-config';
 import { RepositoryModule } from './modules/repository.module';
 
 @Module({

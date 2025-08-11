@@ -1,5 +1,5 @@
 {
-  "name": "@modu-nest/utils",
+  "name": "@libs/shared-utils",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/index.js",
@@ -13,9 +13,6 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
-  },
-  "nx": {
-    "name": "utils"
   },
   "dependencies": {
     "tslib": "^2.3.0",

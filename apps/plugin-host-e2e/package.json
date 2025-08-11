@@ -1,5 +1,5 @@
 {
-  "name": "@module-nest/plugin-host-e2e",
+  "name": "@apps/plugin-host-e2e",
   "version": "0.0.1",
   "private": true,
   "nx": {

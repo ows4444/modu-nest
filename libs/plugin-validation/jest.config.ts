@@ -1,4 +1,4 @@
-/* eslint-disable */
+ 
 import { readFileSync } from 'fs';
 
 // Reading the SWC compilation config for the spec files
@@ -8,7 +8,7 @@ const swcJestConfig = JSON.parse(readFileSync(`${__dirname}/.spec.swcrc`, 'utf-8
 swcJestConfig.swcrc = false;
 
 export default {
-  displayName: '@modu-nest/plugin-validation',
+  displayName: '@libs/plugin-validation',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   transform: {

@@ -1,5 +1,5 @@
-import { EnvironmentType } from '@modu-nest/const';
-import { isValidUrl, parseBoolean } from '@modu-nest/utils';
+import { EnvironmentType } from '@libs/shared-const';
+import { isValidUrl, parseBoolean } from '@libs/shared-utils';
 
 /**
  * Comprehensive configuration validator with security checks and documentation

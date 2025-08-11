@@ -23,10 +23,10 @@
       "path": "../../libs/shared/const/tsconfig.lib.json"
     },
     {
-      "path": "../../libs/plugin-types/tsconfig.lib.json"
+      "path": "../../libs/plugin-core/tsconfig.lib.json"
     },
     {
-      "path": "../../libs/plugin-core/tsconfig.lib.json"
+      "path": "../../libs/plugin-types/tsconfig.lib.json"
     },
     {
       "path": "../../libs/plugin-services/tsconfig.lib.json"

@@ -1,5 +1,5 @@
 import { PluginCompatibilityChecker, CompatibilityUtils } from './plugin-compatibility-checker';
-import { PluginManifest } from '@modu-nest/plugin-core';
+import { PluginManifest } from '@libs/plugin-core';
 
 describe('PluginCompatibilityChecker', () => {
   const mockManifest: PluginManifest = {
@@ -18,7 +18,7 @@ describe('PluginCompatibilityChecker', () => {
   describe('checkPluginCompatibility', () => {
     it('should return full compatibility for supported version', () => {
       const result = PluginCompatibilityChecker.checkPluginCompatibility('1.0.0');
-      
+
       expect(result.isCompatible).toBe(true);
       expect(result.compatibilityLevel).toBe('full');
       expect(result.errors).toHaveLength(0);
@@ -26,7 +26,7 @@ describe('PluginCompatibilityChecker', () => {
 
     it('should return incompatible for invalid version format', () => {
       const result = PluginCompatibilityChecker.checkPluginCompatibility('invalid-version');
-      
+
       expect(result.isCompatible).toBe(false);
       expect(result.compatibilityLevel).toBe('incompatible');
       expect(result.errors).toContain('Invalid plugin version format: invalid-version');
@@ -36,7 +36,7 @@ describe('PluginCompatibilityChecker', () => {
       const result = PluginCompatibilityChecker.checkPluginCompatibility('0.9.0', {
         allowDeprecated: true,
       });
-      
+
       expect(result.isCompatible).toBe(true);
       expect(result.compatibilityLevel).toBe('deprecated');
       expect(result.warnings.length).toBeGreaterThan(0);
@@ -46,7 +46,7 @@ describe('PluginCompatibilityChecker', () => {
       const result = PluginCompatibilityChecker.checkPluginCompatibility('0.9.0', {
         allowDeprecated: false,
       });
-      
+
       expect(result.isCompatible).toBe(false);
       expect(result.compatibilityLevel).toBe('incompatible');
     });
@@ -55,7 +55,7 @@ describe('PluginCompatibilityChecker', () => {
       const result = PluginCompatibilityChecker.checkPluginCompatibility('1.1.0', {
         allowPartial: true,
       });
-      
+
       // This might be partially compatible (newer minor version)
       expect(result.compatibilityLevel).toBeOneOf(['partial', 'full', 'incompatible']);
     });
@@ -65,7 +65,7 @@ describe('PluginCompatibilityChecker', () => {
         allowDeprecated: true,
         strictMode: true,
       });
-      
+
       expect(result.isCompatible).toBe(false);
       expect(result.compatibilityLevel).toBe('incompatible');
       expect(result.errors).toContain('Strict mode does not allow deprecated or partially compatible versions');
@@ -75,7 +75,7 @@ describe('PluginCompatibilityChecker', () => {
   describe('checkManifestCompatibility', () => {
     it('should check manifest compatibility', () => {
       const result = PluginCompatibilityChecker.checkManifestCompatibility(mockManifest);
-      
+
       expect(result).toBeDefined();
       expect(result.isCompatible).toBeDefined();
       expect(result.compatibilityLevel).toBeDefined();
@@ -87,11 +87,11 @@ describe('PluginCompatibilityChecker', () => {
         name: '',
         author: undefined,
       } as any;
-      
+
       const result = PluginCompatibilityChecker.checkManifestCompatibility(incompleteManifest);
-      
+
       expect(result.isCompatible).toBe(false);
-      expect(result.errors.some(error => error.includes('missing required fields'))).toBe(true);
+      expect(result.errors.some((error) => error.includes('missing required fields'))).toBe(true);
     });
 
     it('should detect deprecated manifest fields', () => {
@@ -99,10 +99,10 @@ describe('PluginCompatibilityChecker', () => {
         ...mockManifest,
         legacyMode: true,
       } as any;
-      
+
       const result = PluginCompatibilityChecker.checkManifestCompatibility(manifestWithDeprecated);
-      
-      expect(result.warnings.some(warning => warning.includes('deprecated fields'))).toBe(true);
+
+      expect(result.warnings.some((warning) => warning.includes('deprecated fields'))).toBe(true);
     });
   });
 
@@ -118,7 +118,7 @@ describe('PluginCompatibilityChecker', () => {
         ...mockManifest,
         version: 'invalid-version',
       };
-      
+
       expect(() => {
         PluginCompatibilityChecker.validatePluginCompatibility(incompatibleManifest);
       }).toThrow();
@@ -130,7 +130,7 @@ describe('PluginCompatibilityChecker', () => {
 
     it('should find compatible versions', () => {
       const compatible = PluginCompatibilityChecker.findCompatibleVersions(testVersions);
-      
+
       expect(compatible).toBeInstanceOf(Array);
       expect(compatible.length).toBeGreaterThan(0);
       expect(compatible).toContain('1.0.0');
@@ -140,12 +140,12 @@ describe('PluginCompatibilityChecker', () => {
       const compatibleStrict = PluginCompatibilityChecker.findCompatibleVersions(testVersions, {
         strictMode: true,
       });
-      
+
       const compatibleLenient = PluginCompatibilityChecker.findCompatibleVersions(testVersions, {
         allowDeprecated: true,
         allowPartial: true,
       });
-      
+
       expect(compatibleLenient.length).toBeGreaterThanOrEqual(compatibleStrict.length);
     });
   });
@@ -154,7 +154,7 @@ describe('PluginCompatibilityChecker', () => {
     it('should return latest compatible version', () => {
       const testVersions = ['1.0.0', '1.0.1', '0.9.0'];
       const latest = PluginCompatibilityChecker.getLatestCompatibleVersion(testVersions);
-      
+
       expect(latest).toBeDefined();
       if (latest) {
         expect(['1.0.0', '1.0.1']).toContain(latest);
@@ -164,7 +164,7 @@ describe('PluginCompatibilityChecker', () => {
     it('should return null if no compatible versions', () => {
       const testVersions = ['0.1.0', '0.2.0'];
       const latest = PluginCompatibilityChecker.getLatestCompatibleVersion(testVersions);
-      
+
       expect(latest).toBeNull();
     });
   });
@@ -173,7 +173,7 @@ describe('PluginCompatibilityChecker', () => {
     it('should return compatibility matrix for multiple versions', () => {
       const testVersions = ['1.0.0', '0.9.0', 'invalid'];
       const matrix = PluginCompatibilityChecker.getCompatibilityMatrix(testVersions);
-      
+
       expect(Object.keys(matrix)).toHaveLength(testVersions.length);
       expect(matrix['1.0.0'].compatibilityLevel).toBe('full');
       expect(matrix['invalid'].compatibilityLevel).toBe('incompatible');
@@ -196,7 +196,7 @@ describe('CompatibilityUtils', () => {
   describe('generateCompatibilityReport', () => {
     it('should generate a comprehensive report', () => {
       const report = CompatibilityUtils.generateCompatibilityReport(mockManifest);
-      
+
       expect(report).toContain('Plugin Compatibility Report');
       expect(report).toContain(mockManifest.name);
       expect(report).toContain(mockManifest.version);
@@ -207,7 +207,7 @@ describe('CompatibilityUtils', () => {
   describe('needsUpdate', () => {
     it('should return false for compatible plugin', () => {
       const needsUpdate = CompatibilityUtils.needsUpdate(mockManifest);
-      
+
       expect(needsUpdate).toBe(false);
     });
 
@@ -216,9 +216,9 @@ describe('CompatibilityUtils', () => {
         ...mockManifest,
         version: '0.9.0',
       };
-      
+
       const needsUpdate = CompatibilityUtils.needsUpdate(deprecatedManifest);
-      
+
       expect(typeof needsUpdate).toBe('boolean');
     });
   });
@@ -226,7 +226,7 @@ describe('CompatibilityUtils', () => {
   describe('getRecommendedActions', () => {
     it('should return actions for compatible plugin', () => {
       const actions = CompatibilityUtils.getRecommendedActions(mockManifest);
-      
+
       expect(actions).toBeInstanceOf(Array);
       expect(actions.length).toBeGreaterThan(0);
     });
@@ -236,10 +236,10 @@ describe('CompatibilityUtils', () => {
         ...mockManifest,
         version: '0.1.0',
       };
-      
+
       const actions = CompatibilityUtils.getRecommendedActions(incompatibleManifest);
-      
-      expect(actions.some(action => action.toLowerCase().includes('update'))).toBe(true);
+
+      expect(actions.some((action) => action.toLowerCase().includes('update'))).toBe(true);
     });
   });
 });
@@ -263,9 +263,10 @@ expect.extend({
 });
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     interface Matchers<R> {
-      toBeOneOf(expected: any[]): R;
+      toBeOneOf(expected: unknown[]): R;
     }
   }
 }

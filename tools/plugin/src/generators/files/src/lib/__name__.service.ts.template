@@ -1,4 +1,4 @@
-import { PluginInjectable } from '@modu-nest/plugin-types';
+import { PluginInjectable } from '@libs/plugin-types';
 
 @PluginInjectable()
 export class <%= className %>Service {

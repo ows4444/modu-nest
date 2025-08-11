@@ -1,5 +1,5 @@
 {
-  "name": "@modu-nest/plugin-validation",
+  "name": "@libs/plugin-validation",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/index.js",
@@ -16,7 +16,10 @@
   },
   "dependencies": {
     "tslib": "^2.3.0",
-    "@modu-nest/plugin-core": "*",
-    "@modu-nest/utils": "*"
+    "@libs/plugin-core": "*",
+    "class-validator": "^0.14.2",
+    "class-transformer": "^0.5.1",
+    "semver": "^7.7.2",
+    "@libs/shared-utils": "0.0.1"
   }
 }

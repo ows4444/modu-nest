@@ -18,15 +18,12 @@ export {
 } from './lib/plugin-decorators';
 
 // Plugin guard decorators and utilities
-export { 
-  PluginUseGuards, 
+export {
+  PluginUseGuards,
+  RegisterPluginGuard,
+  BasePluginGuard,
   PLUGIN_USE_GUARDS_KEY,
-  PLUGIN_GUARD_METADATA_KEY
+  PLUGIN_GUARD_METADATA_KEY,
 } from './lib/plugin-guards';
 
-export type { 
-  PluginGuard,
-  PluginGuardRegistry,
-  RegisteredPluginGuard,
-  PluginGuardMetadata
-} from './lib/plugin-guards';
+export type { PluginGuard, PluginGuardRegistry, RegisteredPluginGuard, PluginGuardMetadata } from './lib/plugin-guards';

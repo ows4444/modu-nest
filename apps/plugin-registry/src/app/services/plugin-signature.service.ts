@@ -6,7 +6,7 @@ import {
   PluginErrorMetrics,
   PluginSecurity,
   PluginManifest,
-} from '@modu-nest/plugin-types';
+} from '@libs/plugin-core';
 
 export interface SignatureValidationResult {
   isValid: boolean;

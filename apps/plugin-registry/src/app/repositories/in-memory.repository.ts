@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginMetadata } from '@modu-nest/plugin-types';
+import { PluginMetadata } from '@libs/plugin-types';
 import {
   IPluginRepository,
   PluginRecord,

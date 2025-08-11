@@ -1,6 +1,6 @@
 import { Get, All, Post, Patch, Put, Head, Options, Delete, SetMetadata } from '@nestjs/common';
 import 'reflect-metadata';
-import { PluginLifecycleHook } from '@modu-nest/plugin-core';
+import { PluginLifecycleHook } from '@libs/plugin-core';
 
 // HTTP Method decorators for plugins
 export function PluginGet(path?: string): MethodDecorator {

@@ -410,14 +410,14 @@ export default async function (tree: Tree, options: PluginGeneratorSchema) {
     sourceRoot: `${normalizedOptions.projectRoot}/src`,
     targets: {
       'plugin-build': {
-        executor: '@modu-nest/plugin:plugin-build',
+        executor: '@libs/plugin:plugin-build',
         options: {
           outputPath: `dist/${normalizedOptions.projectRoot}`,
           tsConfig: `${normalizedOptions.projectRoot}/tsconfig.lib.json`,
         },
       },
       'plugin-validate': {
-        executor: '@modu-nest/plugin:plugin-validate',
+        executor: '@libs/plugin:plugin-validate',
         options: {
           manifestPath: `${normalizedOptions.projectRoot}/plugin.manifest.json`,
         },

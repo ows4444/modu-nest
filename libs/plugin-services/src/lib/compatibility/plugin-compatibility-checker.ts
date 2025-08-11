@@ -1,18 +1,18 @@
 /**
  * Plugin Types Library Compatibility Checker
- * 
+ *
  * This module provides comprehensive compatibility checking between the plugin-types
  * library and different plugin versions, ensuring semantic versioning compliance
  * and proper API compatibility.
- * 
+ *
  * @fileoverview Plugin types library compatibility validation system
  * @version 1.0.0
  * @since 1.0.0
  */
 
-import { PluginVersionUtils, CompatibilityResult } from '@modu-nest/plugin-validation';
-import { PluginValidationError, PluginManifestError } from '@modu-nest/plugin-core';
-import { PluginManifest } from '@modu-nest/plugin-core';
+import { PluginVersionUtils, CompatibilityResult } from '@libs/plugin-validation';
+import { PluginValidationError, PluginManifestError } from '@libs/plugin-core';
+import { PluginManifest } from '@libs/plugin-core';
 
 /**
  * Compatibility matrix for plugin-types library versions
@@ -59,7 +59,7 @@ export interface CompatibilityCheckConfig {
 export class PluginCompatibilityChecker {
   private static readonly CURRENT_PLUGIN_TYPES_VERSION = '1.0.0';
   private static readonly CURRENT_API_VERSION = '1.0.0';
-  
+
   private static readonly COMPATIBILITY_MATRIX: CompatibilityMatrix[] = [
     {
       pluginTypesVersion: '1.0.0',
@@ -128,7 +128,7 @@ export class PluginCompatibilityChecker {
         if (deprecatedResult.isCompatible) {
           compatibilityLevel = 'deprecated';
           warnings.push(`Plugin version ${pluginVersion} is deprecated but still supported`);
-          
+
           if (!fullConfig.allowDeprecated) {
             errors.push('Deprecated plugin versions are not allowed in current configuration');
             compatibilityLevel = 'incompatible';
@@ -139,7 +139,7 @@ export class PluginCompatibilityChecker {
           if (unsupportedResult.isCompatible) {
             compatibilityLevel = 'incompatible';
             errors.push(`Plugin version ${pluginVersion} is explicitly unsupported`);
-            
+
             // Provide migration guidance
             migration = this.createMigrationPlan(pluginVersion, currentMatrix);
           } else {
@@ -148,14 +148,16 @@ export class PluginCompatibilityChecker {
             if (partialCompatibility.isPartiallyCompatible) {
               compatibilityLevel = 'partial';
               warnings.push(...partialCompatibility.warnings);
-              
+
               if (!fullConfig.allowPartial) {
                 errors.push('Partially compatible plugin versions are not allowed in current configuration');
                 compatibilityLevel = 'incompatible';
               }
             } else {
               compatibilityLevel = 'incompatible';
-              errors.push(`Plugin version ${pluginVersion} is not compatible with plugin-types ${this.CURRENT_PLUGIN_TYPES_VERSION}`);
+              errors.push(
+                `Plugin version ${pluginVersion} is not compatible with plugin-types ${this.CURRENT_PLUGIN_TYPES_VERSION}`
+              );
             }
           }
         }
@@ -189,7 +191,6 @@ export class PluginCompatibilityChecker {
         errors,
         migration,
       };
-
     } catch (error) {
       errors.push(`Compatibility check failed: ${error instanceof Error ? error.message : String(error)}`);
       return this.createIncompatibleResult(pluginVersion, errors, warnings);
@@ -214,7 +215,9 @@ export class PluginCompatibilityChecker {
     if (manifest.compatibility) {
       const hostVersionCheck = this.checkHostVersionCompatibility(manifest.compatibility);
       if (!hostVersionCheck.isCompatible) {
-        manifestErrors.push(`Plugin requires incompatible host version: ${hostVersionCheck.reason || 'unknown reason'}`);
+        manifestErrors.push(
+          `Plugin requires incompatible host version: ${hostVersionCheck.reason || 'unknown reason'}`
+        );
         baseCompatibility.compatibilityLevel = 'incompatible';
       }
     }
@@ -246,19 +249,12 @@ export class PluginCompatibilityChecker {
   /**
    * Validate plugin against compatibility requirements
    */
-  static validatePluginCompatibility(
-    manifest: PluginManifest,
-    config: Partial<CompatibilityCheckConfig> = {}
-  ): void {
+  static validatePluginCompatibility(manifest: PluginManifest, config: Partial<CompatibilityCheckConfig> = {}): void {
     const compatibility = this.checkManifestCompatibility(manifest, config);
 
     if (!compatibility.isCompatible) {
       if (compatibility.errors.length > 0) {
-        throw new PluginManifestError(
-          manifest.name,
-          compatibility.errors,
-          compatibility.warnings
-        );
+        throw new PluginManifestError(manifest.name, compatibility.errors, compatibility.warnings);
       } else {
         throw new PluginValidationError(
           `Plugin ${manifest.name} is not compatible with current plugin-types library`,
@@ -290,11 +286,8 @@ export class PluginCompatibilityChecker {
   /**
    * Find compatible plugin versions from a list
    */
-  static findCompatibleVersions(
-    availableVersions: string[],
-    config: Partial<CompatibilityCheckConfig> = {}
-  ): string[] {
-    return availableVersions.filter(version => {
+  static findCompatibleVersions(availableVersions: string[], config: Partial<CompatibilityCheckConfig> = {}): string[] {
+    return availableVersions.filter((version) => {
       const compatibility = this.checkPluginCompatibility(version, config);
       return compatibility.isCompatible;
     });
@@ -308,7 +301,7 @@ export class PluginCompatibilityChecker {
     config: Partial<CompatibilityCheckConfig> = {}
   ): string | null {
     const compatibleVersions = this.findCompatibleVersions(availableVersions, config);
-    
+
     if (compatibleVersions.length === 0) {
       return null;
     }
@@ -319,9 +312,7 @@ export class PluginCompatibilityChecker {
   // Private helper methods
 
   private static getCurrentCompatibilityMatrix(): CompatibilityMatrix | undefined {
-    return this.COMPATIBILITY_MATRIX.find(
-      matrix => matrix.pluginTypesVersion === this.CURRENT_PLUGIN_TYPES_VERSION
-    );
+    return this.COMPATIBILITY_MATRIX.find((matrix) => matrix.pluginTypesVersion === this.CURRENT_PLUGIN_TYPES_VERSION);
   }
 
   private static checkVersionRanges(version: string, ranges: string[]): CompatibilityResult {
@@ -362,10 +353,10 @@ export class PluginCompatibilityChecker {
 
   private static checkAPIVersionCompatibility(pluginVersion: string): { isCompatible: boolean; warnings: string[] } {
     const warnings: string[] = [];
-    
+
     // Get compatible API ranges for the plugin version
     const compatibleRanges = this.API_COMPATIBILITY_RULES.get(this.CURRENT_API_VERSION) || [];
-    
+
     for (const range of compatibleRanges) {
       if (PluginVersionUtils.satisfiesRange(pluginVersion, range)) {
         return { isCompatible: true, warnings };
@@ -389,11 +380,7 @@ export class PluginCompatibilityChecker {
     const manifestAny = manifest as unknown as Record<string, unknown>;
 
     // List of deprecated fields (example)
-    const deprecatedFieldNames = [
-      'legacyMode',
-      'oldPermissions',
-      'deprecatedConfig',
-    ];
+    const deprecatedFieldNames = ['legacyMode', 'oldPermissions', 'deprecatedConfig'];
 
     for (const field of deprecatedFieldNames) {
       if (field in manifestAny && manifestAny[field] !== undefined) {
@@ -408,13 +395,7 @@ export class PluginCompatibilityChecker {
     const missingFields: string[] = [];
 
     // Check required fields for current version
-    const requiredFields = [
-      'name',
-      'version',
-      'description',
-      'author',
-      'license',
-    ];
+    const requiredFields = ['name', 'version', 'description', 'author', 'license'];
 
     for (const field of requiredFields) {
       const value = (manifest as unknown as Record<string, unknown>)[field];
@@ -426,7 +407,10 @@ export class PluginCompatibilityChecker {
     return missingFields;
   }
 
-  private static createMigrationPlan(version: string, matrix: CompatibilityMatrix): PluginAPICompatibility['migration'] {
+  private static createMigrationPlan(
+    version: string,
+    matrix: CompatibilityMatrix
+  ): PluginAPICompatibility['migration'] {
     const steps: string[] = [];
 
     // Check if this is an upgrade or downgrade scenario
@@ -435,7 +419,11 @@ export class PluginCompatibilityChecker {
     const comparison = PluginVersionUtils.compareVersions(pluginVersion, currentVersion);
 
     if (comparison.isLess) {
-      steps.push(`Upgrade plugin from version ${version} to compatible range: ${matrix.supportedPluginVersionRanges.join(' or ')}`);
+      steps.push(
+        `Upgrade plugin from version ${version} to compatible range: ${matrix.supportedPluginVersionRanges.join(
+          ' or '
+        )}`
+      );
       steps.push('Review breaking changes: ' + matrix.apiBreakingChanges.join(', '));
       steps.push('Update plugin manifest to match new schema');
       steps.push('Test plugin functionality with new plugin-types library');
@@ -470,9 +458,7 @@ export class PluginCompatibilityChecker {
 /**
  * Decorator to check plugin compatibility at runtime
  */
-export function RequirePluginCompatibility(
-  config: Partial<CompatibilityCheckConfig> = {}
-) {
+export function RequirePluginCompatibility(config: Partial<CompatibilityCheckConfig> = {}) {
   return function (_target: unknown, _propertyName: string, descriptor: PropertyDescriptor) {
     const method = descriptor.value;
 
@@ -506,19 +492,19 @@ export class CompatibilityUtils {
 
     if (compatibility.errors.length > 0) {
       lines.push('ERRORS:');
-      compatibility.errors.forEach(error => lines.push(`  ❌ ${error}`));
+      compatibility.errors.forEach((error) => lines.push(`  ❌ ${error}`));
       lines.push('');
     }
 
     if (compatibility.warnings.length > 0) {
       lines.push('WARNINGS:');
-      compatibility.warnings.forEach(warning => lines.push(`  ⚠️  ${warning}`));
+      compatibility.warnings.forEach((warning) => lines.push(`  ⚠️  ${warning}`));
       lines.push('');
     }
 
     if (compatibility.migration) {
       lines.push('MIGRATION REQUIRED:');
-      compatibility.migration.steps.forEach(step => lines.push(`  📋 ${step}`));
+      compatibility.migration.steps.forEach((step) => lines.push(`  📋 ${step}`));
       lines.push('');
     }
 
@@ -532,9 +518,11 @@ export class CompatibilityUtils {
    */
   static needsUpdate(manifest: PluginManifest): boolean {
     const compatibility = PluginCompatibilityChecker.checkManifestCompatibility(manifest);
-    return compatibility.compatibilityLevel === 'deprecated' || 
-           compatibility.compatibilityLevel === 'incompatible' ||
-           (compatibility.migration?.required ?? false);
+    return (
+      compatibility.compatibilityLevel === 'deprecated' ||
+      compatibility.compatibilityLevel === 'incompatible' ||
+      (compatibility.migration?.required ?? false)
+    );
   }
 
   /**

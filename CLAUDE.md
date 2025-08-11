@@ -404,7 +404,7 @@ import {
   PluginContextService, 
   PluginPermissionService,
   PluginMetricsService 
-} from '@modu-nest/plugin-context';
+} from '@libs/plugin-context';
 
 @Injectable()
 export class AdvancedPluginService {

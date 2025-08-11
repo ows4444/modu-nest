@@ -1,9 +1,9 @@
 {
-  "name": "@modu-nest/user-plugin",
+  "name": "@plugins/user-plugin",
   "version": "1.0.0",
   "description": "UserPlugin plugin for modu-nest",
   "main": "src/index.ts",
   "dependencies": {
-    "@modu-nest/plugin-types": "0.0.1"
+    "@libs/plugin-types": "0.0.1"
   }
 }

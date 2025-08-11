@@ -19,14 +19,14 @@ This library has been refactored into focused, maintainable libraries:
 
 **Before:**
 ```typescript
-import { PluginManifest, PluginGuardRegistry, PluginEventValidator } from '@modu-nest/plugin-types';
+import { PluginManifest, PluginGuardRegistry, PluginEventValidator } from '@libs/plugin-types';
 ```
 
 **After:**
 ```typescript
-import { PluginManifest } from '@modu-nest/plugin-core';
-import { PluginGuardRegistry } from '@modu-nest/plugin-services';
-import { PluginEventValidator } from '@modu-nest/plugin-validation';
+import { PluginManifest } from '@libs/plugin-core';
+import { PluginGuardRegistry } from '@libs/plugin-services';
+import { PluginEventValidator } from '@libs/plugin-validation';
 ```
 
 ### Benefits of Migration

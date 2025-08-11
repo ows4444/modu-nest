@@ -1,13 +1,8 @@
 import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import crypto from 'crypto';
-import {
-  PluginMetadata,
-  CreatePluginDto,
-  RegistryStats,
-  PluginListResponseDto,
-  PluginResponseDto,
-} from '@modu-nest/plugin-types';
+import { PluginMetadata, CreatePluginDto, PluginListResponseDto, PluginResponseDto } from '@libs/plugin-types';
 import { PluginStorageService } from './plugin-storage.service';
+import { RegistryStats } from '@libs/plugin-core';
 
 @Injectable()
 export class PluginStorageOrchestratorService {

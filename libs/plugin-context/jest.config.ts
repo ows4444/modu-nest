@@ -7,7 +7,7 @@ const swcJestConfig = JSON.parse(readFileSync(`${__dirname}/.spec.swcrc`, 'utf-8
 swcJestConfig.swcrc = false;
 
 export default {
-  displayName: '@modu-nest/plugin-context',
+  displayName: '@libs/plugin-context',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   transform: {

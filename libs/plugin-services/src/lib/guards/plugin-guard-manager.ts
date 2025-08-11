@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Mutex } from 'async-mutex';
-import { GuardEntry, LocalGuardEntry } from '@modu-nest/plugin-core';
+import { GuardEntry, LocalGuardEntry } from '@libs/plugin-core';
 import { PluginGuardDependencyOptimizer, OptimizationResult, DependencyAnalysis } from './plugin-guard-dependency-optimizer';
 
 export interface LoadedGuard {

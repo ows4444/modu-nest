@@ -1,5 +1,5 @@
 {
-  "name": "@modu-nest/shared-core",
+  "name": "@libs/shared-core",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/index.js",

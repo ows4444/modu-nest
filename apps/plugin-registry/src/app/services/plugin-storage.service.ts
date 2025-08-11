@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import fs from 'fs';
 import path from 'path';
 import { writeFile, mkdir, readFile } from 'fs/promises';
-import { StorageConfig } from '@modu-nest/plugin-types';
-import type { PluginMetadata, PluginPackage, StorageStats } from '@modu-nest/plugin-types';
+import { StorageConfig, StorageStats } from '@libs/plugin-core';
+import type { PluginMetadata, PluginPackage } from '@libs/plugin-types';
 import type { IPluginRepository, PluginRecord } from '../repositories';
 
 export const PLUGIN_REPOSITORY_TOKEN = 'PLUGIN_REPOSITORY';

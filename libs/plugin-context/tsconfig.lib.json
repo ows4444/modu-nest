@@ -1,21 +1,38 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "composite": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "declaration": true,
+    "importHelpers": true,
+    "isolatedModules": true,
+    "lib": ["es2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmitOnError": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "target": "es2022",
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
-    "emitDeclarationOnly": false,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"],
-    "target": "es2021",
-    "strictNullChecks": true,
-    "noImplicitAny": true,
-    "strictBindCallApply": true,
-    "noFallthroughCasesInSwitch": true
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "references": [
+    {
+      "path": "../plugin-core/tsconfig.lib.json"
+    },
     {
       "path": "../plugin-types/tsconfig.lib.json"
     }

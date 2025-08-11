@@ -1,5 +1,5 @@
 import { IsString, IsIn, validate, ValidationError } from 'class-validator';
-import { PluginValidationResult } from '@modu-nest/plugin-core';
+import { PluginValidationResult } from '@libs/plugin-core';
 
 export class PluginLifecycleHookValidator {
   @IsString()

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, SetMetadata } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { ExternalGuardEntry, LocalGuardEntry } from '@modu-nest/plugin-core';
+import { ExternalGuardEntry, LocalGuardEntry } from '@libs/plugin-core';
 
 // Plugin guard interfaces
 export interface PluginGuard extends CanActivate {

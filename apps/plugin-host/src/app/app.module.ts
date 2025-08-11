@@ -6,27 +6,24 @@ import { MetricsController } from './controllers/metrics.controller';
 import { HealthController } from './controllers/health.controller';
 import { CacheController } from './controllers/cache.controller';
 import { RegistryController } from './controllers/registry.controller';
-import { PluginLoaderService } from './plugin-loader.service';
+import { PluginLoaderService } from './plugin-loader-primary.service';
 import { PluginMetricsService } from './plugin-metrics.service';
 import { RegistryClientService } from './registry-client.service';
 import { CrossPluginServiceManager } from './cross-plugin-service-manager';
-import { SharedConfigModule } from '@modu-nest/config';
+import { SharedConfigModule } from '@libs/shared-config';
 import {
   ModuNestPluginContextModule,
   RestrictedPluginContextService,
   PluginPermissionService,
-  PluginContextService,
   GlobalPluginContextConfig,
-} from '@modu-nest/plugin-context';
-import {
-  PluginGuardInterceptor,
-  PluginGuardRegistryService,
-  PluginPermissionInterceptor,
-} from '@modu-nest/plugin-services';
+} from '@libs/plugin-context';
 import {
   DefaultPluginPermissionService,
   PLUGIN_PERMISSION_SERVICE,
-} from '@modu-nest/plugin-core';
+  PluginGuardInterceptor,
+  PluginGuardRegistryService,
+  PluginPermissionInterceptor,
+} from '@libs/plugin-services';
 
 @Module({})
 export class AppModule implements OnModuleInit {

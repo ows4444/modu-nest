@@ -1,4 +1,4 @@
-import { PluginState, PluginTransition } from '@modu-nest/plugin-types';
+import { PluginState, PluginTransition } from '@libs/plugin-core';
 
 export interface StateTransition {
   from: PluginState;

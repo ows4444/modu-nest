@@ -15,8 +15,8 @@ import { Repository } from 'typeorm';
 import { PluginEntity } from '../entities/plugin.entity';
 import { PluginVersionEntity } from '../entities/plugin-version.entity';
 import { PluginTrustLevelEntity } from '../entities/plugin-trust-level.entity';
-import { PluginEventEmitter } from '@modu-nest/plugin-types';
-import { PluginManifest } from '@modu-nest/plugin-types';
+import { PluginEventEmitter } from '@libs/plugin-services';
+import { PluginManifest } from '@libs/plugin-types';
 
 export enum TrustLevel {
   INTERNAL = 'internal', // Fully trusted, developed internally

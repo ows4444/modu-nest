@@ -1,11 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { 
-  BaseFrameworkError, 
-  ErrorCategory,
-  ValidationError,
-  NotFoundError,
-  ConflictError
-} from '@modu-nest/utils';
+import { BaseFrameworkError, ErrorCategory, ValidationError, NotFoundError, ConflictError } from '@libs/shared-utils';
 
 /**
  * Base plugin error class using standardized error handling
@@ -46,11 +40,10 @@ export class PluginNotFoundError extends NotFoundError {
  */
 export class PluginAlreadyExistsError extends ConflictError {
   constructor(pluginName: string, version: string) {
-    super(
-      `Plugin '${pluginName}' version '${version}' already exists`,
-      'plugin_version_conflict',
-      { pluginName, version }
-    );
+    super(`Plugin '${pluginName}' version '${version}' already exists`, 'plugin_version_conflict', {
+      pluginName,
+      version,
+    });
   }
 }
 

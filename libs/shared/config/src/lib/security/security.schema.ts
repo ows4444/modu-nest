@@ -1,5 +1,5 @@
-import { EnvironmentType } from '@modu-nest/const';
-import { parseBoolean } from '@modu-nest/utils';
+import { EnvironmentType } from '@libs/shared-const';
+import { parseBoolean } from '@libs/shared-utils';
 import { Expose, Transform } from 'class-transformer';
 import { IsBoolean, IsNumber, IsOptional, IsString, IsArray, Min, Max, IsEnum, ValidateIf } from 'class-validator';
 import {

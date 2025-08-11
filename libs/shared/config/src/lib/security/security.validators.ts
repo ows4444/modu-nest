@@ -1,5 +1,5 @@
 import { ValidationOptions, registerDecorator, ValidationArguments } from 'class-validator';
-import { isValidUrl } from '@modu-nest/utils';
+import { isValidUrl } from '@libs/shared-utils';
 
 /**
  * Custom validators for security configuration

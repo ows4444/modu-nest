@@ -225,7 +225,7 @@ The framework now supports comprehensive event-driven development with 40+ event
 
 ```typescript
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { PluginEventEmitter, IPluginEventSubscriber } from '@modu-nest/plugin-types';
+import { PluginEventEmitter, IPluginEventSubscriber } from '@libs/plugin-types';
 
 @Injectable()
 export class EventDrivenPluginService implements OnModuleInit, IPluginEventSubscriber {
@@ -272,7 +272,7 @@ Plugins can now integrate with the formal state machine for lifecycle management
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { PluginStateMachine, PluginState, PluginTransition } from '@modu-nest/plugin-types';
+import { PluginStateMachine, PluginState, PluginTransition } from '@libs/plugin-types';
 
 @Injectable()
 export class StateManagedPluginService {
@@ -314,7 +314,7 @@ Enterprise plugins can integrate with the trust level system:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { PluginTrustManager, PluginTrustLevel, TrustPolicyValidationGuard } from '@modu-nest/plugin-types';
+import { PluginTrustManager, PluginTrustLevel, TrustPolicyValidationGuard } from '@libs/plugin-types';
 
 @Injectable()
 export class SecurePluginService {
@@ -359,7 +359,7 @@ import {
   PluginTrustLevel,
   PluginCapabilities,
   PluginCircuitBreaker,
-} from '@modu-nest/plugin-types';
+} from '@libs/plugin-types';
 
 @PluginRoutePrefix('api/enterprise')
 @PluginMetadataDecorator({
@@ -392,7 +392,7 @@ Enhanced cross-plugin communication with trust validation:
 ```typescript
 // In dependent plugin
 import { Inject, Injectable } from '@nestjs/common';
-import { PluginTrustManager, CrossPluginServiceManager } from '@modu-nest/plugin-types';
+import { PluginTrustManager, CrossPluginServiceManager } from '@libs/plugin-types';
 
 @Injectable()
 export class SecureDependentService {
@@ -426,7 +426,7 @@ Plugins can configure their own optimization settings:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { PluginBundleOptimizationService, OptimizationOptions } from '@modu-nest/plugin-types';
+import { PluginBundleOptimizationService, OptimizationOptions } from '@libs/plugin-types';
 
 @Injectable()
 export class OptimizedPluginService {
@@ -469,7 +469,7 @@ Plugins can implement circuit breakers for resilient operations:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { PluginCircuitBreaker, CircuitBreakerState } from '@modu-nest/plugin-types';
+import { PluginCircuitBreaker, CircuitBreakerState } from '@libs/plugin-types';
 
 @Injectable()
 export class ResilientPluginService {
@@ -538,7 +538,7 @@ export class AdvancedAccessGuard implements CanActivate {
 
 ```typescript
 // Environment-aware configuration
-import { PluginEnvironmentService } from '@modu-nest/plugin-types';
+import { PluginEnvironmentService } from '@libs/plugin-types';
 
 @Injectable()
 export class PluginConfigService {
@@ -718,7 +718,7 @@ export class MyPluginService implements MyPluginInterface {
 
 ```typescript
 import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
-import { PluginRoutePrefix, PluginPermissions } from '@modu-nest/plugin-types';
+import { PluginRoutePrefix, PluginPermissions } from '@libs/plugin-types';
 import { MyPluginService } from '../services';
 
 @Controller()

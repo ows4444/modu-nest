@@ -13,7 +13,7 @@ import {
   ValidationError,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { PluginValidationResult } from '@modu-nest/plugin-core';
+import { PluginValidationResult } from '@libs/plugin-core';
 
 export class PluginModuleMetaValidator {
   @IsOptional()

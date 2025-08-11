@@ -49,7 +49,7 @@ export function sanitizePluginName(name: string): string {
 }
 
 // NOTE: isValidPluginName has been moved to validation-utils.ts to consolidate validation logic
-// Import from '@modu-nest/utils' if you need this function
+// Import from '@libs/shared-utils' if you need this function
 
 /**
  * Normalizes a string by trimming whitespace and converting to lowercase.

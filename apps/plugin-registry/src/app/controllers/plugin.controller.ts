@@ -24,7 +24,7 @@ import { PluginRegistryService } from '../services/plugin-registry.service';
 import { PluginRateLimitingService } from '../services/plugin-rate-limiting.service';
 import { PluginBundleOptimizationService } from '../services/plugin-bundle-optimization.service';
 import { SecurityEventLoggerService } from '../services/security-event-logger.service';
-import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@modu-nest/plugin-types';
+import type { PluginResponseDto, PluginListResponseDto, PluginDeleteResponseDto } from '@libs/plugin-types';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import {
   RateLimitingGuard,

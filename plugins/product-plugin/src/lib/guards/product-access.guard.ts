@@ -1,5 +1,6 @@
 import { ExecutionContext, ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { BasePluginGuard, RegisterPluginGuard, IAuthenticationService, AUTHENTICATION_SERVICE_TOKEN } from '@modu-nest/plugin-decorators';
+import { BasePluginGuard, RegisterPluginGuard } from '@libs/plugin-decorators';
+import { AUTHENTICATION_SERVICE_TOKEN, type IAuthenticationService } from '@libs/plugin-core';
 
 @RegisterPluginGuard({
   name: 'product-access',
@@ -10,9 +11,7 @@ import { BasePluginGuard, RegisterPluginGuard, IAuthenticationService, AUTHENTIC
 })
 @Injectable()
 export class ProductAccessGuard extends BasePluginGuard {
-  constructor(
-    @Inject(AUTHENTICATION_SERVICE_TOKEN) private authService?: IAuthenticationService
-  ) {
+  constructor(@Inject(AUTHENTICATION_SERVICE_TOKEN) private authService?: IAuthenticationService) {
     super();
   }
 

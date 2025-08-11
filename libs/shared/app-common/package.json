@@ -1,8 +1,7 @@
 {
-  "name": "@modu-nest/app-common",
+  "name": "@libs/shared-app-common",
   "version": "0.0.1",
   "private": true,
-  "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,7 +18,8 @@
     "tslib": "^2.3.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
-    "@modu-nest/config": "*",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "express": "5.1.0",
+    "@libs/shared-config": "0.0.1"
   }
 }

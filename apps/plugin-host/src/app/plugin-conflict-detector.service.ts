@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest, LoadedPlugin, PluginEventEmitter, IPluginEventSubscriber } from '@modu-nest/plugin-types';
+import { PluginManifest, LoadedPlugin } from '@libs/plugin-types';
+import { IPluginEventSubscriber } from '@libs/plugin-core';
+import { PluginEventEmitter } from '@libs/plugin-services';
 
 // Conflict detection interfaces
 export interface ConflictDetectionResult {
@@ -524,7 +526,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     const conflicts: PluginConflict[] = [];
     const capabilityMap = new Map<string, string[]>(); // capability -> plugin names
 
-    for (const [pluginName, plugin] of plugins) {
+    for (const [pluginName, _plugin] of plugins) {
       const capabilities: string[] = []; // Simplified - capabilities would be defined in manifest
 
       for (const capability of capabilities) {
@@ -1134,7 +1136,7 @@ export class PluginConflictDetectorService implements IPluginEventSubscriber {
     lastScanTime: Date;
     systemStability: string;
     scanInProgress: boolean;
-    metrics: typeof this.conflictMetrics;
+    metrics: { totalScans: number; averageScanTime: number; conflictsDetected: number; conflictsResolved: number; };
   } {
     const criticalConflicts = Array.from(this.detectedConflicts.values()).filter(
       (c) => c.severity === ConflictSeverity.CRITICAL

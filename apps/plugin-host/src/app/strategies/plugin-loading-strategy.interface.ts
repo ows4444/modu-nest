@@ -1,5 +1,5 @@
 import { DynamicModule } from '@nestjs/common';
-import { PluginManifest, LoadedPlugin } from '@modu-nest/plugin-types';
+import { PluginManifest, LoadedPlugin } from '@libs/plugin-types';
 import { PluginStateMachine } from '../state-machine';
 
 export interface IPluginLoadingStrategy {

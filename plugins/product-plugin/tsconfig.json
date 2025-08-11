@@ -7,6 +7,12 @@
       "path": "../../libs/plugin-context"
     },
     {
+      "path": "../../libs/plugin-core"
+    },
+    {
+      "path": "../../libs/shared/utils"
+    },
+    {
       "path": "../../libs/plugin-decorators"
     },
     {

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PluginMetadata } from '@modu-nest/plugin-types';
+import { PluginMetadata } from '@libs/plugin-types';
 import {
   IPluginRepository,
   PluginRecord,
@@ -14,12 +14,12 @@ import { PluginEntity, PluginDownloadEntity } from '../entities';
 @Injectable()
 export class TypeORMPostgreSQLRepository implements IPluginRepository {
   private readonly logger = new Logger(TypeORMPostgreSQLRepository.name);
-  
+
   // Query result cache with TTL
   private readonly queryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes default
   private readonly MAX_CACHE_SIZE = 1000;
-  
+
   // Connection pool monitoring
   private queryMetrics = {
     totalQueries: 0,
@@ -67,7 +67,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
     if (this.queryCache.size > this.MAX_CACHE_SIZE) {
       const entries = Array.from(this.queryCache.entries());
       entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-      
+
       const excessCount = this.queryCache.size - this.MAX_CACHE_SIZE;
       for (let i = 0; i < excessCount; i++) {
         this.queryCache.delete(entries[i][0]);
@@ -119,7 +119,7 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
     queryKey: string,
     queryExecutor: () => Promise<T>,
     cacheTTL: number = this.CACHE_TTL,
-    enableCache: boolean = true
+    enableCache = true
   ): Promise<T> {
     const startTime = Date.now();
     this.queryMetrics.totalQueries++;
@@ -138,11 +138,12 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
       const queryTime = Date.now() - startTime;
 
       // Update metrics
-      this.queryMetrics.averageQueryTime = 
-        (this.queryMetrics.averageQueryTime * (this.queryMetrics.totalQueries - 1) + queryTime) / 
+      this.queryMetrics.averageQueryTime =
+        (this.queryMetrics.averageQueryTime * (this.queryMetrics.totalQueries - 1) + queryTime) /
         this.queryMetrics.totalQueries;
 
-      if (queryTime > 1000) { // Queries slower than 1s
+      if (queryTime > 1000) {
+        // Queries slower than 1s
         this.queryMetrics.slowQueries++;
         this.logger.warn(`Slow query detected: ${queryKey} took ${queryTime}ms`);
       }
@@ -169,29 +170,29 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
       await this.pluginRepository.query('SET shared_buffers = 256MB');
       await this.pluginRepository.query('SET effective_cache_size = 1GB');
       await this.pluginRepository.query('SET random_page_cost = 1.1');
-      
+
       // Create additional performance indexes if they don't exist
       try {
         await this.pluginRepository.query(`
           CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_search_text 
           ON plugins USING gin(to_tsvector('english', name || ' ' || COALESCE(description, '') || ' ' || COALESCE(author, '')))
         `);
-        
+
         await this.pluginRepository.query(`
           CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_tags_gin 
           ON plugins USING gin(tags::jsonb)
         `);
-        
+
         await this.pluginRepository.query(`
           CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_popularity 
           ON plugins (download_count DESC, upload_date DESC)
         `);
-        
+
         await this.pluginRepository.query(`
           CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_recent_active 
           ON plugins (status, upload_date DESC) WHERE status = 'active'
         `);
-        
+
         this.logger.log('Database performance indexes created successfully');
       } catch (error) {
         this.logger.warn('Some performance indexes may already exist:', error);
@@ -332,18 +333,18 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
 
   async searchPlugins(query: string): Promise<PluginRecord[]> {
     const cacheKey = `searchPlugins:${query.toLowerCase().trim()}`;
-    
+
     return this.executeWithMonitoring(
       cacheKey,
       async () => {
         const sanitizedQuery = query.trim();
-        
+
         if (!sanitizedQuery) {
           return [];
         }
 
         const queryBuilder = this.pluginRepository.createQueryBuilder('plugin');
-        
+
         queryBuilder.where('plugin.status = :status', { status: 'active' });
 
         // Use full-text search for better performance on PostgreSQL
@@ -618,9 +619,10 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
     cacheSize: number;
     cacheMemoryUsage: string;
   } {
-    const cacheHitRate = this.queryMetrics.totalQueries > 0 
-      ? (this.queryMetrics.cacheHits / (this.queryMetrics.cacheHits + this.queryMetrics.cacheMisses)) * 100 
-      : 0;
+    const cacheHitRate =
+      this.queryMetrics.totalQueries > 0
+        ? (this.queryMetrics.cacheHits / (this.queryMetrics.cacheHits + this.queryMetrics.cacheMisses)) * 100
+        : 0;
 
     // Estimate cache memory usage
     const cacheMemoryUsage = (this.queryCache.size * 1024).toLocaleString() + ' bytes (estimated)';
@@ -669,13 +671,15 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         FROM pg_stat_activity 
         WHERE datname = current_database()
       `);
-      
-      return result[0] || {
-        activeConnections: 0,
-        idleConnections: 0,
-        totalConnections: 0,
-        waitingClients: 0,
-      };
+
+      return (
+        result[0] || {
+          activeConnections: 0,
+          idleConnections: 0,
+          totalConnections: 0,
+          waitingClients: 0,
+        }
+      );
     } catch (error) {
       this.logger.error('Failed to get connection pool status:', error);
       return {
@@ -697,7 +701,9 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
   }> {
     try {
       // Get slow queries from pg_stat_statements if available
-      const slowQueriesResult = await this.pluginRepository.query(`
+      const slowQueriesResult = await this.pluginRepository
+        .query(
+          `
         SELECT 
           query,
           mean_exec_time as avg_time,
@@ -706,10 +712,14 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         WHERE query LIKE '%plugins%'
         ORDER BY mean_exec_time DESC 
         LIMIT 10
-      `).catch(() => []);
+      `
+        )
+        .catch(() => []);
 
       // Get index usage statistics
-      const indexUsageResult = await this.pluginRepository.query(`
+      const indexUsageResult = await this.pluginRepository
+        .query(
+          `
         SELECT 
           schemaname,
           tablename as table,
@@ -719,20 +729,22 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
         FROM pg_stat_user_indexes 
         WHERE tablename = 'plugins'
         ORDER BY idx_scan DESC
-      `).catch(() => []);
+      `
+        )
+        .catch(() => []);
 
       // Generate optimization suggestions
       const suggestions: string[] = [];
-      
+
       const metrics = this.getQueryMetrics();
       if (metrics.cacheHitRate < 80) {
         suggestions.push('Consider increasing cache TTL or cache size for better hit rate');
       }
-      
+
       if (metrics.slowQueries > metrics.totalQueries * 0.1) {
         suggestions.push('High number of slow queries detected - review query optimization');
       }
-      
+
       if (metrics.averageQueryTime > 100) {
         suggestions.push('Average query time is high - consider adding more indexes');
       }
@@ -769,21 +781,21 @@ export class TypeORMPostgreSQLRepository implements IPluginRepository {
 
     try {
       this.logger.log('Starting database optimization...');
-      
+
       // VACUUM ANALYZE for plugins table
       await this.pluginRepository.query('VACUUM ANALYZE plugins');
       tablesOptimized.push('plugins');
-      
+
       // VACUUM ANALYZE for plugin_downloads table
       await this.pluginRepository.query('VACUUM ANALYZE plugin_downloads');
       tablesOptimized.push('plugin_downloads');
-      
+
       // Update table statistics
       await this.pluginRepository.query('ANALYZE');
-      
+
       const duration = Date.now() - startTime;
       this.logger.log(`Database optimization completed in ${duration}ms`);
-      
+
       return {
         tablesOptimized,
         duration,

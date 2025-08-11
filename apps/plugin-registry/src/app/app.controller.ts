@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import type { ApiInfoResponse } from '@modu-nest/plugin-types';
+import type { ApiInfoResponse } from '@libs/plugin-types';
 
 @Controller('v1')
 export class AppController {

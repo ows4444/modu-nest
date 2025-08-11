@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 import { UnifiedConfig, ConfigFactory } from './unified-config.types';
-import { EnvironmentType } from '@modu-nest/shared-core';
+import { EnvironmentType } from '@libs/shared-core';
 
 @Injectable()
 export class UnifiedConfigService {
@@ -29,7 +29,7 @@ export class UnifiedConfigService {
       HOST: this.nestConfigService.get<string>('HOST', 'localhost'),
       APP_NAME: this.nestConfigService.get<string>('APP_NAME', 'modu-nest-app'),
       API_PREFIX: this.nestConfigService.get<string>('API_PREFIX', 'api'),
-      CORS_ORIGINS: corsOrigins.split(',').map(origin => origin.trim()),
+      CORS_ORIGINS: corsOrigins.split(',').map((origin) => origin.trim()),
 
       // Plugin Host Settings
       PLUGIN_REGISTRY_URL: this.nestConfigService.get<string>('PLUGIN_REGISTRY_URL', 'http://localhost:6001'),
@@ -64,7 +64,7 @@ export class UnifiedConfigService {
       // Security Configuration
       REQUIRE_PLUGIN_SIGNATURES: this.nestConfigService.get<boolean>('REQUIRE_PLUGIN_SIGNATURES', true),
       ALLOW_UNSIGNED_PLUGINS: this.nestConfigService.get<boolean>('ALLOW_UNSIGNED_PLUGINS', false),
-      TRUSTED_PLUGIN_KEYS: trustedKeys ? trustedKeys.split(',').map(key => key.trim()) : [],
+      TRUSTED_PLUGIN_KEYS: trustedKeys ? trustedKeys.split(',').map((key) => key.trim()) : [],
 
       // Bundle Optimization Security
       BUNDLE_OPT_TREE_SHAKING: this.nestConfigService.get<boolean>('BUNDLE_OPT_TREE_SHAKING', true),
@@ -103,7 +103,10 @@ export class UnifiedConfigService {
       // Cache Configuration
       PLUGIN_VALIDATION_CACHE_TTL: this.nestConfigService.get<number>('PLUGIN_VALIDATION_CACHE_TTL', 86400000),
       PLUGIN_VALIDATION_CACHE_SIZE: this.nestConfigService.get<number>('PLUGIN_VALIDATION_CACHE_SIZE', 1000),
-      PLUGIN_VALIDATION_CLEANUP_INTERVAL: this.nestConfigService.get<number>('PLUGIN_VALIDATION_CLEANUP_INTERVAL', 3600000),
+      PLUGIN_VALIDATION_CLEANUP_INTERVAL: this.nestConfigService.get<number>(
+        'PLUGIN_VALIDATION_CLEANUP_INTERVAL',
+        3600000
+      ),
 
       // Storage Configuration
       REGISTRY_STORAGE_PATH: this.nestConfigService.get<string>('REGISTRY_STORAGE_PATH', './storage'),

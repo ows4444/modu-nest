@@ -12,8 +12,9 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginEventEmitter, PluginState } from '@modu-nest/plugin-types';
+import { PluginState } from '@libs/plugin-core';
 import { PluginStateMachine } from './state-machine';
+import { PluginEventEmitter } from '@libs/plugin-services';
 
 export interface DependencyWaiter {
   pluginName: string;
@@ -77,7 +78,7 @@ export class PluginDependencyResolver {
   private readonly dependencyHealthChecks = new Map<string, DependencyHealthCheck>();
   private readonly activeDependencies = new Map<string, Set<string>>(); // plugin -> dependencies
   private healthCheckTimer?: NodeJS.Timeout;
-  
+
   // Enhanced timeout and cleanup tracking
   private readonly timeoutCleanupQueue = new Map<string, NodeJS.Timeout>();
   private readonly retryAttempts = new Map<string, number>();
@@ -156,7 +157,7 @@ export class PluginDependencyResolver {
       enableTimeoutWarnings = true,
       trackResolutionMetrics = true,
       partialResolution,
-      gracefulTimeout
+      gracefulTimeout,
     } = options;
 
     // Track active dependencies for health monitoring
@@ -185,14 +186,14 @@ export class PluginDependencyResolver {
 
     return new Promise<void>((resolve, reject) => {
       const cleanupHandlers: Array<() => void> = [];
-      
+
       // Create enhanced timeout handler with graceful cleanup
       const timeout = setTimeout(() => {
         this.handleEnhancedDependencyTimeout(
-          pluginName, 
-          dependencies, 
-          resolve, 
-          reject, 
+          pluginName,
+          dependencies,
+          resolve,
+          reject,
           enableTimeoutWarnings,
           gracefulTimeout,
           partialResolution
@@ -225,12 +226,14 @@ export class PluginDependencyResolver {
         },
         timeout,
         startTime,
-        partialResolution: partialResolution?.enabled ? {
-          enabled: true,
-          minRequiredDependencies: partialResolution.minRequiredDependencies || Math.ceil(dependencies.length / 2),
-          resolvedDependencies: new Set()
-        } : undefined,
-        cleanupHandlers
+        partialResolution: partialResolution?.enabled
+          ? {
+              enabled: true,
+              minRequiredDependencies: partialResolution.minRequiredDependencies || Math.ceil(dependencies.length / 2),
+              resolvedDependencies: new Set(),
+            }
+          : undefined,
+        cleanupHandlers,
       };
 
       this.pendingWaiters.set(pluginName, waiter);
@@ -320,13 +323,15 @@ export class PluginDependencyResolver {
           });
 
           waiter.resolve();
-        } 
+        }
         // Check if partial resolution criteria is met
         else if (this.isPartialResolutionMet(waiter)) {
-          this.logger.info(
-            `[${waiterPluginName}] Partial resolution criteria met with ${waiter.partialResolution!.resolvedDependencies.size}/${waiter.dependencies.length} dependencies`
+          this.logger.log(
+            `[${waiterPluginName}] Partial resolution criteria met with ${
+              waiter.partialResolution!.resolvedDependencies.size
+            }/${waiter.dependencies.length} dependencies`
           );
-          
+
           // Emit resolution events for resolved dependencies
           waiter.partialResolution!.resolvedDependencies.forEach((dep) => {
             this.eventEmitter.emitPluginDependencyResolved(waiterPluginName, dep, Date.now() - waiter.startTime);
@@ -345,7 +350,7 @@ export class PluginDependencyResolver {
 
     const resolvedCount = waiter.partialResolution.resolvedDependencies.size;
     const minRequired = waiter.partialResolution.minRequiredDependencies;
-    
+
     return resolvedCount >= minRequired;
   }
 
@@ -407,10 +412,10 @@ export class PluginDependencyResolver {
       if (enableTimeoutWarnings) {
         this.logger.warn(
           `[${pluginName}] Partial dependency resolution accepted. ` +
-          `Resolved: [${resolvedDeps.join(', ')}], Pending: [${pendingDeps.join(', ')}]`
+            `Resolved: [${resolvedDeps.join(', ')}], Pending: [${pendingDeps.join(', ')}]`
         );
       }
-      
+
       this.cleanupWaiter(waiter);
       resolve();
       return;
@@ -436,8 +441,9 @@ export class PluginDependencyResolver {
     }
 
     const minRequired = partialResolution.minRequiredDependencies || 0;
-    const hasRequiredDeps = !partialResolution.requiredDependencies || 
-      partialResolution.requiredDependencies.every(dep => resolvedDeps.includes(dep));
+    const hasRequiredDeps =
+      !partialResolution.requiredDependencies ||
+      partialResolution.requiredDependencies.every((dep) => resolvedDeps.includes(dep));
 
     return resolvedDeps.length >= minRequired && hasRequiredDeps;
   }
@@ -454,10 +460,10 @@ export class PluginDependencyResolver {
 
     if (currentAttempts < maxRetries) {
       this.retryAttempts.set(pluginName, currentAttempts + 1);
-      
+
       this.logger.warn(
         `[${pluginName}] Timeout reached, attempting retry ${currentAttempts + 1}/${maxRetries} ` +
-        `after ${gracefulTimeout.cleanupDelay || 2000}ms delay`
+          `after ${gracefulTimeout.cleanupDelay || 2000}ms delay`
       );
 
       const cleanupDelay = setTimeout(() => {
@@ -482,14 +488,12 @@ export class PluginDependencyResolver {
     try {
       // Clean up previous state
       this.retryAttempts.delete(pluginName);
-      
+
       // Check current state of dependencies
-      const stillPendingDeps = dependencies.filter(
-        (dep) => this.getCurrentPluginState(dep) !== PluginState.LOADED
-      );
+      const stillPendingDeps = dependencies.filter((dep) => this.getCurrentPluginState(dep) !== PluginState.LOADED);
 
       if (stillPendingDeps.length === 0) {
-        this.logger.info(`[${pluginName}] All dependencies resolved during retry`);
+        this.logger.log(`[${pluginName}] All dependencies resolved during retry`);
         resolve();
         return;
       }
@@ -499,9 +503,9 @@ export class PluginDependencyResolver {
       await this.waitForDependencies(pluginName, stillPendingDeps, {
         maxWaitTime: reducedTimeout,
         enableTimeoutWarnings: false,
-        trackResolutionMetrics: false
+        trackResolutionMetrics: false,
       });
-      
+
       resolve();
     } catch (error) {
       reject(error as Error);
@@ -544,7 +548,7 @@ export class PluginDependencyResolver {
    */
   private cleanupWaiter(waiter: DependencyWaiter): void {
     // Execute all cleanup handlers
-    waiter.cleanupHandlers.forEach(cleanup => {
+    waiter.cleanupHandlers.forEach((cleanup) => {
       try {
         cleanup();
       } catch (error) {
@@ -554,17 +558,17 @@ export class PluginDependencyResolver {
 
     // Remove from pending waiters
     this.pendingWaiters.delete(waiter.pluginName);
-    
+
     // Clean up retry tracking
     this.retryAttempts.delete(waiter.pluginName);
-    
+
     // Clean up timeout cleanup queue
     const timeoutCleanup = this.timeoutCleanupQueue.get(waiter.pluginName);
     if (timeoutCleanup) {
       clearTimeout(timeoutCleanup);
       this.timeoutCleanupQueue.delete(waiter.pluginName);
     }
-    
+
     // Clean up partial resolution tracking
     this.partialResolutionTracking.delete(waiter.pluginName);
   }
@@ -779,11 +783,13 @@ export class PluginDependencyResolver {
     waitersWithPartialResolution: number;
     waitersWithGracefulTimeout: number;
   } {
-    const waitersWithPartialResolution = Array.from(this.pendingWaiters.values())
-      .filter(w => w.partialResolution?.enabled).length;
+    const waitersWithPartialResolution = Array.from(this.pendingWaiters.values()).filter(
+      (w) => w.partialResolution?.enabled
+    ).length;
 
-    const waitersWithGracefulTimeout = Array.from(this.pendingWaiters.values())
-      .filter(w => this.retryAttempts.has(w.pluginName)).length;
+    const waitersWithGracefulTimeout = Array.from(this.pendingWaiters.values()).filter((w) =>
+      this.retryAttempts.has(w.pluginName)
+    ).length;
 
     return {
       pendingWaiters: this.pendingWaiters.size,
@@ -811,12 +817,12 @@ export class PluginDependencyResolver {
 
     // Clean up all pending waiters
     const waiters = Array.from(this.pendingWaiters.values());
-    waiters.forEach(waiter => {
+    waiters.forEach((waiter) => {
       this.cleanupWaiter(waiter);
     });
 
     // Clear all timeout cleanup queue
-    this.timeoutCleanupQueue.forEach(timeout => clearTimeout(timeout));
+    this.timeoutCleanupQueue.forEach((timeout) => clearTimeout(timeout));
     this.timeoutCleanupQueue.clear();
 
     // Clear retry attempts
@@ -825,7 +831,9 @@ export class PluginDependencyResolver {
     // Clear partial resolution tracking
     this.partialResolutionTracking.clear();
 
-    this.logger.log(`Force cleanup completed: ${cleanedWaiters} waiters, ${clearedTimeouts} timeouts, ${clearedRetries} retries`);
+    this.logger.log(
+      `Force cleanup completed: ${cleanedWaiters} waiters, ${clearedTimeouts} timeouts, ${clearedRetries} retries`
+    );
 
     return {
       cleanedWaiters,
@@ -873,8 +881,8 @@ export class PluginDependencyResolver {
     }
 
     if (this.isPartialResolutionMet(waiter)) {
-      this.logger.info(`[${pluginName}] Manually triggering partial resolution`);
-      
+      this.logger.log(`[${pluginName}] Manually triggering partial resolution`);
+
       // Emit resolution events for resolved dependencies
       waiter.partialResolution.resolvedDependencies.forEach((dep) => {
         this.eventEmitter.emitPluginDependencyResolved(pluginName, dep, Date.now() - waiter.startTime);

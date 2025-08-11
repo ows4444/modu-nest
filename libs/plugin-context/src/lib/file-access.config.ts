@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { FileAccessPermissions } from '@modu-nest/plugin-types';
+import { FileAccessPermissions } from '@libs/plugin-core';
 
 export const FILE_ACCESS_CONFIG = Symbol('FILE_ACCESS_CONFIG');
 export const FILE_ACCESS_SERVICE_OPTIONS = Symbol('FILE_ACCESS_SERVICE_OPTIONS');

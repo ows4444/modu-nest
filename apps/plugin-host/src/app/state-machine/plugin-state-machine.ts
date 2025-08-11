@@ -7,7 +7,7 @@ import {
   RecoveryPolicy,
   FailureContext,
 } from './plugin-state-machine.interface';
-import { PluginState, PluginTransition } from '@modu-nest/plugin-types';
+import { PluginState, PluginTransition } from '@libs/plugin-core';
 
 @Injectable()
 export class PluginStateMachine implements IPluginStateMachine {

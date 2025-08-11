@@ -4,6 +4,9 @@
   "include": [],
   "references": [
     {
+      "path": "../plugin-core"
+    },
+    {
       "path": "../plugin-types"
     },
     {

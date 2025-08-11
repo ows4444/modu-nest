@@ -27,15 +27,15 @@ libs/
 
 **✅ Correct - Use specific libraries:**
 ```typescript
-import { PluginManifest } from '@modu-nest/plugin-core';
-import { PluginGuardRegistry } from '@modu-nest/plugin-services';
-import { PluginGet, PluginPost } from '@modu-nest/plugin-decorators';
-import { PluginEventValidator } from '@modu-nest/plugin-validation';
+import { PluginManifest } from '@libs/plugin-core';
+import { PluginGuardRegistry } from '@libs/plugin-services';
+import { PluginGet, PluginPost } from '@libs/plugin-decorators';
+import { PluginEventValidator } from '@libs/plugin-validation';
 ```
 
 **❌ Avoid - Legacy imports:**
 ```typescript
-import { ... } from '@modu-nest/plugin-types'; // DEPRECATED
+import { ... } from '@libs/plugin-types'; // DEPRECATED
 ```
 
 ## Plugin Development Patterns
@@ -75,12 +75,12 @@ import {
   PluginUseGuards,
   PluginPermissions,
   PluginRoutePrefix,
-} from '@modu-nest/plugin-decorators';
+} from '@libs/plugin-decorators';
 import {
   ICrossPluginService,
   CROSS_PLUGIN_SERVICE_TOKEN,
-} from '@modu-nest/plugin-core';
-import { ApiResponse, ErrorHandler } from '@modu-nest/utils';
+} from '@libs/plugin-core';
+import { ApiResponse, ErrorHandler } from '@libs/shared-utils';
 
 @PluginRoutePrefix('my-resources')
 export class MyPluginController {
@@ -114,7 +114,7 @@ export class MyPluginController {
 
 ```typescript
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PluginLifecycleHookDecorator } from '@modu-nest/plugin-decorators';
+import { PluginLifecycleHookDecorator } from '@libs/plugin-decorators';
 
 @Injectable()
 export class MyPluginService implements OnModuleInit, OnModuleDestroy {
@@ -149,7 +149,7 @@ export class MyPluginService implements OnModuleInit, OnModuleDestroy {
 
 ```typescript
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { PluginGuard } from '@modu-nest/plugin-decorators';
+import { PluginGuard } from '@libs/plugin-decorators';
 
 @Injectable()
 export class MyPluginAccessGuard implements CanActivate, PluginGuard {
@@ -173,8 +173,8 @@ export class MyPluginAccessGuard implements CanActivate, PluginGuard {
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { CoreAppModule } from '@modu-nest/app-common';
-import { UnifiedConfigService } from '@modu-nest/config';
+import { CoreAppModule } from '@libs/shared-app-common';
+import { UnifiedConfigService } from '@libs/shared-config';
 
 @Module({
   imports: [
@@ -197,7 +197,7 @@ export class AppModule {}
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { UnifiedConfigService } from '@modu-nest/config';
+import { UnifiedConfigService } from '@libs/shared-config';
 
 @Injectable()
 export class MyService {
@@ -258,7 +258,7 @@ describe('MyPluginController', () => {
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
-import { unifiedConfigSchema } from '@modu-nest/config';
+import { unifiedConfigSchema } from '@libs/shared-config';
 import { MyService } from './my.service';
 
 describe('MyService Integration', () => {
@@ -287,7 +287,7 @@ describe('MyService Integration', () => {
 ### 1. Standardized Error Response
 
 ```typescript
-import { ApiResponse, ErrorHandler } from '@modu-nest/utils';
+import { ApiResponse, ErrorHandler } from '@libs/shared-utils';
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 export class MyService {
@@ -377,7 +377,7 @@ nx run-many --target=plugin-validate --projects=tag:plugin
 
 **Before:**
 ```typescript
-import { PluginRoute, PluginManifest } from '@modu-nest/plugin-types';
+import { PluginRoute, PluginManifest } from '@libs/plugin-types';
 
 @PluginRoute('users')
 export class UserController {}
@@ -385,8 +385,8 @@ export class UserController {}
 
 **After:**
 ```typescript
-import { PluginRoutePrefix } from '@modu-nest/plugin-decorators';
-import { PluginManifest } from '@modu-nest/plugin-core';
+import { PluginRoutePrefix } from '@libs/plugin-decorators';
+import { PluginManifest } from '@libs/plugin-core';
 
 @PluginRoutePrefix('users')
 export class UserController {}

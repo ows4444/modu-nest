@@ -1,4 +1,4 @@
-import { PluginVersion } from '@modu-nest/plugin-core';
+import { PluginVersion } from '@libs/plugin-core';
 
 export interface VersionRange {
   operator: string;

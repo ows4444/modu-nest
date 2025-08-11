@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { parseBoolean } from '@modu-nest/utils';
+import { parseBoolean } from '@libs/shared-utils';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { SwaggerEnvironmentSchema } from './swagger.schema';

@@ -1,5 +1,5 @@
 {
-  "name": "@modu-nest/plugin-host",
+  "name": "@apps/plugin-host",
   "version": "0.0.1",
   "private": true,
   "nx": {

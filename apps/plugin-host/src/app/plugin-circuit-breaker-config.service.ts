@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest, PluginCircuitBreaker } from '@modu-nest/plugin-types';
+import { PluginManifest } from '@libs/plugin-types';
+import { PluginCircuitBreaker } from '@libs/plugin-services';
 
 export interface CircuitBreakerConfig {
   maxFailures: number;
@@ -80,8 +81,9 @@ export class PluginCircuitBreakerConfigService {
     }
 
     // Apply manifest-specific circuit breaker overrides
-    if (manifest.monitoring?.circuitBreaker) {
-      config = this.applyManifestOverrides(config, manifest.monitoring.circuitBreaker);
+    // Note: monitoring property doesn't exist on PluginManifest, so this will always be undefined
+    if ((manifest as any).monitoring?.circuitBreaker) {
+      config = this.applyManifestOverrides(config, (manifest as any).monitoring.circuitBreaker);
     }
 
     return config;

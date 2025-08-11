@@ -1,4 +1,4 @@
-import { FileAccessPermissions } from '@modu-nest/plugin-types';
+import { FileAccessPermissions } from '@libs/plugin-core';
 
 export interface FileAccessValidationResult {
   isValid: boolean;

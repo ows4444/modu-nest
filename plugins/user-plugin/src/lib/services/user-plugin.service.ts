@@ -1,7 +1,7 @@
-import { PluginInjectable } from '@modu-nest/plugin-decorators';
-import { FileAccessService } from '@modu-nest/plugin-context';
+import { FileAccessService } from '@libs/plugin-context';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { User, CreateUserDto, UpdateUserDto } from '../interfaces/user.interface';
+import { PluginInjectable } from '@libs/plugin-core';
 
 @PluginInjectable()
 export class UserPluginService {

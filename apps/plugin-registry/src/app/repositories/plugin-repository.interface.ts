@@ -1,4 +1,4 @@
-import { PluginMetadata } from '@modu-nest/plugin-types';
+import { PluginMetadata } from '@libs/plugin-types';
 
 export interface PluginSearchOptions {
   query?: string;

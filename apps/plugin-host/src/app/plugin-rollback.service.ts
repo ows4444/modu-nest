@@ -1,13 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  PluginState,
-  PluginTransition,
-  LoadedPlugin,
-  PluginManifest,
-  PluginEventEmitter,
-  IPluginEventSubscriber,
-} from '@modu-nest/plugin-types';
+import { LoadedPlugin, PluginManifest } from '@libs/plugin-types';
 import { PluginStateMachine } from './state-machine';
+import { IPluginEventSubscriber, PluginState, PluginTransition } from '@libs/plugin-core';
+import { PluginEventEmitter } from '@libs/plugin-services';
 
 // Rollback-specific interfaces
 export interface PluginSnapshot {
@@ -113,11 +108,10 @@ export class PluginRollbackService implements IPluginEventSubscriber {
   private snapshots = new Map<string, Map<string, PluginSnapshot>>(); // pluginName -> snapshotId -> snapshot
   private rollbackHistory: RollbackHistory[] = [];
   private activeRollbacks = new Map<string, Promise<RollbackResult>>();
-  
+
   // Configuration
   private readonly maxSnapshotsPerPlugin = 10;
   private readonly maxRollbackHistorySize = 100;
-  private readonly defaultRollbackTimeout = 60000; // 1 minute
   private readonly snapshotRetentionDays = 30;
 
   // Dependencies
@@ -175,7 +169,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
 
     // Gather system state information
     const systemState = this.captureSystemState(pluginName);
-    
+
     // Create snapshot
     const snapshot: PluginSnapshot = {
       pluginName,
@@ -221,9 +215,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     const pluginSnapshots = this.snapshots.get(pluginName);
     if (!pluginSnapshots) return [];
 
-    return Array.from(pluginSnapshots.values()).sort(
-      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-    );
+    return Array.from(pluginSnapshots.values()).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   /**
@@ -262,7 +254,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
    */
   async rollbackPlugin(pluginName: string, options: RollbackOptions): Promise<RollbackResult> {
     const startTime = Date.now();
-    
+
     // Check if rollback is already in progress
     if (this.activeRollbacks.has(pluginName)) {
       throw new Error(`Rollback already in progress for plugin ${pluginName}`);
@@ -274,10 +266,10 @@ export class PluginRollbackService implements IPluginEventSubscriber {
 
     try {
       const result = await rollbackPromise;
-      
+
       // Record rollback in history
       this.recordRollback(result);
-      
+
       return result;
     } finally {
       this.activeRollbacks.delete(pluginName);
@@ -299,7 +291,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
 
     // Analyze dependency impact
     const dependencyImpact = this.analyzeDependencyImpact(pluginName, options);
-    
+
     // Generate rollback steps based on strategy
     if (options.rollbackStrategy === 'version') {
       steps.push(...this.generateVersionRollbackSteps(pluginName, options));
@@ -364,14 +356,12 @@ export class PluginRollbackService implements IPluginEventSubscriber {
    */
   getRollbackHistory(pluginName?: string, limit = 20): RollbackHistory[] {
     let history = this.rollbackHistory;
-    
+
     if (pluginName) {
-      history = history.filter(entry => entry.pluginName === pluginName);
+      history = history.filter((entry) => entry.pluginName === pluginName);
     }
 
-    return history
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    return history.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, limit);
   }
 
   /**
@@ -379,7 +369,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
    */
   clearRollbackHistory(pluginName?: string): void {
     if (pluginName) {
-      this.rollbackHistory = this.rollbackHistory.filter(entry => entry.pluginName !== pluginName);
+      this.rollbackHistory = this.rollbackHistory.filter((entry) => entry.pluginName !== pluginName);
     } else {
       this.rollbackHistory = [];
     }
@@ -391,7 +381,11 @@ export class PluginRollbackService implements IPluginEventSubscriber {
   // Private Implementation
   // ====================
 
-  private async performRollback(pluginName: string, options: RollbackOptions, startTime: number): Promise<RollbackResult> {
+  private async performRollback(
+    pluginName: string,
+    options: RollbackOptions,
+    startTime: number
+  ): Promise<RollbackResult> {
     const result: RollbackResult = {
       success: false,
       pluginName,
@@ -445,7 +439,6 @@ export class PluginRollbackService implements IPluginEventSubscriber {
       this.logger.log(
         `Successfully rolled back ${pluginName} using ${options.rollbackStrategy} strategy in ${result.duration}ms`
       );
-
     } catch (error) {
       result.success = false;
       result.duration = Date.now() - startTime;
@@ -464,7 +457,11 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     return result;
   }
 
-  private async executeSnapshotRollback(pluginName: string, options: RollbackOptions, result: RollbackResult): Promise<void> {
+  private async executeSnapshotRollback(
+    pluginName: string,
+    options: RollbackOptions,
+    result: RollbackResult
+  ): Promise<void> {
     if (!options.targetSnapshot) {
       throw new Error('Target snapshot ID required for snapshot rollback');
     }
@@ -487,30 +484,42 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     result.toVersion = snapshot.version;
   }
 
-  private async executeVersionRollback(pluginName: string, options: RollbackOptions, result: RollbackResult): Promise<void> {
+  private async executeVersionRollback(
+    pluginName: string,
+    options: RollbackOptions,
+    result: RollbackResult
+  ): Promise<void> {
     if (!options.targetVersion) {
       throw new Error('Target version required for version rollback');
     }
 
     // Find snapshot with target version
     const snapshots = this.getSnapshots(pluginName);
-    const targetSnapshot = snapshots.find(s => s.version === options.targetVersion);
+    const targetSnapshot = snapshots.find((s) => s.version === options.targetVersion);
 
     if (!targetSnapshot) {
       throw new Error(`No snapshot found for version ${options.targetVersion} of plugin ${pluginName}`);
     }
 
     // Use snapshot rollback internally
-    await this.executeSnapshotRollback(pluginName, { ...options, targetSnapshot: `${pluginName}-${targetSnapshot.timestamp.getTime()}` }, result);
+    await this.executeSnapshotRollback(
+      pluginName,
+      { ...options, targetSnapshot: `${pluginName}-${targetSnapshot.timestamp.getTime()}` },
+      result
+    );
     result.rollbackType = 'version';
     result.toVersion = options.targetVersion;
   }
 
-  private async executeDependencyGraphRollback(pluginName: string, options: RollbackOptions, result: RollbackResult): Promise<void> {
+  private async executeDependencyGraphRollback(
+    pluginName: string,
+    options: RollbackOptions,
+    result: RollbackResult
+  ): Promise<void> {
     // This would implement complex dependency graph analysis and rollback
     // For now, it's a placeholder that falls back to version rollback
     result.warnings.push('Dependency graph rollback not fully implemented, falling back to version rollback');
-    
+
     if (options.targetVersion) {
       await this.executeVersionRollback(pluginName, options, result);
     } else {
@@ -532,14 +541,14 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     // For now, it's a simplified implementation
     result.rollbackedPlugins.push(snapshot.pluginName);
     result.systemStateRestored.plugins = 1;
-    
+
     // In a real implementation, this would:
     // 1. Restore the plugin module and manifest
     // 2. Restore cross-plugin services
     // 3. Restore guards and contexts
     // 4. Restore dependencies
     // 5. Update state machine
-    
+
     result.warnings.push('Snapshot restoration is simplified in current implementation');
   }
 
@@ -611,7 +620,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     const requiredRollbacks: string[] = [];
 
     // Analyze which dependencies would be broken
-    affectedPlugins.forEach(dependent => {
+    affectedPlugins.forEach((dependent) => {
       // In a real implementation, this would check version compatibility
       brokenDependencies.push(dependent);
       if (options.cascadeRollback) {
@@ -699,7 +708,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     const steps: RollbackStep[] = [];
     let stepNumber = 100; // Start at 100 to avoid conflicts
 
-    requiredRollbacks.forEach(pluginName => {
+    requiredRollbacks.forEach((pluginName) => {
       steps.push({
         stepNumber: stepNumber++,
         action: 'unload',
@@ -746,10 +755,10 @@ export class PluginRollbackService implements IPluginEventSubscriber {
   }
 
   private cleanupOldSnapshots(): void {
-    const cutoffTime = Date.now() - (this.snapshotRetentionDays * 24 * 60 * 60 * 1000);
+    const cutoffTime = Date.now() - this.snapshotRetentionDays * 24 * 60 * 60 * 1000;
     let cleanedCount = 0;
 
-    for (const [pluginName, pluginSnapshots] of this.snapshots) {
+    for (const [_pluginName, pluginSnapshots] of this.snapshots) {
       for (const [snapshotId, snapshot] of pluginSnapshots) {
         if (snapshot.timestamp.getTime() < cutoffTime) {
           pluginSnapshots.delete(snapshotId);
@@ -769,7 +778,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
       this.rollbackHistory = this.rollbackHistory
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         .slice(0, this.maxRollbackHistorySize);
-      
+
       this.logger.debug(`Cleaned up ${removed} old rollback history entries`);
     }
   }
@@ -782,7 +791,7 @@ export class PluginRollbackService implements IPluginEventSubscriber {
     // Auto-create snapshots on successful plugin loads
     eventEmitter.on('plugin.loaded', (event) => {
       const loadedEvent = event as any;
-      this.createSnapshot(loadedEvent.pluginName, 'Auto-created on plugin load').catch(error => {
+      this.createSnapshot(loadedEvent.pluginName, 'Auto-created on plugin load').catch((error) => {
         this.logger.warn(`Failed to auto-create snapshot for ${loadedEvent.pluginName}:`, error);
       });
     });

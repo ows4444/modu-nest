@@ -1,11 +1,11 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import JSZip from 'jszip';
-import { PluginValidator } from '@modu-nest/plugin-types';
-import { CreatePluginDto } from '@modu-nest/plugin-types';
+import { CreatePluginDto } from '@libs/plugin-types';
 import { PluginValidationCacheService } from './plugin-validation-cache.service';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CreatePluginValidationDto } from '../dto/plugin.dto';
+import { PluginValidator } from '@libs/plugin-validation';
 
 export interface ValidationResult {
   isValid: boolean;

@@ -1,11 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import {
-  PluginMetricsCollector,
   PluginMetrics,
-  SystemMetrics,
+  PluginMetricsCollector,
   PluginMetricsSnapshot,
   PluginPerformanceEntry,
-} from '@modu-nest/plugin-types';
+  SystemMetrics,
+} from '@libs/plugin-services';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 
 export interface MetricsServiceConfiguration {
   enabled: boolean;

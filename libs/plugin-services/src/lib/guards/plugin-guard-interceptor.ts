@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, Inject } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PluginGuardRegistryService } from './plugin-guard-registry.service';
-import { PLUGIN_USE_GUARDS_KEY } from '@modu-nest/plugin-decorators';
+import { PLUGIN_USE_GUARDS_KEY } from '@libs/plugin-decorators';
 
 @Injectable()
 export class PluginGuardInterceptor implements CanActivate {

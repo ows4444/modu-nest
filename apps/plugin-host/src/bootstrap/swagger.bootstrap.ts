@@ -1,7 +1,7 @@
 import { INestApplication, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { Environment, ENVIRONMENT_ENV, SWAGGER_ENV, SwaggerEnvironment } from '@modu-nest/config';
+import { Environment, ENVIRONMENT_ENV, SWAGGER_ENV, SwaggerEnvironment } from '@libs/shared-config';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 

@@ -1,7 +1,7 @@
-import { PluginInjectable } from '@modu-nest/plugin-decorators';
-import { PluginContext } from '@modu-nest/plugin-context';
+import { PluginContext } from '@libs/plugin-context';
 import { NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { Product, CreateProductDto, UpdateProductDto } from '../interfaces/product.interface';
+import { PluginInjectable } from '@libs/plugin-core';
 
 @PluginInjectable()
 export class ProductPluginService {

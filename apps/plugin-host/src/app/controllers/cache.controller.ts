@@ -1,5 +1,5 @@
 import { Controller, Get, Delete, Param, Query } from '@nestjs/common';
-import { PluginLoaderService } from '../plugin-loader.service';
+import { PluginLoaderService } from '../plugin-loader-primary.service';
 
 @Controller('plugins/cache')
 export class CacheController {

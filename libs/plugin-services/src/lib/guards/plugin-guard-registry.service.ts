@@ -1,5 +1,5 @@
 import { Injectable, Logger, Global } from '@nestjs/common';
-import { PluginGuardRegistry, RegisteredPluginGuard, PluginGuard } from '@modu-nest/plugin-decorators';
+import { PluginGuardRegistry, RegisteredPluginGuard, PluginGuard } from '@libs/plugin-decorators';
 
 @Global()
 @Injectable()

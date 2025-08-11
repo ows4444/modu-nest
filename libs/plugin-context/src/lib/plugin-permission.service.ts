@@ -1,5 +1,5 @@
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
-import { PluginManifest, PluginSecurity } from '@modu-nest/plugin-types';
+import { PluginManifest, PluginSecurity } from '@libs/plugin-core';
 
 export interface PluginAccessContext {
   pluginName: string;

@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Logger, Inject } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PLUGIN_PERMISSIONS_KEY } from '@modu-nest/plugin-decorators';
+import { PLUGIN_PERMISSIONS_KEY } from '@libs/plugin-decorators';
 
 /**
  * Injection token for the plugin permission service

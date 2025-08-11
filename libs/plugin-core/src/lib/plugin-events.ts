@@ -310,4 +310,4 @@ export interface IPluginEventMiddleware {
 }
 
 // Export PluginEventEmitter class (forward declaration)
-// PluginEventEmitter is now exported from @modu-nest/plugin-services
+// PluginEventEmitter is now exported from @libs/plugin-services

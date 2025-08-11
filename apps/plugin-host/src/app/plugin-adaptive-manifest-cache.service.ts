@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest, PluginCacheService, PluginCacheKeyBuilder } from '@modu-nest/plugin-types';
+import { PluginManifest } from '@libs/plugin-types';
+import { PluginCacheKeyBuilder, PluginCacheService } from '@libs/plugin-services';
 
 export interface ManifestCacheConfig {
   ttl: number; // Time to live in milliseconds
@@ -69,7 +70,7 @@ export class PluginAdaptiveManifestCacheService {
    */
   invalidateManifest(pluginPath: string): void {
     const cacheKey = PluginCacheKeyBuilder.pluginManifest(pluginPath);
-    this.cacheService.delete(cacheKey);
+    this.cacheService.invalidate(cacheKey);
 
     // Clean up tracking data
     this.accessCounts.delete(pluginPath);

@@ -241,7 +241,7 @@ class PluginValidator {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
-      const nestDeps = ['@modu-nest/plugin-types'];
+      const nestDeps = ['@libs/plugin-types'];
       const missingDeps = nestDeps.filter(
         (dep) =>
           !packageJson.dependencies?.[dep] &&
@@ -256,7 +256,7 @@ class PluginValidator {
       }
 
       // Check for plugin-types dependency
-      const pluginTypesDep = '@modu-nest/plugin-types';
+      const pluginTypesDep = '@libs/plugin-types';
       const hasPluginTypes =
         packageJson.dependencies?.[pluginTypesDep] ||
         packageJson.peerDependencies?.[pluginTypesDep] ||
