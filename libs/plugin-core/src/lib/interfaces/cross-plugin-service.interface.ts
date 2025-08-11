@@ -12,10 +12,10 @@ export interface ICrossPluginService {
   /**
    * Call a method on a cross-plugin service with error handling
    */
-  callServiceMethod<T = any>(
+  callServiceMethod<T = unknown>(
     serviceToken: string, 
     methodName: string, 
-    ...args: any[]
+    ...args: unknown[]
   ): Promise<T | null>;
 
   /**

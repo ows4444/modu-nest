@@ -164,12 +164,12 @@ export function isValidPluginManifest(
     return false;
   }
 
-  const manifest = value as any;
+  const manifest = value as Record<string, unknown>;
 
   // Required fields validation
   if (
-    !isValidPluginName(manifest.name) ||
-    !isValidPluginVersion(manifest.version) ||
+    !isValidPluginName(manifest.name as string) ||
+    !isValidPluginVersion(manifest.version as string) ||
     typeof manifest.description !== 'string' ||
     typeof manifest.author !== 'string' ||
     typeof manifest.license !== 'string' ||
@@ -208,14 +208,14 @@ export function isValidPluginMetadata(
     return false;
   }
 
-  const metadata = value as any;
+  const metadata = value as Record<string, unknown>;
 
   // Additional metadata fields
   return (
-    isValidTimestamp(metadata.uploadedAt) &&
+    isValidTimestamp(metadata.uploadedAt as string) &&
     typeof metadata.fileSize === 'number' &&
     metadata.fileSize > 0 &&
-    isValidChecksum(metadata.checksum)
+    isValidChecksum(metadata.checksum as string)
   );
 }
 
@@ -229,7 +229,7 @@ export function isValidPluginCompatibility(
     return false;
   }
 
-  const compat = value as any;
+  const compat = value as Record<string, unknown>;
 
   // nodeVersion is required
   if (!compat.nodeVersion || typeof compat.nodeVersion !== 'string') {
@@ -258,7 +258,7 @@ export function isValidServiceConfig(
     return false;
   }
 
-  const config = value as any;
+  const config = value as Record<string, unknown>;
 
   // Required fields
   if (typeof config.serviceName !== 'string' || config.serviceName.length === 0) {
@@ -311,9 +311,14 @@ export function isValidPluginNameArray(value: unknown): value is PluginName[] {
 }
 
 /**
+ * Plugin configuration value types
+ */
+export type PluginConfigValue = string | number | boolean | null | undefined | PluginConfigValue[] | { [key: string]: PluginConfigValue };
+
+/**
  * Type guard for plugin configuration objects
  */
-export function isValidPluginConfig(value: unknown): value is Record<string, any> {
+export function isValidPluginConfig(value: unknown): value is Record<string, PluginConfigValue> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
   }
@@ -321,10 +326,28 @@ export function isValidPluginConfig(value: unknown): value is Record<string, any
   // Basic structure validation - config should be a plain object
   try {
     JSON.stringify(value);
-    return true;
+    return isValidConfigValue(value);
   } catch {
     return false;
   }
+}
+
+/**
+ * Helper to validate configuration values recursively
+ */
+function isValidConfigValue(value: unknown): value is PluginConfigValue {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true;
+  
+  if (Array.isArray(value)) {
+    return value.every(item => isValidConfigValue(item));
+  }
+  
+  if (typeof value === 'object') {
+    return Object.values(value).every(item => isValidConfigValue(item));
+  }
+  
+  return false;
 }
 
 // Re-export strict type interfaces
@@ -353,10 +376,10 @@ export function createVersionedPluginManifest<T>(
  * Validate plugin interface version compatibility
  */
 export function validatePluginInterfaceVersion(
-  pluginManifest: any,
+  pluginManifest: Record<string, unknown>,
   hostVersion: string = CURRENT_API_VERSION
 ): VersionValidationResult & { canLoad: boolean } {
-  const pluginVersion = pluginManifest.__apiVersion || PluginAPIVersion.V1_0;
+  const pluginVersion = (pluginManifest.__apiVersion as PluginAPIVersion) || PluginAPIVersion.V1_0;
   const result = validatePluginVersion(pluginVersion, undefined, hostVersion);
   
   return {
@@ -368,16 +391,16 @@ export function validatePluginInterfaceVersion(
 /**
  * Check if plugin interfaces need migration
  */
-export function checkPluginMigrationNeeded(pluginManifest: any): boolean {
-  const pluginVersion = pluginManifest.__apiVersion || PluginAPIVersion.V1_0;
+export function checkPluginMigrationNeeded(pluginManifest: Record<string, unknown>): boolean {
+  const pluginVersion = (pluginManifest.__apiVersion as PluginAPIVersion) || PluginAPIVersion.V1_0;
   return pluginVersion !== CURRENT_API_VERSION;
 }
 
 /**
  * Get plugin interface version
  */
-export function getPluginInterfaceVersion(pluginManifest: any): PluginAPIVersion {
-  return pluginManifest.__apiVersion || PluginAPIVersion.V1_0;
+export function getPluginInterfaceVersion(pluginManifest: Record<string, unknown>): PluginAPIVersion {
+  return (pluginManifest.__apiVersion as PluginAPIVersion) || PluginAPIVersion.V1_0;
 }
 
 /**
@@ -401,9 +424,9 @@ export class PluginInterfaceCompatibility {
   /**
    * Get compatibility warnings for a plugin
    */
-  static getCompatibilityWarnings(manifest: any): string[] {
+  static getCompatibilityWarnings(manifest: Record<string, unknown>): string[] {
     const warnings: string[] = [];
-    const version = manifest.__apiVersion || PluginAPIVersion.V1_0;
+    const version = (manifest.__apiVersion as PluginAPIVersion) || PluginAPIVersion.V1_0;
     
     if (version === PluginAPIVersion.V1_0) {
       warnings.push('Plugin uses legacy v1.0 API. Consider upgrading to v2.0 for better features and security.');
@@ -419,12 +442,12 @@ export class PluginInterfaceCompatibility {
   /**
    * Check if plugin can be loaded safely
    */
-  static canLoadPlugin(manifest: any, hostVersion: string = CURRENT_API_VERSION): {
+  static canLoadPlugin(manifest: Record<string, unknown>, hostVersion: string = CURRENT_API_VERSION): {
     canLoad: boolean;
     reason?: string;
     warnings: string[];
   } {
-    const version = manifest.__apiVersion || PluginAPIVersion.V1_0;
+    const version = (manifest.__apiVersion as PluginAPIVersion) || PluginAPIVersion.V1_0;
     const validation = validatePluginVersion(version, undefined, hostVersion);
     const warnings = this.getCompatibilityWarnings(manifest);
     

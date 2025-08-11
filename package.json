@@ -28,6 +28,9 @@
     "release": "nx run-many --target=plugin-zip --projects=tag:plugin",
     "plugin:create": "nx g @tools/plugin:plugin",
     "quality:check": "npm run lint && npm run typecheck && npm run validate:architecture",
+    "deps:analyze": "node tools/dependency-analyzer.js",
+    "deps:check": "node tools/dependency-analyzer.js libs",
+    "deps:export": "node tools/dependency-analyzer.js libs --export-json --export-dot",
     "ci": "npm run quality:check && npm run test && npm run build"
   },
   "private": true,

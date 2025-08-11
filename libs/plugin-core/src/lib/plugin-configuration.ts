@@ -99,7 +99,7 @@ export class PluginConfigManager {
     return this.validateValue(config, schema, pluginName);
   }
 
-  private validateValue(value: any, schema: PluginConfigSchema, path: string): { valid: boolean; errors: string[] } {
+  private validateValue(value: unknown, schema: PluginConfigSchema, path: string): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     // Type validation
@@ -108,10 +108,12 @@ export class PluginConfigManager {
     }
 
     // Required properties validation
-    if (schema.type === 'object' && schema.properties) {
+    if (schema.type === 'object' && schema.properties && value && typeof value === 'object') {
+      const valueObj = value as Record<string, unknown>;
+      
       if (schema.required) {
         for (const requiredKey of schema.required) {
-          if (!(requiredKey in value)) {
+          if (!(requiredKey in valueObj)) {
             errors.push(`${path}.${requiredKey}: Required property missing`);
           }
         }
@@ -119,8 +121,8 @@ export class PluginConfigManager {
 
       // Validate nested properties
       for (const [key, nestedSchema] of Object.entries(schema.properties)) {
-        if (key in value) {
-          const nestedResult = this.validateValue(value[key], nestedSchema, `${path}.${key}`);
+        if (key in valueObj) {
+          const nestedResult = this.validateValue(valueObj[key], nestedSchema, `${path}.${key}`);
           errors.push(...nestedResult.errors);
         }
       }
@@ -132,13 +134,13 @@ export class PluginConfigManager {
     };
   }
 
-  private encrypt(value: any): string {
+  private encrypt(value: unknown): string {
     // Simple base64 encoding for demonstration
     // In production, use proper encryption
     return Buffer.from(JSON.stringify(value)).toString('base64');
   }
 
-  private decrypt(encryptedValue: string): any {
+  private decrypt(encryptedValue: string): unknown {
     // Simple base64 decoding for demonstration
     // In production, use proper decryption
     return JSON.parse(Buffer.from(encryptedValue, 'base64').toString());

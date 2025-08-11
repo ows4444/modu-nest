@@ -243,7 +243,7 @@ export function getPluginId(manifest: StrictPluginManifest): PluginId {
 }
 
 // Conversion utilities between strict and loose types
-export function toStrictManifest(manifest: any): StrictPluginManifest {
+export function toStrictManifest(manifest: Record<string, unknown>): StrictPluginManifest {
   const { createPluginName, createPluginVersion, createPluginId } = require('./plugin-interfaces');
 
   const strictModule: StrictPluginModuleMeta = {
@@ -287,7 +287,7 @@ export function toStrictManifest(manifest: any): StrictPluginManifest {
   };
 }
 
-export function fromStrictManifest(manifest: StrictPluginManifest): any {
+export function fromStrictManifest(manifest: StrictPluginManifest): Record<string, unknown> {
   return {
     name: manifest.name,
     version: manifest.version,

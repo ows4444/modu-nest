@@ -18,6 +18,9 @@ interface ValidationCacheEntry {
   checksum: string;
   timestamp: number;
   trustLevel?: string;
+  accessCount: number;
+  lastAccessed: number;
+  size: number; // Approximate memory usage
 }
 
 interface ValidationMetrics {
@@ -56,7 +59,9 @@ export class CachedValidatorService {
   // Cache configuration
   private readonly CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
   private readonly MAX_CACHE_SIZE = 1000;
+  private readonly MAX_MEMORY_USAGE = 50 * 1024 * 1024; // 50MB
   private readonly CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+  private currentMemoryUsage = 0;
 
   constructor() {
     // Start cache cleanup interval
@@ -85,7 +90,9 @@ export class CachedValidatorService {
         const cached = this.getCachedResult(cacheKey);
         if (cached) {
           this.metrics.cacheHits++;
-          this.logger.debug(`Cache hit for plugin ${manifest.name}`);
+          cached.accessCount++;
+          cached.lastAccessed = Date.now();
+          this.logger.debug(`Cache hit for plugin ${manifest.name} (accessed ${cached.accessCount} times)`);
           return cached.result;
         }
       }
@@ -156,14 +163,28 @@ export class CachedValidatorService {
   /**
    * Get validation performance metrics
    */
-  getMetrics(): ValidationMetrics & { cacheSize: number, cacheHitRate: number } {
+  getMetrics(): ValidationMetrics & { 
+    cacheSize: number, 
+    cacheHitRate: number, 
+    memoryUsage: number,
+    averageAccessCount: number 
+  } {
     const totalRequests = this.metrics.cacheHits + this.metrics.cacheMisses;
     const cacheHitRate = totalRequests > 0 ? (this.metrics.cacheHits / totalRequests) * 100 : 0;
+    
+    // Calculate average access count
+    let totalAccessCount = 0;
+    for (const entry of this.validationCache.values()) {
+      totalAccessCount += entry.accessCount;
+    }
+    const averageAccessCount = this.validationCache.size > 0 ? totalAccessCount / this.validationCache.size : 0;
     
     return {
       ...this.metrics,
       cacheSize: this.validationCache.size,
       cacheHitRate: Math.round(cacheHitRate * 100) / 100,
+      memoryUsage: this.currentMemoryUsage,
+      averageAccessCount: Math.round(averageAccessCount * 100) / 100,
     };
   }
 
@@ -353,20 +374,28 @@ export class CachedValidatorService {
     checksum: string, 
     trustLevel?: string
   ): void {
-    // Implement LRU eviction if cache is full
+    const entrySize = this.calculateEntrySize(result, checksum, cacheKey);
+    
+    // Check memory limits and evict if necessary
+    this.ensureMemoryLimits(entrySize);
+    
+    // Implement intelligent eviction if cache is full
     if (this.validationCache.size >= this.MAX_CACHE_SIZE) {
-      const oldestKey = this.validationCache.keys().next().value;
-      if (oldestKey) {
-        this.validationCache.delete(oldestKey);
-      }
+      this.evictLeastUsedEntries();
     }
 
-    this.validationCache.set(cacheKey, {
+    const entry: ValidationCacheEntry = {
       result,
       checksum,
       timestamp: Date.now(),
       trustLevel,
-    });
+      accessCount: 1,
+      lastAccessed: Date.now(),
+      size: entrySize,
+    };
+
+    this.validationCache.set(cacheKey, entry);
+    this.currentMemoryUsage += entrySize;
   }
 
   private generateChecksum(content: string): string {
@@ -383,17 +412,68 @@ export class CachedValidatorService {
   private cleanupCache(): void {
     const now = Date.now();
     let cleanedCount = 0;
+    let reclaimedMemory = 0;
 
     for (const [key, entry] of this.validationCache.entries()) {
       if (now - entry.timestamp > this.CACHE_TTL_MS) {
         this.validationCache.delete(key);
+        this.currentMemoryUsage -= entry.size;
+        reclaimedMemory += entry.size;
         cleanedCount++;
       }
     }
 
     if (cleanedCount > 0) {
-      this.logger.debug(`Cleaned up ${cleanedCount} expired cache entries`);
+      this.logger.debug(`Cleaned up ${cleanedCount} expired cache entries, reclaimed ${this.formatBytes(reclaimedMemory)}`);
     }
+  }
+
+  private calculateEntrySize(result: PluginValidationResult, checksum: string, cacheKey: string): number {
+    // Approximate memory usage calculation
+    const resultSize = JSON.stringify(result).length * 2; // UTF-16 chars are 2 bytes
+    const checksumSize = checksum.length * 2;
+    const keySize = cacheKey.length * 2;
+    const overhead = 200; // Object overhead and metadata
+    
+    return resultSize + checksumSize + keySize + overhead;
+  }
+
+  private ensureMemoryLimits(newEntrySize: number): void {
+    while (this.currentMemoryUsage + newEntrySize > this.MAX_MEMORY_USAGE && this.validationCache.size > 0) {
+      this.evictLeastUsedEntries(1);
+    }
+  }
+
+  private evictLeastUsedEntries(maxEvictions?: number): void {
+    // Sort entries by access count and last accessed time
+    const entries = Array.from(this.validationCache.entries());
+    entries.sort(([, a], [, b]) => {
+      // Prioritize by access count, then by last accessed
+      if (a.accessCount !== b.accessCount) {
+        return a.accessCount - b.accessCount; // Ascending - least used first
+      }
+      return a.lastAccessed - b.lastAccessed; // Ascending - oldest first
+    });
+
+    const evictCount = Math.min(maxEvictions || Math.ceil(this.validationCache.size * 0.1), entries.length);
+    let reclaimedMemory = 0;
+
+    for (let i = 0; i < evictCount; i++) {
+      const [key, entry] = entries[i];
+      this.validationCache.delete(key);
+      this.currentMemoryUsage -= entry.size;
+      reclaimedMemory += entry.size;
+    }
+
+    this.logger.debug(`Evicted ${evictCount} least used cache entries, reclaimed ${this.formatBytes(reclaimedMemory)}`);
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
   private updateMetrics(validationTime: number): void {

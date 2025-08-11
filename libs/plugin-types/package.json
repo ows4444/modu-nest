@@ -1,6 +1,6 @@
 {
   "name": "@libs/plugin-types",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -16,6 +16,6 @@
   },
   "dependencies": {
     "tslib": "^2.3.0",
-    "@libs/plugin-core": "0.0.1"
+    "@libs/plugin-core": "1.1.0"
   }
 }

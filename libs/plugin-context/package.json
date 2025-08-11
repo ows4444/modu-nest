@@ -1,6 +1,6 @@
 {
   "name": "@libs/plugin-context",
-  "version": "0.0.1",
+  "version": "1.1.0",
   "private": true,
   "main": "./src/index.js",
   "module": "./src/index.js",
@@ -17,8 +17,8 @@
   "dependencies": {
     "tslib": "^2.3.0",
     "@nestjs/common": "^11.0.0",
-    "@libs/plugin-types": "0.0.1",
-    "@libs/plugin-core": "0.0.1"
+    "@libs/plugin-types": "1.0.0",
+    "@libs/plugin-core": "1.1.0"
   },
   "nx": {
     "targets": {

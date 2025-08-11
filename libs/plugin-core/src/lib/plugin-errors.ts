@@ -360,7 +360,7 @@ export interface PluginErrorResponse {
   message: string;
   error: string;
   code: string;
-  details: any;
+  details: unknown;
   context: PluginErrorContext;
   timestamp: string;
   path?: string;

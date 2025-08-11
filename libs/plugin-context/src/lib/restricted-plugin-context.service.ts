@@ -2,8 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PluginManifest } from '@libs/plugin-types';
 import { FileAccessService } from './file-access.service';
 import { PluginPermissionService, PluginAccessContext } from './plugin-permission.service';
+import { ExtendedPluginContext, PluginConfigAccess, PluginServiceAccess } from './plugin-context.service';
 
-export interface PluginContextConfig {
+export interface RestrictedPluginContextConfig {
   pluginName: string;
   manifest: PluginManifest;
   sandbox?: {
@@ -16,14 +17,14 @@ export interface PluginContextConfig {
 @Injectable()
 export class RestrictedPluginContextService {
   private readonly logger = new Logger(RestrictedPluginContextService.name);
-  private readonly pluginContexts = new Map<string, PluginContextConfig>();
+  private readonly pluginContexts = new Map<string, RestrictedPluginContextConfig>();
 
   constructor(
     private readonly fileAccessService: FileAccessService,
     private readonly permissionService: PluginPermissionService
   ) {}
 
-  createPluginContext(config: PluginContextConfig): PluginContextInterface {
+  createPluginContext(config: RestrictedPluginContextConfig): ExtendedPluginContext {
     this.pluginContexts.set(config.pluginName, config);
     this.permissionService.registerPlugin(config.pluginName, config.manifest);
 
@@ -31,10 +32,10 @@ export class RestrictedPluginContextService {
 
     return {
       pluginName: config.pluginName,
-      manifest: config.manifest,
+      config: {} as any, // Simplified for restricted context
 
-      // File system access with manifest-based restrictions
-      fileSystem: {
+      // File access with manifest-based restrictions
+      fileAccess: {
         readFile: async (filePath: string) => {
           this.validateFileOperation(config.pluginName, 'read', filePath);
           return await this.fileAccessService.readFile(filePath, config.pluginName);
@@ -55,14 +56,14 @@ export class RestrictedPluginContextService {
           return await this.fileAccessService.listFiles(dirPath, config.pluginName);
         },
 
-        fileExists: async (filePath: string) => {
+        exists: async (filePath: string) => {
           return await this.fileAccessService.fileExists(filePath, config.pluginName);
         },
       },
 
       // Service access with permissions
       services: {
-        getService: <T>(serviceName: string): T => {
+        getService: <T>(serviceName: string): T | null => {
           this.validateServiceAccess(config.pluginName, serviceName);
           return this.getRestrictedService<T>(config.pluginName, serviceName);
         },
@@ -76,10 +77,7 @@ export class RestrictedPluginContextService {
           const result = this.permissionService.validateServiceAccess(context);
           return result.granted;
         },
-      },
 
-      // Module access with restrictions
-      modules: {
         importModule: async <T>(moduleName: string): Promise<T> => {
           this.validateModuleAccess(config.pluginName, moduleName);
           return await this.getRestrictedModule<T>(config.pluginName, moduleName);
@@ -116,7 +114,7 @@ export class RestrictedPluginContextService {
       },
 
       // Configuration access
-      config: {
+      configAccess: {
         get: <T>(key: string): T | undefined => {
           return config.manifest.config?.[key] as T;
         },
@@ -168,10 +166,11 @@ export class RestrictedPluginContextService {
     this.permissionService.enforcePermission(context);
   }
 
-  private getRestrictedService<T>(pluginName: string, serviceName: string): T {
+  private getRestrictedService<T>(pluginName: string, serviceName: string): T | null {
     // Implementation would depend on your DI container
     // This is a placeholder for service resolution with restrictions
-    throw new Error(`Service resolution not implemented: ${serviceName}`);
+    this.logger.warn(`Service resolution not implemented: ${serviceName} for plugin: ${pluginName}`);
+    return null;
   }
 
   private async getRestrictedModule<T>(pluginName: string, moduleName: string): Promise<T> {
@@ -187,39 +186,3 @@ export class RestrictedPluginContextService {
   }
 }
 
-export interface PluginContextInterface {
-  readonly pluginName: string;
-  readonly manifest: PluginManifest;
-
-  fileSystem: {
-    readFile(filePath: string): Promise<string>;
-    writeFile(filePath: string, content: string): Promise<void>;
-    deleteFile(filePath: string): Promise<void>;
-    listFiles(dirPath: string): Promise<string[]>;
-    fileExists(filePath: string): Promise<boolean>;
-  };
-
-  services: {
-    getService<T>(serviceName: string): T;
-    hasServiceAccess(serviceName: string): boolean;
-  };
-
-  modules: {
-    importModule<T>(moduleName: string): Promise<T>;
-    hasModuleAccess(moduleName: string): boolean;
-  };
-
-  logger: {
-    log(message: string, context?: string): void;
-    error(message: string, trace?: string, context?: string): void;
-    warn(message: string, context?: string): void;
-    debug(message: string, context?: string): void;
-    verbose(message: string, context?: string): void;
-  };
-
-  config: {
-    get<T>(key: string): T | undefined;
-    has(key: string): boolean;
-    getAll(): Record<string, any>;
-  };
-}

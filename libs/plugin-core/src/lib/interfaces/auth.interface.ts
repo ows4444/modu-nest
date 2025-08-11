@@ -16,7 +16,7 @@ export interface IAuthenticationService {
   /**
    * Validates if a user is authenticated based on request context
    */
-  validateAuthentication(context: any): Promise<AuthenticationResult>;
+  validateAuthentication(context: Record<string, unknown>): Promise<AuthenticationResult>;
 
   /**
    * Checks if a user has specific permissions

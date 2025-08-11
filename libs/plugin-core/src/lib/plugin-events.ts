@@ -35,7 +35,7 @@ export enum PluginTransition {
 export interface BasePluginEvent {
   pluginName: string;
   timestamp: Date;
-  context?: any;
+  context?: Record<string, unknown>;
   source?: string;
 }
 
