@@ -78,6 +78,17 @@ nx serve registry                    # Start plugin registry (default: http://lo
 
 ## Plugin System Architecture
 
+### Plugin Loader Refactoring
+The plugin system has been refactored from a monolithic 4,824-line service into focused, single-responsibility services:
+
+- **PluginOrchestratorService**: Main coordination and API compatibility layer
+- **PluginStateManagerService**: State transitions, history tracking, and recovery
+- **PluginMemoryManagerService**: Memory lifecycle, cleanup, and leak prevention
+- **PluginSecurityManagerService**: Security validation, permissions, and isolation
+- **PluginLoaderService**: Lightweight facade maintaining backward compatibility
+
+This refactoring improves maintainability, testability, and follows SOLID principles while preserving all existing APIs.
+
 ### Plugin Loading Strategy
 The system uses configurable loading strategies:
 - **Sequential**: Loads plugins one by one (default for critical plugins)

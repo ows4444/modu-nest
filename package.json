@@ -7,6 +7,7 @@
   "devDependencies": {
     "@eslint/js": "^9.8.0",
     "@nestjs/config": "^4.0.2",
+    "@nestjs/event-emitter": "^3.0.1",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/testing": "^11.0.0",
@@ -57,10 +58,10 @@
     "libs/shared/*"
   ],
   "dependencies": {
-    "@nx/devkit": "21.3.11",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@nx/devkit": "21.3.11",
     "axios": "^1.6.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0"
