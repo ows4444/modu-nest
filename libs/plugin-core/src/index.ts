@@ -1,6 +1,11 @@
 // Core plugin interfaces and types
 export * from './lib/interfaces/plugin-interfaces';
 export * from './lib/interfaces/plugin-strict-interfaces';
+
+// Versioning system exports
+export * from './lib/versions/interface-versions';
+export * from './lib/versions/v1/plugin-interfaces-v1';
+export * from './lib/versions/migrators/v1-to-v2-migrator';
 export * from './lib/interfaces/auth.interface';
 export * from './lib/interfaces/cross-plugin-service.interface';
 

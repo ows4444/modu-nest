@@ -164,7 +164,16 @@ export const DEFAULT_GLOBAL_CONTEXT_CONFIG: GlobalPluginContextConfig = {
 
 @Injectable()
 export class PluginContextConfigService {
-  constructor(@Inject(PLUGIN_CONTEXT_CONFIG) private readonly globalConfig: GlobalPluginContextConfig) {}
+  private readonly cacheStats = {
+    size: 0,
+    hits: 0,
+    misses: 0,
+    lastRefresh: new Date(),
+  };
+
+  constructor(@Inject(PLUGIN_CONTEXT_CONFIG) private readonly globalConfig: GlobalPluginContextConfig) {
+    this.cacheStats.size = this.globalConfig.pluginConfigs.size;
+  }
 
   getPluginConfig(pluginName: string): PluginContextConfig {
     const pluginSpecificConfig = this.globalConfig.pluginConfigs.get(pluginName) || {};

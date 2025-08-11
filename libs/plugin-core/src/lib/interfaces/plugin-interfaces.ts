@@ -5,6 +5,16 @@ import {
   isValidChecksum as baseIsValidChecksum,
 } from '@libs/shared-utils';
 
+// Import versioning system
+import { 
+  VersionedInterface, 
+  PluginAPIVersion, 
+  CURRENT_API_VERSION,
+  createVersionedInterface,
+  validatePluginVersion,
+  VersionValidationResult
+} from '../versions/interface-versions';
+
 // Re-export all plugin manifest types
 export * from '../manifest/plugin-manifest.types';
 
@@ -319,3 +329,132 @@ export function isValidPluginConfig(value: unknown): value is Record<string, any
 
 // Re-export strict type interfaces
 export * from './plugin-strict-interfaces';
+
+// Re-export versioning system
+export * from '../versions/interface-versions';
+export * from '../versions/v1/plugin-interfaces-v1';
+export * from '../versions/migrators/v1-to-v2-migrator';
+
+/**
+ * Plugin interface versioning utilities
+ */
+
+/**
+ * Create a versioned plugin manifest
+ */
+export function createVersionedPluginManifest<T>(
+  manifest: T,
+  version: PluginAPIVersion = CURRENT_API_VERSION
+): T & VersionedInterface {
+  return createVersionedInterface(manifest, version);
+}
+
+/**
+ * Validate plugin interface version compatibility
+ */
+export function validatePluginInterfaceVersion(
+  pluginManifest: any,
+  hostVersion: string = CURRENT_API_VERSION
+): VersionValidationResult & { canLoad: boolean } {
+  const pluginVersion = pluginManifest.__apiVersion || PluginAPIVersion.V1_0;
+  const result = validatePluginVersion(pluginVersion, undefined, hostVersion);
+  
+  return {
+    ...result,
+    canLoad: result.isValid && result.isSupported && (result.isCompatible || result.migrationPath !== undefined),
+  };
+}
+
+/**
+ * Check if plugin interfaces need migration
+ */
+export function checkPluginMigrationNeeded(pluginManifest: any): boolean {
+  const pluginVersion = pluginManifest.__apiVersion || PluginAPIVersion.V1_0;
+  return pluginVersion !== CURRENT_API_VERSION;
+}
+
+/**
+ * Get plugin interface version
+ */
+export function getPluginInterfaceVersion(pluginManifest: any): PluginAPIVersion {
+  return pluginManifest.__apiVersion || PluginAPIVersion.V1_0;
+}
+
+/**
+ * Interface backward compatibility utilities
+ */
+export class PluginInterfaceCompatibility {
+  /**
+   * Ensure a plugin manifest is compatible with the current version
+   */
+  static ensureCompatibility<T>(manifest: T): T & VersionedInterface {
+    const versionedManifest = manifest as T & Partial<VersionedInterface>;
+    
+    if (!versionedManifest.__apiVersion) {
+      // Assume v1.0 for unversioned manifests
+      return createVersionedInterface(manifest, PluginAPIVersion.V1_0);
+    }
+    
+    return versionedManifest as T & VersionedInterface;
+  }
+  
+  /**
+   * Get compatibility warnings for a plugin
+   */
+  static getCompatibilityWarnings(manifest: any): string[] {
+    const warnings: string[] = [];
+    const version = manifest.__apiVersion || PluginAPIVersion.V1_0;
+    
+    if (version === PluginAPIVersion.V1_0) {
+      warnings.push('Plugin uses legacy v1.0 API. Consider upgrading to v2.0 for better features and security.');
+    }
+    
+    if (!manifest.__apiVersion) {
+      warnings.push('Plugin manifest lacks version information. Assuming v1.0 compatibility mode.');
+    }
+    
+    return warnings;
+  }
+  
+  /**
+   * Check if plugin can be loaded safely
+   */
+  static canLoadPlugin(manifest: any, hostVersion: string = CURRENT_API_VERSION): {
+    canLoad: boolean;
+    reason?: string;
+    warnings: string[];
+  } {
+    const version = manifest.__apiVersion || PluginAPIVersion.V1_0;
+    const validation = validatePluginVersion(version, undefined, hostVersion);
+    const warnings = this.getCompatibilityWarnings(manifest);
+    
+    if (!validation.isValid) {
+      return {
+        canLoad: false,
+        reason: `Invalid plugin API version: ${version}`,
+        warnings,
+      };
+    }
+    
+    if (!validation.isSupported) {
+      return {
+        canLoad: false,
+        reason: `Plugin API version ${version} is not supported`,
+        warnings,
+      };
+    }
+    
+    if (!validation.isCompatible && !validation.migrationPath) {
+      return {
+        canLoad: false,
+        reason: `Plugin API version ${version} is incompatible with host version ${hostVersion}`,
+        warnings,
+      };
+    }
+    
+    return {
+      canLoad: true,
+      warnings: [...warnings, ...validation.warnings],
+    };
+  }
+}

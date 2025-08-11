@@ -2,15 +2,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 import { UnifiedConfig, ConfigFactory } from './unified-config.types';
 import { EnvironmentType } from '@libs/shared-core';
+import { IStandardConfigService, ConfigValidationResult } from './interfaces/base-config.interface';
+import { isValidUrl, parseBoolean } from '@libs/shared-utils';
 
 @Injectable()
-export class UnifiedConfigService {
+export class UnifiedConfigService implements IStandardConfigService<UnifiedConfig> {
   private readonly logger = new Logger(UnifiedConfigService.name);
   private readonly config: UnifiedConfig;
+  private readonly cacheStats = {
+    size: 0,
+    hits: 0,
+    misses: 0,
+    lastRefresh: new Date(),
+  };
 
   constructor(private readonly nestConfigService: NestConfigService) {
     // Load and validate configuration
     this.config = this.loadConfiguration();
+    this.cacheStats.size = Object.keys(this.config).length;
     this.logger.log(`Configuration loaded for environment: ${this.config.NODE_ENV}`);
   }
 
@@ -139,10 +148,55 @@ export class UnifiedConfigService {
   }
 
   /**
+   * Get all configuration values (implements IConfigService)
+   */
+  getAll(): UnifiedConfig {
+    this.cacheStats.hits++;
+    return this.config;
+  }
+
+  /**
    * Get a specific configuration value
    */
-  get<K extends keyof UnifiedConfig>(key: K): UnifiedConfig[K] {
-    return this.config[key];
+  get<K extends keyof UnifiedConfig>(key: K, defaultValue?: UnifiedConfig[K]): UnifiedConfig[K] {
+    const value = this.config[key];
+    if (value !== undefined) {
+      this.cacheStats.hits++;
+      return value;
+    }
+    
+    this.cacheStats.misses++;
+    return defaultValue !== undefined ? defaultValue : value;
+  }
+
+  /**
+   * Check if configuration key exists
+   */
+  has<K extends keyof UnifiedConfig>(key: K): boolean {
+    return key in this.config && this.config[key] !== undefined;
+  }
+
+  /**
+   * Get configuration subset by category/prefix
+   */
+  getCategory(category: string): Record<string, any> {
+    const categoryConfig: Record<string, any> = {};
+    const upperCategory = category.toUpperCase();
+    
+    for (const [key, value] of Object.entries(this.config)) {
+      if (key.startsWith(upperCategory)) {
+        categoryConfig[key] = value;
+      }
+    }
+    
+    return categoryConfig;
+  }
+
+  /**
+   * Get current environment
+   */
+  getEnvironment(): string {
+    return this.config.NODE_ENV;
   }
 
   /**
@@ -153,10 +207,31 @@ export class UnifiedConfigService {
   }
 
   /**
+   * Check if running in development mode (implements interface)
+   */
+  isDevelopment(): boolean {
+    return this.config.NODE_ENV === EnvironmentType.Development;
+  }
+
+  /**
    * Check if running in production mode
    */
   get isProduction(): boolean {
     return this.config.NODE_ENV === EnvironmentType.Production;
+  }
+
+  /**
+   * Check if running in production mode (implements interface)
+   */
+  isProduction(): boolean {
+    return this.config.NODE_ENV === EnvironmentType.Production;
+  }
+
+  /**
+   * Check if running in test mode
+   */
+  isTest(): boolean {
+    return this.config.NODE_ENV === EnvironmentType.Test;
   }
 
   /**
@@ -193,6 +268,120 @@ export class UnifiedConfigService {
       requireSignatures: this.config.REQUIRE_PLUGIN_SIGNATURES,
       allowUnsigned: this.config.ALLOW_UNSIGNED_PLUGINS,
       trustedKeys: this.config.TRUSTED_PLUGIN_KEYS,
+    };
+  }
+
+  /**
+   * Validate configuration values
+   */
+  validate(): boolean {
+    const errors = this.getValidationErrors();
+    return errors.length === 0;
+  }
+
+  /**
+   * Get configuration validation errors
+   */
+  getValidationErrors(): string[] {
+    const errors: string[] = [];
+
+    // Validate URLs
+    if (this.config.PLUGIN_REGISTRY_URL && !isValidUrl(this.config.PLUGIN_REGISTRY_URL)) {
+      errors.push(`PLUGIN_REGISTRY_URL is not a valid URL: ${this.config.PLUGIN_REGISTRY_URL}`);
+    }
+
+    // Validate numeric ranges
+    if (this.config.PORT < 1 || this.config.PORT > 65535) {
+      errors.push(`PORT must be between 1 and 65535, got: ${this.config.PORT}`);
+    }
+
+    if (this.config.PLUGIN_BATCH_SIZE < 1) {
+      errors.push(`PLUGIN_BATCH_SIZE must be positive, got: ${this.config.PLUGIN_BATCH_SIZE}`);
+    }
+
+    // Validate file sizes
+    if (this.config.MAX_PLUGIN_SIZE < 1024) {
+      errors.push(`MAX_PLUGIN_SIZE must be at least 1KB, got: ${this.config.MAX_PLUGIN_SIZE}`);
+    }
+
+    // Validate timeouts
+    if (this.config.REGISTRY_TIMEOUT < 1000) {
+      errors.push(`REGISTRY_TIMEOUT must be at least 1000ms, got: ${this.config.REGISTRY_TIMEOUT}`);
+    }
+
+    return errors;
+  }
+
+  /**
+   * Clear configuration cache
+   */
+  clearCache(): void {
+    // Configuration is immutable after loading, so this is a no-op
+    // but we reset stats
+    this.cacheStats.hits = 0;
+    this.cacheStats.misses = 0;
+    this.cacheStats.lastRefresh = new Date();
+  }
+
+  /**
+   * Refresh configuration from source
+   */
+  refresh(): void {
+    // Configuration is loaded once at startup, so this would require
+    // a service restart in the current implementation
+    this.logger.warn('Configuration refresh requires application restart');
+    this.cacheStats.lastRefresh = new Date();
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats() {
+    return {
+      size: this.cacheStats.size,
+      hits: this.cacheStats.hits,
+      misses: this.cacheStats.misses,
+      lastRefresh: this.cacheStats.lastRefresh,
+    };
+  }
+
+  /**
+   * Get configuration schema for validation
+   */
+  getSchema(): Record<string, any> {
+    return {
+      NODE_ENV: { type: 'string', enum: ['development', 'production', 'test'] },
+      PORT: { type: 'number', minimum: 1, maximum: 65535 },
+      HOST: { type: 'string' },
+      PLUGIN_REGISTRY_URL: { type: 'string', format: 'uri' },
+      REGISTRY_TIMEOUT: { type: 'number', minimum: 1000 },
+      MAX_PLUGIN_SIZE: { type: 'number', minimum: 1024 },
+      PLUGIN_BATCH_SIZE: { type: 'number', minimum: 1 },
+      // Add more schema definitions as needed
+    };
+  }
+
+  /**
+   * Get configuration metadata
+   */
+  getMetadata(): Record<string, any> {
+    return {
+      NODE_ENV: { 
+        description: 'Application environment mode',
+        defaultValue: 'development',
+        category: 'core'
+      },
+      PORT: { 
+        description: 'Application port number',
+        defaultValue: 4001,
+        category: 'core'
+      },
+      PLUGIN_REGISTRY_URL: {
+        description: 'URL of the plugin registry service',
+        defaultValue: 'http://localhost:6001',
+        category: 'plugin'
+      },
+      // Add more metadata as needed
     };
   }
 }

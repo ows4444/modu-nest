@@ -17,3 +17,7 @@ export * from './lib/plugin-permission.service';
 export { RestrictedPluginContextService } from './lib/restricted-plugin-context.service';
 
 export type { PluginContextInterface } from './lib/restricted-plugin-context.service';
+
+// Stable API exports
+export * from './lib/stable/stable-context.interface';
+export * from './lib/stable/stable-context-minimal.service';

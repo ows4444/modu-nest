@@ -7,6 +7,8 @@ export * from './lib/shared-config.module';
 export * from './lib/unified-config.schema';
 export * from './lib/unified-config.types';
 export * from './lib/unified-config.service';
+export * from './lib/interfaces/base-config.interface';
+export * from './lib/config.factory';
 
 // Performance optimizations
 export * from './lib/config-cache.service';

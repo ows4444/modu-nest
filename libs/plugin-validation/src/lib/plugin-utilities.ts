@@ -1,7 +1,5 @@
 import crypto from 'crypto';
-import semver from 'semver';
-import { sanitizePluginName, isValidPluginName } from '@libs/shared-utils';
-import { formatFileSize } from '@libs/shared-utils';
+import { sanitizePluginName } from '@libs/shared-utils';
 
 /**
  * Utility functions for plugin management
@@ -15,24 +13,7 @@ export class PluginUtils {
   }
 
   /**
-   * Compare two semantic versions
-   * @deprecated Use PluginVersionUtils.compareVersionStrings from same library for more detailed comparison
-   */
-  static compareVersions(version1: string, version2: string): number {
-    return semver.compare(version1, version2);
-  }
-
-  /**
-   * Check if a version is valid semantic version
-   * @deprecated Use PluginVersionUtils.isValidVersion from same library for consistency
-   */
-  static isValidVersion(version: string): boolean {
-    return semver.valid(version) !== null;
-  }
-
-  /**
    * Sanitize plugin name for file system use
-   * @deprecated Use sanitizePluginName from @modu-nest/utils instead
    */
   static sanitizePluginName(name: string): string {
     return sanitizePluginName(name);
@@ -54,21 +35,6 @@ export class PluginUtils {
     return fileName.replace(/(-\d+\.\d+\.\d+.*)?\.zip$/, '');
   }
 
-  /**
-   * Format file size in human readable format
-   * @deprecated Use formatFileSize from @modu-nest/utils instead
-   */
-  static formatFileSize(bytes: number): string {
-    return formatFileSize(bytes);
-  }
-
-  /**
-   * Validate plugin name format
-   * @deprecated Use isValidPluginName from @modu-nest/utils instead
-   */
-  static isValidPluginName(name: string): boolean {
-    return isValidPluginName(name);
-  }
 
   /**
    * Create plugin route prefix from plugin name

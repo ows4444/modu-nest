@@ -23,3 +23,7 @@ export * from './lib/circuit-breaker/plugin-circuit-breaker';
 
 // Plugin compatibility checking system
 export * from './lib/compatibility/plugin-compatibility-checker';
+
+// Bridge services to prevent circular dependencies
+export * from './lib/bridges/context-bridge.service';
+export * from './lib/bridges/guard-bridge.service';

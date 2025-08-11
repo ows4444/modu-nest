@@ -14,3 +14,6 @@ export * from './lib/plugin-version-utils';
 
 // Plugin utility functions
 export * from './lib/plugin-utilities';
+
+// High-performance validation services
+export * from './lib/performance';

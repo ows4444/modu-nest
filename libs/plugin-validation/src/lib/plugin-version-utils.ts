@@ -1,4 +1,5 @@
 import { PluginVersion } from '@libs/plugin-core';
+import { isValidSemver } from '@libs/shared-utils';
 
 export interface VersionRange {
   operator: string;
