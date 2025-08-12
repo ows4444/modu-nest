@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 import { UnifiedConfig, ConfigFactory } from './unified-config.types';
 import { EnvironmentType } from '@shared/core';
-import { IStandardConfigService, ConfigValidationResult } from './interfaces/base-config.interface';
-import { isValidUrl, parseBoolean } from '@shared/utils';
+import { IStandardConfigService } from './interfaces/base-config.interface';
+import { isValidUrl } from '@shared/utils';
 
 @Injectable()
 export class UnifiedConfigService implements IStandardConfigService<UnifiedConfig> {

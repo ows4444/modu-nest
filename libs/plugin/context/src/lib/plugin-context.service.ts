@@ -445,10 +445,14 @@ export class PluginContextService implements OnModuleInit {
           throw new Error(`Invalid plugin configuration update for ${pluginName}`);
         }
         this.configService.setPluginConfig(pluginName, newConfig);
-        // Update the active context config
+        // Update the active context config by creating a new context object
         const context = this.activeContexts.get(pluginName);
         if (context) {
-          context.config = { ...context.config, ...newConfig };
+          const updatedContext = {
+            ...context,
+            config: { ...context.config, ...newConfig }
+          };
+          this.activeContexts.set(pluginName, updatedContext);
         }
       },
 

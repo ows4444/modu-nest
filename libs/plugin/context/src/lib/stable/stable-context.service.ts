@@ -128,12 +128,13 @@ export class StableContextService implements StableContextFactory {
    * Create stable file API wrapper
    */
   private createStableFileAPI(pluginName: string, fileAccess: any): StableFileAPI {
+    const logger = this.logger;
     return {
       async read(path: string): Promise<Buffer> {
         try {
           return await fileAccess.readFile(path);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage = error instanceof Error ? (error as Error).message : String(error);
           throw new StableContextError(`File read failed: ${errorMessage}`, 'FILE_READ_ERROR', {
             pluginName,
             path,
@@ -146,10 +147,10 @@ export class StableContextService implements StableContextFactory {
         try {
           return await fileAccess.writeFile(path, data);
         } catch (error) {
-          throw new StableContextError(`File write failed: ${error.message}`, 'FILE_WRITE_ERROR', {
+          throw new StableContextError(`File write failed: ${(error as Error).message}`, 'FILE_WRITE_ERROR', {
             pluginName,
             path,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -158,7 +159,7 @@ export class StableContextService implements StableContextFactory {
         try {
           return await fileAccess.exists(path);
         } catch (error) {
-          this.logger.warn(`File exists check failed for ${path}:`, error);
+          logger.warn(`File exists check failed for ${path}:`, error);
           return false;
         }
       },
@@ -167,10 +168,10 @@ export class StableContextService implements StableContextFactory {
         try {
           return await fileAccess.listFiles(directory);
         } catch (error) {
-          throw new StableContextError(`Directory listing failed: ${error.message}`, 'FILE_LIST_ERROR', {
+          throw new StableContextError(`Directory listing failed: ${(error as Error).message}`, 'FILE_LIST_ERROR', {
             pluginName,
             directory,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -179,10 +180,10 @@ export class StableContextService implements StableContextFactory {
         try {
           return await fileAccess.deleteFile(path);
         } catch (error) {
-          throw new StableContextError(`File deletion failed: ${error.message}`, 'FILE_DELETE_ERROR', {
+          throw new StableContextError(`File deletion failed: ${(error as Error).message}`, 'FILE_DELETE_ERROR', {
             pluginName,
             path,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -198,10 +199,10 @@ export class StableContextService implements StableContextFactory {
             created: stat.birthtime || stat.mtime || new Date(),
           };
         } catch (error) {
-          throw new StableContextError(`File stats failed: ${error.message}`, 'FILE_STATS_ERROR', {
+          throw new StableContextError(`File stats failed: ${(error as Error).message}`, 'FILE_STATS_ERROR', {
             pluginName,
             path,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -217,11 +218,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await networkAccess.get(url, options.headers);
         } catch (error) {
-          throw new StableContextError(`Network GET failed: ${error.message}`, 'NETWORK_ERROR', {
+          throw new StableContextError(`Network GET failed: ${(error as Error).message}`, 'NETWORK_ERROR', {
             pluginName,
             url,
             method: 'GET',
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -230,11 +231,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await networkAccess.post(url, body, options.headers);
         } catch (error) {
-          throw new StableContextError(`Network POST failed: ${error.message}`, 'NETWORK_ERROR', {
+          throw new StableContextError(`Network POST failed: ${(error as Error).message}`, 'NETWORK_ERROR', {
             pluginName,
             url,
             method: 'POST',
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -243,11 +244,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await networkAccess.put(url, body, options.headers);
         } catch (error) {
-          throw new StableContextError(`Network PUT failed: ${error.message}`, 'NETWORK_ERROR', {
+          throw new StableContextError(`Network PUT failed: ${(error as Error).message}`, 'NETWORK_ERROR', {
             pluginName,
             url,
             method: 'PUT',
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -256,11 +257,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await networkAccess.delete(url, options.headers);
         } catch (error) {
-          throw new StableContextError(`Network DELETE failed: ${error.message}`, 'NETWORK_ERROR', {
+          throw new StableContextError(`Network DELETE failed: ${(error as Error).message}`, 'NETWORK_ERROR', {
             pluginName,
             url,
             method: 'DELETE',
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -269,11 +270,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await networkAccess.makeRequest(request);
         } catch (error) {
-          throw new StableContextError(`Network request failed: ${error.message}`, 'NETWORK_ERROR', {
+          throw new StableContextError(`Network request failed: ${(error as Error).message}`, 'NETWORK_ERROR', {
             pluginName,
             request: request.url,
             method: request.method,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -289,10 +290,10 @@ export class StableContextService implements StableContextFactory {
         try {
           return await databaseAccess.query(sql, params);
         } catch (error) {
-          throw new StableContextError(`Database query failed: ${error.message}`, 'DATABASE_ERROR', {
+          throw new StableContextError(`Database query failed: ${(error as Error).message}`, 'DATABASE_ERROR', {
             pluginName,
             sql: sql.substring(0, 100),
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -301,11 +302,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await databaseAccess.select(table, where, params);
         } catch (error) {
-          throw new StableContextError(`Database select failed: ${error.message}`, 'DATABASE_ERROR', {
+          throw new StableContextError(`Database select failed: ${(error as Error).message}`, 'DATABASE_ERROR', {
             pluginName,
             table,
             where,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -314,10 +315,10 @@ export class StableContextService implements StableContextFactory {
         try {
           return await databaseAccess.insert(table, data);
         } catch (error) {
-          throw new StableContextError(`Database insert failed: ${error.message}`, 'DATABASE_ERROR', {
+          throw new StableContextError(`Database insert failed: ${(error as Error).message}`, 'DATABASE_ERROR', {
             pluginName,
             table,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -326,11 +327,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await databaseAccess.update(table, data, where, params);
         } catch (error) {
-          throw new StableContextError(`Database update failed: ${error.message}`, 'DATABASE_ERROR', {
+          throw new StableContextError(`Database update failed: ${(error as Error).message}`, 'DATABASE_ERROR', {
             pluginName,
             table,
             where,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -339,11 +340,11 @@ export class StableContextService implements StableContextFactory {
         try {
           return await databaseAccess.delete(table, where, params);
         } catch (error) {
-          throw new StableContextError(`Database delete failed: ${error.message}`, 'DATABASE_ERROR', {
+          throw new StableContextError(`Database delete failed: ${(error as Error).message}`, 'DATABASE_ERROR', {
             pluginName,
             table,
             where,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -364,10 +365,10 @@ export class StableContextService implements StableContextFactory {
             },
           };
         } catch (error) {
-          throw new StableContextError(`Database transaction failed: ${error.message}`, 'DATABASE_ERROR', {
+          throw new StableContextError(`Database transaction failed: ${(error as Error).message}`, 'DATABASE_ERROR', {
             pluginName,
             operation: 'transaction',
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -378,6 +379,12 @@ export class StableContextService implements StableContextFactory {
    * Create stable utils API wrapper
    */
   private createStableUtilsAPI(pluginName: string, utils: any): StableUtilsAPI {
+    const logger = this.logger;
+    const pluginContextService = this.pluginContextService;
+    const transformToStableConfig = this.transformToStableConfig.bind(this);
+    const transformFromStableConfig = this.transformFromStableConfig.bind(this);
+    const stableContexts = this.stableContexts;
+    
     return {
       async getMetrics(): Promise<StableMetrics> {
         try {
@@ -408,13 +415,13 @@ export class StableContextService implements StableContextFactory {
               memoryUsage: metrics.resourceUsage?.memoryUsage || 0,
               cpuUsage: metrics.resourceUsage?.cpuUsage || 0,
               activeOperations: metrics.resourceUsage?.activeOperations || 0,
-              uptime: Date.now() - (this.stableContexts.get(pluginName) as any)?._createdAt || 0,
+              uptime: Date.now() - (stableContexts.get(pluginName) as any)?._createdAt || 0,
             },
           };
         } catch (error) {
-          throw new StableContextError(`Metrics retrieval failed: ${error.message}`, 'METRICS_ERROR', {
+          throw new StableContextError(`Metrics retrieval failed: ${(error as Error).message}`, 'METRICS_ERROR', {
             pluginName,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -423,9 +430,9 @@ export class StableContextService implements StableContextFactory {
         try {
           return await utils.resetMetrics();
         } catch (error) {
-          throw new StableContextError(`Metrics reset failed: ${error.message}`, 'METRICS_ERROR', {
+          throw new StableContextError(`Metrics reset failed: ${(error as Error).message}`, 'METRICS_ERROR', {
             pluginName,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },
@@ -434,7 +441,7 @@ export class StableContextService implements StableContextFactory {
         try {
           return await utils.validatePermissions(operation, resource);
         } catch (error) {
-          this.logger.warn(`Permission check failed for ${pluginName}: ${error.message}`);
+          logger.warn(`Permission check failed for ${pluginName}: ${(error as Error).message}`);
           return false;
         }
       },
@@ -443,39 +450,39 @@ export class StableContextService implements StableContextFactory {
         const logMessage = `[${pluginName}] ${message}`;
         switch (level) {
           case 'debug':
-            this.logger.debug(logMessage, meta);
+            logger.debug(logMessage, meta);
             break;
           case 'info':
-            this.logger.log(logMessage, meta);
+            logger.log(logMessage, meta);
             break;
           case 'warn':
-            this.logger.warn(logMessage, meta);
+            logger.warn(logMessage, meta);
             break;
           case 'error':
-            this.logger.error(logMessage, meta);
+            logger.error(logMessage, meta);
             break;
         }
       },
 
       async getConfig(): Promise<StablePluginConfig> {
         // Transform internal config to stable format
-        const context = this.pluginContextService.getPluginContext(pluginName);
+        const context = pluginContextService.getPluginContext(pluginName);
         if (!context) {
           throw new StableContextError('Plugin context not found', 'CONTEXT_NOT_FOUND', { pluginName });
         }
 
-        return this.transformToStableConfig(context.config);
+        return transformToStableConfig(context.config);
       },
 
       async updateConfig(config: Partial<StablePluginConfig>): Promise<void> {
         try {
           // Transform stable config to internal format and update
-          const internalConfig = this.transformFromStableConfig(config);
+          const internalConfig = transformFromStableConfig(config);
           return await utils.updateConfig(internalConfig);
         } catch (error) {
-          throw new StableContextError(`Config update failed: ${error.message}`, 'CONFIG_ERROR', {
+          throw new StableContextError(`Config update failed: ${(error as Error).message}`, 'CONFIG_ERROR', {
             pluginName,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       },

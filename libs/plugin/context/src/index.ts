@@ -16,7 +16,7 @@ export * from './lib/file-access-validator';
 export * from './lib/plugin-permission.service';
 export { RestrictedPluginContextService } from './lib/restricted-plugin-context.service';
 
-export type { PluginContextInterface } from './lib/restricted-plugin-context.service';
+// Note: PluginContextInterface removed as it doesn't exist in restricted-plugin-context.service
 
 // Stable API exports
 export * from './lib/stable/stable-context.interface';

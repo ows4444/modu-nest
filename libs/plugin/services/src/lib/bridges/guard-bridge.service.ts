@@ -73,7 +73,7 @@ export class GuardBridgeService {
    */
   findGuard(guardName: string): IGuardMetadata | undefined {
     // First check our local metadata
-    for (const [key, metadata] of this.guardMetadata) {
+    for (const [, metadata] of this.guardMetadata) {
       if (metadata.name === guardName) {
         return metadata;
       }
@@ -139,7 +139,7 @@ export class GuardBridgeService {
   getPluginGuards(pluginName: string): IGuardMetadata[] {
     const guards: IGuardMetadata[] = [];
 
-    for (const [key, metadata] of this.guardMetadata) {
+    for (const [, metadata] of this.guardMetadata) {
       if (metadata.source === pluginName) {
         guards.push(metadata);
       }

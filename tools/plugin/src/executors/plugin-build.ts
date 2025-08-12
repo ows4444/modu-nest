@@ -1,6 +1,6 @@
 import { ExecutorContext, PromiseExecutor, logger } from '@nx/devkit';
 import { PluginBuildExecutorSchema } from './schema';
-import { PluginManifest } from '@libs/plugin-types';
+import { type PluginManifest } from '@plugin/core';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';

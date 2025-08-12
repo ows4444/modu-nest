@@ -3,7 +3,8 @@
  */
 
 import { LegacyPluginManifest, LegacyGuardEntry, LegacyPluginMetadata } from '../v1/plugin-interfaces-v1';
-import { PluginManifest, GuardEntry, PluginMetadata } from '../../manifest/plugin-manifest.types';
+import { PluginManifest, PluginMetadata } from '../../manifest/plugin-manifest.types';
+import { LocalGuardEntry } from '../../security/plugin-security.types';
 import { MigrationRules, PluginAPIVersion, VersionedInterface, createVersionedInterface } from '../interface-versions';
 
 /**
@@ -23,15 +24,14 @@ export class PluginManifestMigrationRules implements MigrationRules<LegacyPlugin
       author: from.author,
       license: 'UNLICENSED', // Default license for legacy manifests
 
-      // Convert main field to module structure
+      // Convert to module structure (v1 'main' field becomes part of module metadata)
       module: {
-        main: from.main || './index.js',
+        controllers: [],
+        providers: [],
+        exports: [],
+        imports: [],
         crossPluginServices: [], // Empty by default
         guards: [], // Will be populated if guard data exists
-        permissions: {
-          services: [],
-          modules: [],
-        },
       },
 
       // Legacy dependencies become plugin dependencies
@@ -49,26 +49,6 @@ export class PluginManifestMigrationRules implements MigrationRules<LegacyPlugin
       security: {
         trustLevel: 'internal', // Default trust level
       },
-
-      // Add metadata
-      metadata: {
-        category: 'general',
-        tags: [],
-        homepage: '',
-        repository: '',
-        bugs: '',
-      },
-
-      // Mark as migrated
-      __migrated: {
-        fromVersion: PluginAPIVersion.V1_0,
-        migratedAt: new Date().toISOString(),
-        warnings: [
-          'Manifest migrated from v1.0 to v2.0',
-          'Please review security settings and permissions',
-          'Consider updating compatibility requirements',
-        ],
-      },
     };
 
     return createVersionedInterface(v2Manifest, PluginAPIVersion.V2_0, '2.0');
@@ -78,40 +58,21 @@ export class PluginManifestMigrationRules implements MigrationRules<LegacyPlugin
 /**
  * Migration rules for converting v1.0 guard entry to v2.0
  */
-export class GuardEntryMigrationRules implements MigrationRules<LegacyGuardEntry, GuardEntry> {
-  apply(from: LegacyGuardEntry, fromVersion: PluginAPIVersion, toVersion: PluginAPIVersion): GuardEntry {
+export class GuardEntryMigrationRules implements MigrationRules<LegacyGuardEntry, LocalGuardEntry> {
+  apply(from: LegacyGuardEntry, fromVersion: PluginAPIVersion, toVersion: PluginAPIVersion): LocalGuardEntry {
     if (fromVersion !== PluginAPIVersion.V1_0 || toVersion !== PluginAPIVersion.V2_0) {
       throw new Error(`Unsupported migration path: ${fromVersion} -> ${toVersion}`);
     }
 
-    // Convert v1.0 guard to v2.0 format
-    const v2Guard: Omit<GuardEntry, keyof VersionedInterface> = {
+    // Convert v1.0 guard to v2.0 format (always local guards)
+    const v2Guard: Omit<LocalGuardEntry, keyof VersionedInterface> = {
       name: from.name,
       scope: 'local', // v1.0 guards were always local
+      source: from.class, // Map class to source
       class: from.class,
       exported: from.exported || false,
-
-      // Add new v2.0 fields
-      description: `Migrated guard: ${from.name}`,
       dependencies: [], // v1.0 didn't have guard dependencies
-      security: {
-        trustLevel: 'standard',
-        restrictedOperations: [],
-      },
-
-      // Performance hints
-      performance: {
-        priority: 'normal',
-        cacheable: false,
-        timeout: 5000,
-      },
-
-      // Mark as migrated
-      __migrated: {
-        fromVersion: PluginAPIVersion.V1_0,
-        migratedAt: new Date().toISOString(),
-        warnings: ['Guard migrated from v1.0 to v2.0', 'Consider adding security restrictions and dependencies'],
-      },
+      description: `Migrated guard: ${from.name}`,
     };
 
     return createVersionedInterface(v2Guard, PluginAPIVersion.V2_0, '2.0');
@@ -131,47 +92,12 @@ export class PluginMetadataMigrationRules implements MigrationRules<LegacyPlugin
     const manifestMigrator = new PluginManifestMigrationRules();
     const v2Manifest = manifestMigrator.apply(from.manifest, fromVersion, toVersion);
 
-    // Convert v1.0 metadata to v2.0 format
+    // Convert v1.0 metadata to v2.0 format (extending the manifest with metadata fields)
     const v2Metadata: Omit<PluginMetadata, keyof VersionedInterface> = {
-      manifest: v2Manifest,
+      ...v2Manifest, // Include all manifest fields
       uploadedAt: from.loadedAt, // Rename loadedAt to uploadedAt
       fileSize: 0, // Unknown file size for legacy metadata
       checksum: '0000000000000000000000000000000000000000000000000000000000000000', // Placeholder checksum
-
-      // Add new v2.0 fields
-      downloadCount: 0,
-      rating: 0,
-      tags: [],
-
-      // Migrate status to extended format
-      status: {
-        current: from.status,
-        lastUpdate: from.loadedAt,
-        healthCheck: {
-          status: 'unknown',
-          lastCheck: from.loadedAt,
-          issues: from.error ? [from.error] : [],
-        },
-      },
-
-      // Add performance metrics
-      performance: {
-        loadTime: 0,
-        memoryUsage: 0,
-        cpuUsage: 0,
-        errorRate: from.error ? 1.0 : 0.0,
-      },
-
-      // Mark as migrated
-      __migrated: {
-        fromVersion: PluginAPIVersion.V1_0,
-        migratedAt: new Date().toISOString(),
-        warnings: [
-          'Metadata migrated from v1.0 to v2.0',
-          'File size and checksum are placeholder values',
-          'Performance metrics need to be populated',
-        ],
-      },
     };
 
     return createVersionedInterface(v2Metadata, PluginAPIVersion.V2_0, '2.0');
@@ -236,7 +162,7 @@ export class V1ToV2Migrator {
   /**
    * Migrate guard entry
    */
-  static migrateGuard(guard: LegacyGuardEntry): GuardEntry {
+  static migrateGuard(guard: LegacyGuardEntry): LocalGuardEntry {
     return this.guardMigrator.apply(guard, PluginAPIVersion.V1_0, PluginAPIVersion.V2_0);
   }
 

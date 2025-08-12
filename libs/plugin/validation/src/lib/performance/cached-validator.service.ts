@@ -6,7 +6,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest, PluginValidationResult, PluginSecurity } from '@plugin/core';
+import { PluginManifest, PluginValidationResult } from '@plugin/core';
 import { PluginValidator } from '../plugin-validators';
 
 interface ValidationCacheEntry {
@@ -238,7 +238,7 @@ export class CachedValidatorService {
     const errors: string[] = [];
 
     // Only validate critical fields for trusted plugins
-    const criticalFields = ['name', 'version'];
+    const criticalFields: (keyof PluginManifest)[] = ['name', 'version'];
     for (const field of criticalFields) {
       if (!manifest[field]) {
         errors.push(`Missing critical field: ${field}`);
@@ -305,8 +305,6 @@ export class CachedValidatorService {
    * Fail-fast validation that stops on first critical error
    */
   private performFailFastValidation(manifest: Partial<PluginManifest>): PluginValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
 
     // Check required fields first
     const requiredFields: (keyof PluginManifest)[] = ['name', 'version', 'description', 'author', 'license'];

@@ -1,6 +1,9 @@
 // Import types that will be referenced
 import type { GuardEntry, CrossPluginServiceConfig, PluginSecurity } from '../security/plugin-security.types';
 
+// Re-export GuardEntry for other modules
+export type { GuardEntry } from '../security/plugin-security.types';
+
 export interface PluginModuleMeta {
   controllers?: string[];
   providers?: string[];

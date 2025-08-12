@@ -1,4 +1,4 @@
-import { Injectable, Type } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { IStandardConfigService } from './interfaces/base-config.interface';
 
 /**

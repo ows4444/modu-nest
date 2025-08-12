@@ -12,7 +12,7 @@ import {
   StableContextOptions,
   StableContextError,
 } from './stable-context.interface';
-import { PluginAPIVersion, CURRENT_API_VERSION, createVersionedInterface, VersionedInterface } from '@plugin/core';
+import { PluginAPIVersion, CURRENT_API_VERSION, createVersionedInterface } from '@plugin/core';
 
 @Injectable()
 export class StableContextMinimalService implements StableContextFactory {
@@ -88,32 +88,33 @@ export class StableContextMinimalService implements StableContextFactory {
   }
 
   private createMinimalFileAPI(pluginName: string) {
+    const logger = this.logger;
     return {
       async read(path: string): Promise<Buffer> {
-        this.logger.debug(`${pluginName}: file.read(${path})`);
+        logger.debug(`${pluginName}: file.read(${path})`);
         return Buffer.from('stable-api-mock-content');
       },
 
       async write(path: string, data: string | Buffer): Promise<void> {
-        this.logger.debug(`${pluginName}: file.write(${path})`);
+        logger.debug(`${pluginName}: file.write(${path})`);
       },
 
       async exists(path: string): Promise<boolean> {
-        this.logger.debug(`${pluginName}: file.exists(${path})`);
+        logger.debug(`${pluginName}: file.exists(${path})`);
         return true;
       },
 
       async list(directory: string): Promise<string[]> {
-        this.logger.debug(`${pluginName}: file.list(${directory})`);
+        logger.debug(`${pluginName}: file.list(${directory})`);
         return [];
       },
 
       async delete(path: string): Promise<void> {
-        this.logger.debug(`${pluginName}: file.delete(${path})`);
+        logger.debug(`${pluginName}: file.delete(${path})`);
       },
 
       async stats(path: string) {
-        this.logger.debug(`${pluginName}: file.stats(${path})`);
+        logger.debug(`${pluginName}: file.stats(${path})`);
         return {
           size: 0,
           isFile: true,
@@ -126,6 +127,7 @@ export class StableContextMinimalService implements StableContextFactory {
   }
 
   private createMinimalNetworkAPI(pluginName: string) {
+    const logger = this.logger;
     const createMockResponse = () => ({
       status: 200,
       statusText: 'OK',
@@ -139,33 +141,34 @@ export class StableContextMinimalService implements StableContextFactory {
 
     return {
       async get(url: string, options?: any) {
-        this.logger.debug(`${pluginName}: network.get(${url})`);
+        logger.debug(`${pluginName}: network.get(${url})`);
         return createMockResponse();
       },
 
       async post(url: string, body?: any, options?: any) {
-        this.logger.debug(`${pluginName}: network.post(${url})`);
+        logger.debug(`${pluginName}: network.post(${url})`);
         return createMockResponse();
       },
 
       async put(url: string, body?: any, options?: any) {
-        this.logger.debug(`${pluginName}: network.put(${url})`);
+        logger.debug(`${pluginName}: network.put(${url})`);
         return createMockResponse();
       },
 
       async delete(url: string, options?: any) {
-        this.logger.debug(`${pluginName}: network.delete(${url})`);
+        logger.debug(`${pluginName}: network.delete(${url})`);
         return createMockResponse();
       },
 
       async request(request: any) {
-        this.logger.debug(`${pluginName}: network.request(${request.url})`);
+        logger.debug(`${pluginName}: network.request(${request.url})`);
         return createMockResponse();
       },
     };
   }
 
   private createMinimalDatabaseAPI(pluginName: string) {
+    const logger = this.logger;
     const createMockResult = () => ({
       rows: [],
       rowCount: 0,
@@ -176,32 +179,32 @@ export class StableContextMinimalService implements StableContextFactory {
 
     return {
       async query(sql: string, params?: unknown[]) {
-        this.logger.debug(`${pluginName}: db.query(${sql.substring(0, 50)}...)`);
+        logger.debug(`${pluginName}: db.query(${sql.substring(0, 50)}...)`);
         return createMockResult();
       },
 
       async select(table: string, where?: string | object, params?: unknown[]) {
-        this.logger.debug(`${pluginName}: db.select(${table})`);
+        logger.debug(`${pluginName}: db.select(${table})`);
         return createMockResult();
       },
 
       async insert(table: string, data: object) {
-        this.logger.debug(`${pluginName}: db.insert(${table})`);
+        logger.debug(`${pluginName}: db.insert(${table})`);
         return createMockResult();
       },
 
       async update(table: string, data: object, where: string | object, params?: unknown[]) {
-        this.logger.debug(`${pluginName}: db.update(${table})`);
+        logger.debug(`${pluginName}: db.update(${table})`);
         return createMockResult();
       },
 
       async delete(table: string, where: string | object, params?: unknown[]) {
-        this.logger.debug(`${pluginName}: db.delete(${table})`);
+        logger.debug(`${pluginName}: db.delete(${table})`);
         return createMockResult();
       },
 
       async transaction() {
-        this.logger.debug(`${pluginName}: db.transaction()`);
+        logger.debug(`${pluginName}: db.transaction()`);
         return {
           id: 'tx-' + Date.now(),
           query: async (sql: string, params?: unknown[]) => createMockResult(),
@@ -213,6 +216,7 @@ export class StableContextMinimalService implements StableContextFactory {
   }
 
   private createMinimalUtilsAPI(pluginName: string) {
+    const logger = this.logger;
     return {
       async getMetrics() {
         return {
@@ -241,11 +245,11 @@ export class StableContextMinimalService implements StableContextFactory {
       },
 
       async resetMetrics(): Promise<void> {
-        this.logger.debug(`${pluginName}: utils.resetMetrics()`);
+        logger.debug(`${pluginName}: utils.resetMetrics()`);
       },
 
       async checkPermission(operation: string, resource?: string): Promise<boolean> {
-        this.logger.debug(`${pluginName}: utils.checkPermission(${operation}, ${resource})`);
+        logger.debug(`${pluginName}: utils.checkPermission(${operation}, ${resource})`);
         return true; // Mock implementation allows all operations
       },
 
@@ -253,19 +257,19 @@ export class StableContextMinimalService implements StableContextFactory {
         const logMsg = `[${pluginName}] ${message}`;
         switch (level) {
           case 'debug':
-            this.logger.debug(logMsg, meta);
+            logger.debug(logMsg, meta);
             break;
           case 'info':
-            this.logger.log(logMsg, meta);
+            logger.log(logMsg, meta);
             break;
           case 'warn':
-            this.logger.warn(logMsg, meta);
+            logger.warn(logMsg, meta);
             break;
           case 'error':
-            this.logger.error(logMsg, meta);
+            logger.error(logMsg, meta);
             break;
           default:
-            this.logger.log(logMsg, meta);
+            logger.log(logMsg, meta);
         }
       },
 
@@ -299,7 +303,7 @@ export class StableContextMinimalService implements StableContextFactory {
       },
 
       async updateConfig(config: any): Promise<void> {
-        this.logger.debug(`${pluginName}: utils.updateConfig()`);
+        logger.debug(`${pluginName}: utils.updateConfig()`);
       },
     };
   }

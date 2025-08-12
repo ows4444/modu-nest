@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PluginManifest } from '@plugin/types';
 import { FileAccessService } from './file-access.service';
 import { PluginPermissionService, PluginAccessContext } from './plugin-permission.service';
-import { ExtendedPluginContext, PluginConfigAccess, PluginServiceAccess } from './plugin-context.service';
+import { ExtendedPluginContext } from './plugin-context.service';
 
 export interface RestrictedPluginContextConfig {
   pluginName: string;
@@ -41,9 +41,10 @@ export class RestrictedPluginContextService {
           return await this.fileAccessService.readFile(filePath, config.pluginName);
         },
 
-        writeFile: async (filePath: string, content: string) => {
+        writeFile: async (filePath: string, content: string | Buffer) => {
           this.validateFileOperation(config.pluginName, 'write', filePath);
-          return await this.fileAccessService.writeFile(filePath, content, config.pluginName);
+          const contentStr = typeof content === 'string' ? content : content.toString();
+          return await this.fileAccessService.writeFile(filePath, contentStr, config.pluginName);
         },
 
         deleteFile: async (filePath: string) => {

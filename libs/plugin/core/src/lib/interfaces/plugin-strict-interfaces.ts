@@ -249,42 +249,46 @@ export function getPluginId(manifest: StrictPluginManifest): PluginId {
 export function toStrictManifest(manifest: Record<string, unknown>): StrictPluginManifest {
   const { createPluginName, createPluginVersion, createPluginId } = require('./plugin-interfaces');
 
+  // Type-safe access to manifest properties
+  const moduleData = manifest.module as Record<string, unknown> | undefined;
+  const compatibilityData = manifest.compatibility as Record<string, unknown> | undefined;
+
   const strictModule: StrictPluginModuleMeta = {
-    controllers: manifest.module?.controllers?.map(createNonEmptyString),
-    providers: manifest.module?.providers?.map(createNonEmptyString),
-    exports: manifest.module?.exports?.map(createNonEmptyString),
-    imports: manifest.module?.imports?.map(createNonEmptyString),
-    guards: manifest.module?.guards,
-    crossPluginServices: manifest.module?.crossPluginServices,
+    controllers: moduleData?.controllers ? (moduleData.controllers as string[]).map(createNonEmptyString) : undefined,
+    providers: moduleData?.providers ? (moduleData.providers as string[]).map(createNonEmptyString) : undefined,
+    exports: moduleData?.exports ? (moduleData.exports as string[]).map(createNonEmptyString) : undefined,
+    imports: moduleData?.imports ? (moduleData.imports as string[]).map(createNonEmptyString) : undefined,
+    guards: moduleData?.guards as GuardEntry[] | undefined,
+    crossPluginServices: moduleData?.crossPluginServices as CrossPluginServiceConfig[] | undefined,
   };
 
-  const strictCompatibility: StrictPluginCompatibility | undefined = manifest.compatibility
+  const strictCompatibility: StrictPluginCompatibility | undefined = compatibilityData
     ? {
-        minimumHostVersion: manifest.compatibility.minimumHostVersion
-          ? createPluginVersion(manifest.compatibility.minimumHostVersion)
+        minimumHostVersion: compatibilityData.minimumHostVersion
+          ? createPluginVersion(compatibilityData.minimumHostVersion as string)
           : undefined,
-        maximumHostVersion: manifest.compatibility.maximumHostVersion
-          ? createPluginVersion(manifest.compatibility.maximumHostVersion)
+        maximumHostVersion: compatibilityData.maximumHostVersion
+          ? createPluginVersion(compatibilityData.maximumHostVersion as string)
           : undefined,
-        nodeVersion: createPluginVersion(manifest.compatibility.nodeVersion),
+        nodeVersion: createPluginVersion(compatibilityData.nodeVersion as string),
       }
     : undefined;
 
-  const dependencies = manifest.dependencies?.map((dep: string) => {
+  const dependencies = manifest.dependencies ? (manifest.dependencies as string[]).map((dep: string) => {
     const [name, version] = dep.split('@');
     return createPluginId(createPluginName(name || dep), createPluginVersion(version || '1.0.0'));
-  });
+  }) : undefined;
 
   return {
-    name: createPluginName(manifest.name),
-    version: createPluginVersion(manifest.version),
-    description: createNonEmptyString(manifest.description),
-    author: createNonEmptyString(manifest.author),
-    license: createNonEmptyString(manifest.license),
+    name: createPluginName(manifest.name as string),
+    version: createPluginVersion(manifest.version as string),
+    description: createNonEmptyString(manifest.description as string),
+    author: createNonEmptyString(manifest.author as string),
+    license: createNonEmptyString(manifest.license as string),
     dependencies,
-    loadOrder: manifest.loadOrder !== undefined ? createNonNegativeNumber(manifest.loadOrder) : undefined,
-    critical: manifest.critical,
-    security: manifest.security,
+    loadOrder: manifest.loadOrder !== undefined ? createNonNegativeNumber(manifest.loadOrder as number) : undefined,
+    critical: manifest.critical as boolean | undefined,
+    security: manifest.security as PluginSecurity | undefined,
     compatibility: strictCompatibility,
     module: strictModule,
   };

@@ -19,7 +19,7 @@ export interface PluginConfigSchema {
   sensitive?: boolean; // Mark as sensitive data
 }
 
-export interface PluginConfigValue {
+export interface PluginConfigValueRecord {
   key: string;
   value: unknown;
   type: string;
@@ -29,7 +29,7 @@ export interface PluginConfigValue {
 
 @Injectable()
 export class PluginConfigManager {
-  private configurations = new Map<string, Map<string, PluginConfigValue>>();
+  private configurations = new Map<string, Map<string, PluginConfigValueRecord>>();
 
   /**
    * Set configuration value for a plugin
@@ -39,7 +39,7 @@ export class PluginConfigManager {
       this.configurations.set(pluginName, new Map());
     }
 
-    const pluginConfig = this.configurations.get(pluginName) as Map<string, PluginConfigValue>;
+    const pluginConfig = this.configurations.get(pluginName) as Map<string, PluginConfigValueRecord>;
     pluginConfig.set(key, {
       key,
       value: options?.encrypt ? this.encrypt(value) : value,
