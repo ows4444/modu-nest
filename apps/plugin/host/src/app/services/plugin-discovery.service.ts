@@ -10,6 +10,8 @@ export interface PluginDiscovery {
   manifestPath: string;
   manifest: PluginManifest;
   discoveredAt: Date;
+  dependencies: string[];
+  loadOrder: number;
 }
 
 export interface PluginDiscoveryError {
@@ -107,6 +109,8 @@ export class PluginDiscoveryService {
       manifestPath,
       manifest,
       discoveredAt: new Date(),
+      dependencies: manifest.dependencies || [],
+      loadOrder: manifest.loadOrder || 0,
     };
   }
 

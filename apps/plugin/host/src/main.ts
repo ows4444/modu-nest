@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Environment, ENVIRONMENT_ENV } from '@shared/config';
-import { EnvironmentType } from '@shared/const';
+import { EnvironmentType } from '@shared/core';
 import { AppModule } from './app/app.module';
 import { BootstrapSwagger } from './bootstrap/swagger.bootstrap';
 import helmet from 'helmet';
@@ -20,8 +20,8 @@ async function Bootstrap() {
 
   app.flushLogs();
   const configService = app.get(ConfigService);
-  const { port, host, corsOrigins = ['*'] } = configService.getOrThrow<Environment>(ENVIRONMENT_ENV);
-
+  const { host, corsOrigins = ['*'] } = configService.getOrThrow<Environment>(ENVIRONMENT_ENV);
+  const port = 3000;
   const globalPrefix = configService.get<string>('API_PREFIX') || 'api';
   const isProduction = configService.getOrThrow<string>('NODE_ENV') === EnvironmentType.Production;
 

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import { StorageConfig, StorageStats } from '@plugin/core';
-import type { PluginMetadata, PluginPackage } from '@plugin/types';
+import type { PluginMetadata, PluginPackage } from '@plugin/core';
 import type { IPluginRepository, PluginRecord } from '../repositories';
 
 export const PLUGIN_REPOSITORY_TOKEN = 'PLUGIN_REPOSITORY';

@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { EnvironmentType } from '@shared/const';
+import { EnvironmentType } from '@shared/core';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 

@@ -96,7 +96,7 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
       }
 
       const successCount = validPluginsInBatch.filter(
-        (name) => context.getLoadingState().get(name) === PluginLoadingState.LOADED
+        (name) => context.getLoadingState().get(name)?.currentState === PluginLoadingState.LOADED
       ).length;
 
       context.logger.log(
@@ -171,11 +171,11 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
 
       // Check if all dependencies are already loaded
       const dependencyStates = discovery.dependencies.map((dep) => loadingState.get(dep));
-      const allDependenciesLoaded = dependencyStates.every((state) => state === PluginLoadingState.LOADED);
-      const anyDependencyFailed = dependencyStates.some((state) => state === PluginLoadingState.FAILED);
+      const allDependenciesLoaded = dependencyStates.every((state) => state?.currentState === PluginLoadingState.LOADED);
+      const anyDependencyFailed = dependencyStates.some((state) => state?.currentState === PluginLoadingState.FAILED);
 
       if (anyDependencyFailed) {
-        const failedDeps = discovery.dependencies.filter((dep) => loadingState.get(dep) === PluginLoadingState.FAILED);
+        const failedDeps = discovery.dependencies.filter((dep) => loadingState.get(dep)?.currentState === PluginLoadingState.FAILED);
         context.logger.warn(`Plugin ${pluginName} has failed dependencies: [${failedDeps.join(', ')}]`);
         continue;
       }
@@ -183,7 +183,7 @@ export class BatchLoadingStrategy implements IPluginLoadingStrategy {
       if (allDependenciesLoaded) {
         validPlugins.push(pluginName);
       } else {
-        const pendingDeps = discovery.dependencies.filter((dep) => loadingState.get(dep) !== PluginLoadingState.LOADED);
+        const pendingDeps = discovery.dependencies.filter((dep) => loadingState.get(dep)?.currentState !== PluginLoadingState.LOADED);
         context.logger.debug(`Plugin ${pluginName} has pending dependencies: [${pendingDeps.join(', ')}]`);
       }
     }

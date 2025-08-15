@@ -299,6 +299,10 @@ export class PluginTrustController {
   async validateCapability(@Param('name') name: string, @Body() body: { capability: string; version?: string }) {
     const result = await this.pluginRegistryService.validatePluginCapability(name, body.capability, body.version);
 
+    if (!result) {
+      throw new Error(`Failed to validate capability for plugin: ${name}`);
+    }
+
     const trustLevel = await this.pluginRegistryService.getPluginTrustLevel(name, body.version);
 
     return {

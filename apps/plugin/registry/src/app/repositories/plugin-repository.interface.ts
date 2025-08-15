@@ -1,4 +1,4 @@
-import { PluginMetadata } from '@plugin/types';
+import { PluginMetadata } from '@plugin/core';
 
 export interface PluginSearchOptions {
   query?: string;

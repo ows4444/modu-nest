@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Param, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PluginLoaderService } from '../plugin-loader-primary.service';
 import { RegistryClientService } from '../registry-client.service';
-import { PluginUpdateInfo } from '@plugin/types';
+import { PluginUpdateInfo } from '@plugin/core';
 
 @Controller('plugins')
 export class PluginController {
@@ -128,13 +128,13 @@ export class PluginController {
       const startTime = Date.now();
       this.logger.log('Starting forced memory cleanup');
 
-      const result = await this.pluginLoader.forceMemoryCleanup();
+      await this.pluginLoader.forceMemoryCleanup();
 
       const duration = Date.now() - startTime;
       this.logger.log(`Memory cleanup completed successfully (${duration}ms)`);
 
       return {
-        ...result,
+        success: true,
         timestamp: new Date().toISOString(),
         duration: `${duration}ms`,
       };

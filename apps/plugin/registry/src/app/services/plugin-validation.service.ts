@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import JSZip from 'jszip';
-import { CreatePluginDto } from '@plugin/types';
+import { CreatePluginDto } from '@plugin/core';
 import { PluginValidationCacheService } from './plugin-validation-cache.service';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';

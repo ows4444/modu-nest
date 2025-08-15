@@ -217,6 +217,127 @@ export class PluginLoaderService {
     return 0;
   }
 
+  /**
+   * Invalidates cache entries for a specific plugin.
+   * Returns the number of entries invalidated.
+   */
+  invalidatePluginCache(pluginName: string): number {
+    if (this.coordinator.invalidatePluginCache) {
+      const count = this.coordinator.invalidatePluginCache(pluginName);
+      this.logger.log(`Invalidated ${count} cache entries for plugin ${pluginName}`);
+      return count;
+    }
+
+    this.logger.log(`Cache invalidation not available for plugin ${pluginName}`);
+    return 0;
+  }
+
+  /**
+   * Invalidates cache entries by cache type.
+   * Returns the number of entries invalidated.
+   */
+  invalidateCacheByType(cacheType: string): number {
+    if (this.coordinator.invalidateCacheByType) {
+      const count = this.coordinator.invalidateCacheByType(cacheType);
+      this.logger.log(`Invalidated ${count} cache entries of type ${cacheType}`);
+      return count;
+    }
+
+    this.logger.log(`Cache invalidation by type not available for ${cacheType}`);
+    return 0;
+  }
+
+  /**
+   * Gets all cache keys.
+   * Returns an array of cache keys.
+   */
+  getCacheKeys(): string[] {
+    if (this.coordinator.getCacheKeys) {
+      return this.coordinator.getCacheKeys();
+    }
+
+    this.logger.log('Cache keys retrieval not available');
+    return [];
+  }
+
+  /**
+   * Gets detailed information about a specific cache entry.
+   */
+  getCacheEntryDetails(key: string): any {
+    if (this.coordinator.getCacheEntryDetails) {
+      return this.coordinator.getCacheEntryDetails(key);
+    }
+
+    this.logger.log(`Cache entry details not available for key ${key}`);
+    return null;
+  }
+
+  /**
+   * Gets plugin statistics including loading metrics and performance data.
+   */
+  async getPluginStats() {
+    const loadedPlugins = this.coordinator.getLoadedPlugins();
+    const loadingStats = this.coordinator.getLoadingStatistics();
+    const memoryStats = this.coordinator.getMemoryStatistics();
+
+    return {
+      totalPlugins: loadedPlugins.size,
+      loadingStatistics: loadingStats,
+      memoryStatistics: memoryStats,
+      pluginList: Array.from(loadedPlugins.keys()),
+    };
+  }
+
+  /**
+   * Gets available cross-plugin services.
+   */
+  getAvailableCrossPluginServices() {
+    const serviceManager = this.coordinator.getCrossPluginServiceManager();
+    if (serviceManager && typeof serviceManager.getAvailableServices === 'function') {
+      return serviceManager.getAvailableServices();
+    }
+    return [];
+  }
+
+  /**
+   * Gets global cross-plugin services.
+   */
+  getGlobalCrossPluginServices() {
+    const serviceManager = this.coordinator.getCrossPluginServiceManager();
+    if (serviceManager && typeof serviceManager.getGlobalServices === 'function') {
+      return serviceManager.getGlobalServices();
+    }
+    return [];
+  }
+
+  /**
+   * Gets the cross-plugin service manager.
+   */
+  getCrossPluginServiceManager() {
+    return this.coordinator.getCrossPluginServiceManager();
+  }
+
+  /**
+   * Gets memory statistics for a specific plugin.
+   */
+  getPluginMemoryStats(pluginName: string) {
+    const loadedPlugin = this.coordinator.getLoadedPlugin(pluginName);
+    if (!loadedPlugin) {
+      return null;
+    }
+
+    const memoryStats = this.coordinator.getMemoryStatistics();
+    return {
+      pluginName,
+      ...memoryStats,
+      specific: {
+        heapUsed: process.memoryUsage().heapUsed,
+        heapTotal: process.memoryUsage().heapTotal,
+        external: process.memoryUsage().external,
+      },
+    };
+  }
+
   // Legacy compatibility methods - these delegate to the coordinator
 
   /**

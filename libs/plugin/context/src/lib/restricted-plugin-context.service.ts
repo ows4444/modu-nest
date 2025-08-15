@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest } from '@plugin/types';
+import { PluginManifest } from '@plugin/core';
 import { FileAccessService } from './file-access.service';
 import { PluginPermissionService, PluginAccessContext } from './plugin-permission.service';
 import { ExtendedPluginContext } from './plugin-context.service';

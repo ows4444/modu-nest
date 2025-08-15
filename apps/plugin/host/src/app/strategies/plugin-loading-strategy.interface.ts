@@ -1,5 +1,5 @@
 import { DynamicModule } from '@nestjs/common';
-import { PluginManifest, LoadedPlugin } from '@plugin/types';
+import { PluginManifest, LoadedPlugin, PluginState } from '@plugin/core';
 import { PluginStateMachine } from '../state-machine';
 
 export interface IPluginLoadingStrategy {
@@ -81,7 +81,7 @@ export interface PluginLoaderContext {
   /**
    * Get current loading state
    */
-  getLoadingState(): Map<string, PluginLoadingState>;
+  getLoadingState(): Map<string, PluginStateInfo>;
 
   /**
    * Set loading state for a plugin
@@ -120,6 +120,14 @@ export enum PluginLoadingState {
   LOADED = 'loaded',
   FAILED = 'failed',
   UNLOADED = 'unloaded',
+}
+
+export interface PluginStateInfo {
+  currentState: PluginState;
+  loadingProgress: number;
+  startTime: Date;
+  error?: Error;
+  metadata: Record<string, any>;
 }
 
 export enum LoadingStrategyType {

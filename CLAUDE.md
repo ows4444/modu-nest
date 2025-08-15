@@ -25,7 +25,6 @@ This is a modular NestJS-based plugin architecture system called "modu-nest" bui
 - `libs/plugin/services/` - Plugin runtime services (caching, events, guards, metrics)
 - `libs/plugin/decorators/` - Plugin-specific decorators and guards
 - `libs/plugin/protocol/` - Plugin communication protocol
-- `libs/plugin/types/` - Shared plugin type definitions
 
 ### Shared Libraries
 - `libs/shared/config/` - Unified configuration management with validation

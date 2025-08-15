@@ -4,13 +4,10 @@
   "include": [],
   "references": [
     {
-      "path": "../../../libs/shared/const"
+      "path": "../../../libs/shared/core"
     },
     {
       "path": "../../../libs/plugin/core"
-    },
-    {
-      "path": "../../../libs/plugin/types"
     },
     {
       "path": "../../../libs/plugin/services"

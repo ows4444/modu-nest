@@ -2,7 +2,7 @@ import { Injectable, Logger, Type, ClassProvider, ValueProvider, FactoryProvider
 import { randomBytes } from 'crypto';
 import { Mutex } from 'async-mutex';
 import { CrossPluginServiceConfig, ServiceVersionInfo } from '@plugin/core';
-import { PluginManifest } from '@plugin/types';
+import { PluginManifest } from '@plugin/core';
 
 // Cross-plugin service provider - a union of NestJS Provider types
 export type CrossPluginServiceProvider = ClassProvider<any> | ValueProvider<any> | FactoryProvider<any> | Type<any>;

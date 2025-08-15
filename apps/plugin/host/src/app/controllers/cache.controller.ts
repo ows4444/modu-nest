@@ -44,8 +44,7 @@ export class CacheController {
 
   @Get('keys')
   getCacheKeys(@Query('pattern') pattern?: string) {
-    const regexPattern = pattern ? new RegExp(pattern) : undefined;
-    const keys = this.pluginLoader.getCacheKeys(regexPattern);
+    const keys = this.pluginLoader.getCacheKeys();
     return {
       keys,
       count: keys.length,

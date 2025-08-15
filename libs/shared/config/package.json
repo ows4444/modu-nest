@@ -21,10 +21,10 @@
     "tslib": "^2.3.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.2",
-    "@shared/const": "0.0.1",
+    "@shared/core": "0.0.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "@shared/utils": "0.0.1",
-    "@shared/core": "0.0.1"
+    "joi": "^18.0.0"
   }
 }

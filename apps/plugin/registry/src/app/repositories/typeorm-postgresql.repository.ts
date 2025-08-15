@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PluginMetadata } from '@plugin/types';
+import { PluginMetadata } from '@plugin/core';
 import {
   IPluginRepository,
   PluginRecord,

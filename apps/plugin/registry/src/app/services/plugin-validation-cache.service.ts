@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginValidationResult } from '@plugin/types';
+import { PluginValidationResult } from '@plugin/core';
 
 /**
  * Cache entry interface for validation results

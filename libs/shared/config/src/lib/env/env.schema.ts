@@ -1,4 +1,4 @@
-import { EnvironmentType } from '@shared/const';
+import { EnvironmentType } from '@shared/core';
 import { parseBoolean } from '@shared/utils';
 import { Expose, Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';

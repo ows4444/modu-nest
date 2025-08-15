@@ -1,4 +1,4 @@
-import { EnvironmentType } from '@shared/const';
+import { EnvironmentType } from '@shared/core';
 import { isValidUrl, parseBoolean } from '@shared/utils';
 
 /**

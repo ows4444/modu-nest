@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import 'reflect-metadata';
-import { LoadedPlugin, PluginManifest } from '@plugin/types';
+import { LoadedPlugin, PluginManifest } from '@plugin/core';
 import { PluginLifecycleHook } from '@plugin/core';
 
 export interface LifecycleHookMetadata {

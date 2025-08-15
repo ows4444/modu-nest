@@ -72,7 +72,7 @@ export class ParallelLoadingStrategy implements IPluginLoadingStrategy {
       }
 
       const successCount = batch.filter(
-        (name) => context.getLoadingState().get(name) === PluginLoadingState.LOADED
+        (name) => context.getLoadingState().get(name)?.currentState === PluginLoadingState.LOADED
       ).length;
 
       context.logger.log(

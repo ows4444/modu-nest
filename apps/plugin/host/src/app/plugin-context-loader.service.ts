@@ -7,7 +7,7 @@ import {
   PluginNetworkAccessConfig,
   PluginDatabaseAccessConfig,
 } from '@plugin/context';
-import { PluginManifest } from '@plugin/types';
+import { PluginManifest } from '@plugin/core';
 import path from 'path';
 import fs from 'fs';
 

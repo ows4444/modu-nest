@@ -294,7 +294,7 @@ export class PluginStateMachine implements IPluginStateMachine {
     const matrix: Record<PluginState, PluginTransition[]> = {} as any;
 
     Object.values(PluginState).forEach((state) => {
-      matrix[state] = this.stateTransitions.filter((t) => t.from === state).map((t) => t.transition);
+      matrix[state as PluginState] = this.stateTransitions.filter((t) => t.from === state).map((t) => t.transition);
     });
 
     return matrix;

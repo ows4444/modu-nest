@@ -140,6 +140,74 @@ export class PluginDependencyResolver {
   }
 
   /**
+   * Resolve dependencies and determine load order for discovered plugins
+   */
+  async resolveDependencies(discoveredPlugins: any[]): Promise<string[]> {
+    this.logger.debug(`Resolving dependencies for ${discoveredPlugins.length} discovered plugins`);
+    
+    if (discoveredPlugins.length === 0) {
+      return [];
+    }
+
+    // Build dependency graph
+    const dependencyMap = new Map<string, string[]>();
+    const pluginNames = new Set<string>();
+
+    // Extract plugin names and their dependencies
+    for (const plugin of discoveredPlugins) {
+      const pluginName = plugin.name;
+      pluginNames.add(pluginName);
+      
+      // Extract dependencies from manifest
+      const dependencies = plugin.manifest?.dependencies || [];
+      dependencyMap.set(pluginName, dependencies.filter((dep: string) => pluginNames.has(dep)));
+    }
+
+    // Perform topological sort to determine load order
+    const loadOrder: string[] = [];
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+
+    const visit = (pluginName: string): void => {
+      if (visiting.has(pluginName)) {
+        throw new Error(`Circular dependency detected involving plugin: ${pluginName}`);
+      }
+      
+      if (visited.has(pluginName)) {
+        return;
+      }
+
+      visiting.add(pluginName);
+      
+      const dependencies = dependencyMap.get(pluginName) || [];
+      for (const dependency of dependencies) {
+        if (pluginNames.has(dependency)) {
+          visit(dependency);
+        }
+      }
+
+      visiting.delete(pluginName);
+      visited.add(pluginName);
+      loadOrder.push(pluginName);
+    };
+
+    // Visit all plugins
+    for (const pluginName of pluginNames) {
+      if (!visited.has(pluginName)) {
+        try {
+          visit(pluginName);
+        } catch (error) {
+          this.logger.error(`Failed to resolve dependencies for plugin ${pluginName}: ${error instanceof Error ? error.message : String(error)}`);
+          throw error;
+        }
+      }
+    }
+
+    this.logger.debug(`Dependency resolution completed. Load order: [${loadOrder.join(', ')}]`);
+    return loadOrder;
+  }
+
+  /**
    * Wait for plugin dependencies using event-driven approach
    * Returns immediately when all dependencies are loaded
    */

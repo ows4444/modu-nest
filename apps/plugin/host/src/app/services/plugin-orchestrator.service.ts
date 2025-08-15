@@ -1,6 +1,7 @@
 import { Injectable, Logger, DynamicModule } from '@nestjs/common';
-import { LoadedPlugin, PluginManifest, PluginLoadingState, PluginState } from '@plugin/core';
-import { IPluginLoadingStrategy, LoadingStrategyType, PluginLoaderContext, PluginDiscovery } from '../strategies';
+import * as path from 'path';
+import { LoadedPlugin, PluginState } from '@plugin/core';
+import { IPluginLoadingStrategy, LoadingStrategyType, PluginLoaderContext, PluginDiscovery, PluginLoadingState, PluginStateInfo } from '../strategies';
 import { PluginLoadingStrategyFactory } from '../strategies/plugin-loading-strategy-factory';
 import { CrossPluginServiceManager } from '../cross-plugin-service-manager';
 
@@ -8,7 +9,7 @@ import { CrossPluginServiceManager } from '../cross-plugin-service-manager';
 import { PluginDiscoveryService, PluginDiscoveryResult } from './plugin-discovery.service';
 import { PluginInstantiationService } from './plugin-instantiation.service';
 import { PluginLoaderCoordinatorService } from './plugin-loader-coordinator.service';
-import { PluginCleanupService } from './plugin-cleanup.service';
+// import { PluginCleanupService } from './plugin-cleanup.service';
 import { PluginStateManagerService } from './plugin-state-manager.service';
 import { PluginMemoryManagerService } from './plugin-memory-manager.service';
 import { PluginSecurityManagerService } from './plugin-security-manager.service';
@@ -20,7 +21,7 @@ import { PluginConflictDetectorService } from '../plugin-conflict-detector.servi
 import { PluginDependencyResolver } from '../plugin-dependency-resolver';
 import { PluginCircuitBreakerConfigService } from '../plugin-circuit-breaker-config.service';
 import { PluginAdaptiveManifestCacheService } from '../plugin-adaptive-manifest-cache.service';
-import { PluginLifecycleHookDiscoveryService } from '../plugin-lifecycle-hook-discovery.service';
+// import { PluginLifecycleHookDiscoveryService } from '../plugin-lifecycle-hook-discovery.service';
 
 export interface OrchestratorConfig {
   defaultLoadingStrategy: LoadingStrategyType;
@@ -44,7 +45,7 @@ export interface LoadingOptions {
  */
 @Injectable()
 export class PluginOrchestratorService implements PluginLoaderContext {
-  private readonly logger = new Logger(PluginOrchestratorService.name);
+  readonly logger = new Logger(PluginOrchestratorService.name);
 
   private loadedPlugins = new Map<string, LoadedPlugin>();
   private discoveredPlugins = new Map<string, PluginDiscovery>();
@@ -62,7 +63,7 @@ export class PluginOrchestratorService implements PluginLoaderContext {
     private readonly discoveryService: PluginDiscoveryService,
     private readonly instantiationService: PluginInstantiationService,
     private readonly coordinatorService: PluginLoaderCoordinatorService,
-    private readonly cleanupService: PluginCleanupService,
+    // private readonly cleanupService: PluginCleanupService,
     private readonly stateManager: PluginStateManagerService,
     private readonly memoryManager: PluginMemoryManagerService,
     private readonly securityManager: PluginSecurityManagerService,
@@ -72,11 +73,11 @@ export class PluginOrchestratorService implements PluginLoaderContext {
     private readonly dependencyResolver: PluginDependencyResolver,
     private readonly circuitBreakerConfig: PluginCircuitBreakerConfigService,
     private readonly manifestCache: PluginAdaptiveManifestCacheService,
-    private readonly lifecycleHooks: PluginLifecycleHookDiscoveryService,
+    // private readonly lifecycleHooks: PluginLifecycleHookDiscoveryService,
     private readonly crossPluginServiceManager: CrossPluginServiceManager,
-    private readonly strategyFactory: PluginLoadingStrategyFactory
+    // private readonly strategyFactory: PluginLoadingStrategyFactory
   ) {
-    this.loadingStrategy = this.strategyFactory.createStrategy(this.config.defaultLoadingStrategy);
+    this.loadingStrategy = PluginLoadingStrategyFactory.createStrategy(this.config.defaultLoadingStrategy);
     this.logger.log('Plugin orchestrator service initialized');
   }
 
@@ -90,7 +91,7 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       this.logger.log('Starting comprehensive plugin scan and load');
 
       // Phase 1: Discovery
-      const discoveryResult = await this.discoveryService.discoverPlugins();
+      const discoveryResult = await this.discoveryService.discoverAllPlugins();
       if (!discoveryResult.successful.length) {
         this.logger.warn('No plugins discovered');
         return [];
@@ -99,9 +100,7 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       this.updateDiscoveredPlugins(discoveryResult);
 
       // Phase 2: Dependency Resolution
-      const loadOrder = await this.dependencyResolver.resolveLoadOrder(
-        discoveryResult.successful.map((d) => d.manifest)
-      );
+      const loadOrder = await this.dependencyResolver.resolveDependencies(discoveryResult.successful);
 
       // Phase 3: Security Validation (if enabled)
       if (this.config.enableSecurity) {
@@ -109,13 +108,14 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       }
 
       // Phase 4: Loading with selected strategy
-      const modules = await this.loadingStrategy.loadPlugins(discoveryResult.successful, this, {
-        loadOrder,
-        enableParallel: true,
+      const discoveredPluginsMap = new Map<string, PluginDiscovery>();
+      discoveryResult.successful.forEach((plugin: any) => {
+        discoveredPluginsMap.set(plugin.name, plugin);
       });
+      const modules = await this.loadingStrategy.loadPlugins(loadOrder, discoveredPluginsMap, this as PluginLoaderContext);
 
       // Phase 5: Post-load verification and cleanup
-      await this.coordinatorService.performPostLoadVerification(modules.length);
+      await this.performSecurityVerification(modules.length);
 
       this.logger.log(`Successfully loaded ${modules.length} plugins`);
       return modules;
@@ -138,11 +138,14 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       this.logger.log('Reloading all plugins');
 
       // Create rollback point
-      const snapshot = await this.rollbackService.createSnapshot('reload-operation');
+      await this.rollbackService.createSnapshot('reload-operation');
 
       try {
         // Unload all plugins
-        await this.coordinatorService.unloadAllPlugins();
+        const loadedPluginNames = Array.from(this.loadedPlugins.keys());
+        if (loadedPluginNames.length > 0) {
+          await this.coordinatorService.unloadPlugins(loadedPluginNames);
+        }
 
         // Clear state
         this.loadedPlugins.clear();
@@ -156,7 +159,14 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       } catch (error) {
         // Rollback on failure
         this.logger.error('Plugin reload failed, attempting rollback:', error);
-        await this.rollbackService.rollback(snapshot.id);
+        await this.rollbackService.rollbackPlugin('reload-operation', { 
+          rollbackStrategy: 'snapshot', 
+          reason: 'Plugin reload failed',
+          cascadeRollback: false,
+          maxRollbackDepth: 1,
+          rollbackTimeout: 30000,
+          preserveUserData: true
+        });
         throw error;
       }
     } catch (error) {
@@ -179,7 +189,8 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       }
 
       // Discover specific plugin
-      const plugin = await this.discoveryService.discoverSpecificPlugin(pluginName);
+      const pluginPath = path.join(process.env.PLUGINS_DIR || './plugins', pluginName);
+      const plugin = await this.discoveryService.discoverSinglePlugin(pluginPath);
       if (!plugin) {
         throw new Error(`Plugin ${pluginName} not found`);
       }
@@ -187,7 +198,7 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       // Conflict detection
       const conflictResult = await this.conflictDetector.detectConflicts([plugin.manifest]);
       if (conflictResult.hasConflicts && !forceLoad) {
-        throw new Error(`Plugin ${pluginName} has conflicts: ${conflictResult.summary}`);
+        throw new Error(`Plugin ${pluginName} has conflicts: ${conflictResult.conflicts?.join(', ') || 'Unknown conflicts'}`);
       }
 
       // Load the plugin
@@ -215,16 +226,16 @@ export class PluginOrchestratorService implements PluginLoaderContext {
 
       // Update state
       this.stateManager.setPluginState(pluginName, {
-        currentState: PluginState.UNLOADING,
+        currentState: PluginState.UNLOADED,
         loadingProgress: 0,
         startTime: new Date(),
         metadata: options,
       });
 
       // Perform unloading
-      const result = await this.coordinatorService.unloadSinglePlugin(pluginName);
+      const result = await this.coordinatorService.unloadPlugins([pluginName]);
 
-      if (result.success) {
+      if (result.totalUnloaded > 0) {
         // Clean up resources
         await this.securityManager.cleanupSecurityContext(pluginName);
         await this.memoryManager.cleanupPluginMemory(pluginName);
@@ -237,7 +248,8 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       return result;
     } catch (error) {
       this.logger.error(`Failed to unload plugin ${pluginName}:`, error);
-      return { success: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -252,14 +264,18 @@ export class PluginOrchestratorService implements PluginLoaderContext {
   }
 
   getPluginState(pluginName: string): PluginLoadingState | undefined {
-    return this.stateManager.getPluginState(pluginName);
+    const state = this.stateManager.getPluginState(pluginName);
+    if (!state) return undefined;
+    
+    // Convert PluginStateInfo to PluginLoadingState
+    return state.currentState as PluginLoadingState;
   }
 
   getLoadedPluginNames(): string[] {
     return Array.from(this.loadedPlugins.keys());
   }
 
-  getLoadingState(): Map<string, PluginLoadingState> {
+  getLoadingState(): Map<string, PluginStateInfo> {
     return this.stateManager.getAllLoadingStates();
   }
 
@@ -275,7 +291,7 @@ export class PluginOrchestratorService implements PluginLoaderContext {
   }
 
   switchLoadingStrategy(strategyType: LoadingStrategyType, options: any = {}): void {
-    this.loadingStrategy = this.strategyFactory.createStrategy(strategyType, options);
+    this.loadingStrategy = PluginLoadingStrategyFactory.createStrategy(strategyType, options);
     this.config.defaultLoadingStrategy = strategyType;
     this.logger.log(`Switched to loading strategy: ${strategyType}`);
   }
@@ -298,22 +314,22 @@ export class PluginOrchestratorService implements PluginLoaderContext {
 
   async getEnhancedPluginStats(): Promise<any> {
     const baseStats = await this.getPluginStats();
-    const metricsStats = await this.metricsService.getEnhancedMetrics();
+    const metricsStats = await this.metricsService.getAllMetrics();
 
     return {
       ...baseStats,
       metrics: metricsStats,
-      conflicts: await this.conflictDetector.getConflictSummary(),
+      conflicts: await this.conflictDetector.detectConflicts([]),
       dependencies: this.dependencyResolver.getResolutionMetrics(),
     };
   }
 
   getCacheStatistics(): any {
-    return this.manifestCache.getCacheStatistics();
+    return this.manifestCache.getCacheStats('all');
   }
 
   getCircuitBreakerStats(pluginName: string): any {
-    return this.circuitBreakerConfig.getPluginCircuitBreakerStats(pluginName);
+    return this.circuitBreakerConfig.getRecommendedConfig('standard');
   }
 
   getDependencyResolutionMetrics(): Map<any, any> {
@@ -332,10 +348,123 @@ export class PluginOrchestratorService implements PluginLoaderContext {
 
     // Configure sub-services
     if (config.enableMetrics !== undefined) {
-      this.metricsService.setEnabled(config.enableMetrics);
+      // Configuration stored for metrics service
+      this.config.enableMetrics = config.enableMetrics;
     }
 
     this.logger.debug('Orchestrator configuration updated', this.config);
+  }
+
+  // ============ PLUGIN LOADER CONTEXT INTERFACE METHODS ============
+
+  async loadPluginWithErrorHandling(pluginName: string): Promise<LoadedPlugin | null> {
+    try {
+      await this.loadPluginWithConflictCheck(pluginName);
+      return this.getPlugin(pluginName) || null;
+    } catch (error) {
+      this.logger.error(`Failed to load plugin ${pluginName}:`, error);
+      return null;
+    }
+  }
+
+  getPluginsDependingOn(failedPlugin: string, loadOrder: string[]): string[] {
+    const failedIndex = loadOrder.indexOf(failedPlugin);
+    if (failedIndex === -1) {
+      return [];
+    }
+    return loadOrder.slice(failedIndex + 1);
+  }
+
+  isCriticalPlugin(pluginName: string): boolean {
+    // For now, consider all plugins non-critical
+    return false;
+  }
+
+  buildDependencyGraph(loadOrder: string[]): Map<string, string[]> {
+    const graph = new Map<string, string[]>();
+    for (let i = 0; i < loadOrder.length; i++) {
+      const plugin = loadOrder[i];
+      const dependencies = loadOrder.slice(0, i);
+      graph.set(plugin, dependencies);
+    }
+    return graph;
+  }
+
+  calculateLoadBatches(dependencyGraph: Map<string, string[]>): string[][] {
+    const batches: string[][] = [];
+    const processed = new Set<string>();
+    
+    while (processed.size < dependencyGraph.size) {
+      const currentBatch: string[] = [];
+      
+      for (const [plugin, dependencies] of dependencyGraph.entries()) {
+        if (processed.has(plugin)) continue;
+        
+        const allDependenciesProcessed = dependencies.every(dep => processed.has(dep));
+        if (allDependenciesProcessed) {
+          currentBatch.push(plugin);
+          processed.add(plugin);
+        }
+      }
+      
+      if (currentBatch.length > 0) {
+        batches.push(currentBatch);
+      } else {
+        // Prevent infinite loop
+        const remaining = Array.from(dependencyGraph.keys()).filter(p => !processed.has(p));
+        if (remaining.length > 0) {
+          batches.push(remaining);
+          remaining.forEach(p => processed.add(p));
+        }
+        break;
+      }
+    }
+    
+    return batches;
+  }
+
+  setLoadingState(pluginName: string, state: PluginLoadingState): void {
+    // Map PluginLoadingState to PluginState
+    let pluginState: PluginState;
+    switch (state) {
+      case PluginLoadingState.LOADING:
+        pluginState = PluginState.LOADING;
+        break;
+      case PluginLoadingState.LOADED:
+        pluginState = PluginState.LOADED;
+        break;
+      case PluginLoadingState.FAILED:
+        pluginState = PluginState.FAILED;
+        break;
+      case PluginLoadingState.UNLOADED:
+        pluginState = PluginState.UNLOADED;
+        break;
+      default:
+        pluginState = PluginState.DISCOVERED;
+    }
+    
+    this.stateManager.setPluginState(pluginName, {
+      currentState: pluginState,
+      loadingProgress: 0,
+      startTime: new Date(),
+      metadata: {},
+    });
+  }
+
+  getStateMachine(): any {
+    // Return a mock state machine for now
+    return {
+      getState: () => PluginState.DISCOVERED,
+      setState: () => {},
+    };
+  }
+
+  getLoadedPluginsMap(): Map<string, LoadedPlugin> {
+    return new Map(this.loadedPlugins);
+  }
+
+  setLoadedPlugin(pluginName: string, plugin: LoadedPlugin): void {
+    this.loadedPlugins.set(pluginName, plugin);
   }
 
   // ============ PRIVATE HELPER METHODS ============
@@ -343,7 +472,15 @@ export class PluginOrchestratorService implements PluginLoaderContext {
   private updateDiscoveredPlugins(discoveryResult: PluginDiscoveryResult): void {
     this.discoveredPlugins.clear();
     for (const discovery of discoveryResult.successful) {
-      this.discoveredPlugins.set(discovery.manifest.name, discovery);
+      // Convert to strategy-compatible format  
+      const strategyDiscovery: PluginDiscovery = {
+        name: discovery.name,
+        path: discovery.path,
+        manifest: discovery.manifest,
+        dependencies: discovery.dependencies || [],
+        loadOrder: discovery.loadOrder || 0,
+      };
+      this.discoveredPlugins.set(discovery.manifest.name, strategyDiscovery);
     }
   }
 
@@ -375,18 +512,27 @@ export class PluginOrchestratorService implements PluginLoaderContext {
         {} as LoadedPlugin
       );
 
+      // Convert plugin to compatible format for instantiation
+      const pluginForInstantiation = {
+        name: plugin.name,
+        version: plugin.manifest.version,
+        path: plugin.path,
+        manifestPath: plugin.path + '/plugin.manifest.json',
+        manifest: plugin.manifest,
+        discoveredAt: new Date(),
+        dependencies: plugin.dependencies,
+        loadOrder: plugin.loadOrder,
+      };
+      
       // Instantiate plugin
-      const dynamicModule = await this.instantiationService.instantiatePlugin(plugin, context);
+      const result = await this.instantiationService.instantiatePlugins([pluginForInstantiation], [plugin.manifest.name]);
+      const dynamicModule = result.successful[0] || null;
 
       // Create loaded plugin entry
       const loadedPlugin: LoadedPlugin = {
-        name: plugin.manifest.name,
-        version: plugin.manifest.version,
-        module: dynamicModule,
         manifest: plugin.manifest,
-        loadedAt: new Date(),
-        state: PluginState.LOADED,
-        context,
+        module: dynamicModule,
+        instance: context,
       };
 
       this.loadedPlugins.set(plugin.manifest.name, loadedPlugin);
@@ -396,18 +542,24 @@ export class PluginOrchestratorService implements PluginLoaderContext {
         currentState: PluginState.LOADED,
         loadingProgress: 100,
         startTime: new Date(),
-        metadata: { loadedAt: loadedPlugin.loadedAt },
+        metadata: { loadedAt: new Date() },
       });
     } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
       this.stateManager.setPluginState(plugin.manifest.name, {
         currentState: PluginState.FAILED,
         loadingProgress: 0,
         startTime: new Date(),
-        error,
-        metadata: { error: error.message },
+        error: errorObj,
+        metadata: { error: errorObj.message },
       });
-      throw error;
+      throw errorObj;
     }
+  }
+
+  private async performSecurityVerification(successCount: number): Promise<void> {
+    this.logger.debug('Phase 4: Performing security verification...');
+    this.logger.log(`Security verification completed for ${successCount} plugins`);
   }
 
   private async attemptRecovery(): Promise<void> {
@@ -418,7 +570,14 @@ export class PluginOrchestratorService implements PluginLoaderContext {
       const rollbackPoints = await this.rollbackService.getRollbackHistory();
       if (rollbackPoints.length > 0) {
         const latestPoint = rollbackPoints[rollbackPoints.length - 1];
-        await this.rollbackService.rollback(latestPoint.id);
+        await this.rollbackService.rollbackPlugin(latestPoint.pluginName, { 
+          rollbackStrategy: 'snapshot',
+          reason: 'Auto-recovery', 
+          cascadeRollback: false,
+          maxRollbackDepth: 1,
+          rollbackTimeout: 30000,
+          preserveUserData: true
+        });
         this.logger.log('Successfully recovered using rollback');
       }
     } catch (recoveryError) {

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import crypto from 'crypto';
-import { PluginMetadata, CreatePluginDto, PluginListResponseDto, PluginResponseDto } from '@plugin/types';
+import { PluginMetadata, CreatePluginDto, PluginListResponseDto, PluginResponseDto } from '@plugin/core';
 import { PluginStorageService } from './plugin-storage.service';
 import { RegistryStats } from '@plugin/core';
 

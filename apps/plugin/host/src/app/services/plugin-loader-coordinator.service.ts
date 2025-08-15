@@ -5,10 +5,12 @@ import { PluginCleanupService, PluginCleanupResult } from './plugin-cleanup.serv
 import { PluginDependencyResolver } from '../plugin-dependency-resolver';
 import { PluginMetricsService } from '../plugin-metrics.service';
 import { CrossPluginServiceManager } from '../cross-plugin-service-manager';
-import { IPluginLoadingStrategy, PluginLoaderContext, PluginLoadingStrategyFactory } from '../strategies';
+import { IPluginLoadingStrategy, PluginLoaderContext, PluginLoadingStrategyFactory, PluginLoadingState, PluginStateInfo } from '../strategies';
+import { PluginState } from '@plugin/core';
 import { PluginEventEmitter } from '@plugin/services';
 import { LoadedPlugin } from '@plugin/core';
 import { PluginDiscovery } from './plugin-discovery.service';
+import { PluginStateMachine } from '../state-machine/plugin-state-machine';
 
 export interface PluginLoadingSummary {
   discoveryResult: PluginDiscoveryResult;
@@ -30,7 +32,7 @@ export interface PluginUnloadingSummary {
 
 @Injectable()
 export class PluginLoaderCoordinatorService implements PluginLoaderContext {
-  private readonly logger = new Logger(PluginLoaderCoordinatorService.name);
+  readonly logger = new Logger(PluginLoaderCoordinatorService.name);
 
   private readonly discoveryService: PluginDiscoveryService;
   private readonly instantiationService: PluginInstantiationService;
@@ -38,17 +40,26 @@ export class PluginLoaderCoordinatorService implements PluginLoaderContext {
   private readonly dependencyResolver: PluginDependencyResolver;
   private readonly crossPluginServiceManager: CrossPluginServiceManager;
   private readonly eventEmitter: PluginEventEmitter;
+  private readonly stateMachine: PluginStateMachine;
   private readonly metricsService?: PluginMetricsService;
 
   private loadingStrategy: IPluginLoadingStrategy;
   private isLoading = false;
+  
+  // PluginLoaderContext properties
+  private readonly loadingStates = new Map<string, PluginLoadingState>();
+  private readonly stateInfos = new Map<string, PluginStateInfo>();
+  private readonly loadedPlugins = new Map<string, LoadedPlugin>();
 
   constructor(metricsService?: PluginMetricsService) {
     // Initialize event emitter
     this.eventEmitter = new PluginEventEmitter();
 
+    // Initialize state machine
+    this.stateMachine = new PluginStateMachine();
+
     // Initialize dependency resolver
-    this.dependencyResolver = new PluginDependencyResolver();
+    this.dependencyResolver = new PluginDependencyResolver(this.eventEmitter, this.stateMachine);
 
     // Initialize cross plugin service manager
     this.crossPluginServiceManager = new CrossPluginServiceManager();
@@ -300,17 +311,20 @@ export class PluginLoaderCoordinatorService implements PluginLoaderContext {
   ): Promise<DynamicModule[]> {
     this.logger.debug('Phase 3: Starting plugin instantiation...');
 
-    // Use the configured loading strategy
-    const result = await this.loadingStrategy.loadPlugins(this, discoveredPlugins, loadOrder);
+    // Use the configured loading strategy  
+    // Convert discovered plugins array to Map as expected by interface
+    const discoveredPluginsMap = new Map<string, any>();
+    discoveredPlugins.forEach(plugin => {
+      discoveredPluginsMap.set(plugin.name, plugin);
+    });
+    
+    const dynamicModules = await this.loadingStrategy.loadPlugins(loadOrder, discoveredPluginsMap, this);
 
-    if (result.failed.length > 0) {
-      this.logger.warn('Plugin instantiation errors found:');
-      result.failed.forEach((error) => {
-        this.logger.warn(`- ${error.pluginName}: ${error.phase} - ${error.error.message}`);
-      });
-    }
+    this.logger.debug(
+      `Loading strategy completed: ${dynamicModules.length}/${loadOrder.length} plugins loaded`
+    );
 
-    return result.successful;
+    return dynamicModules;
   }
 
   private async performSecurityVerification(successCount: number): Promise<void> {
@@ -333,7 +347,11 @@ export class PluginLoaderCoordinatorService implements PluginLoaderContext {
 
     try {
       // Record discovery metrics
-      this.metricsService.recordDiscoveryMetrics(discoveryResult);
+      this.metricsService.recordDiscoveryMetrics(
+        discoveryResult.discoveryTime,
+        discoveryResult.successful.length,
+        discoveryResult.failed.length
+      );
 
       // Record loading metrics
       this.metricsService.recordLoadingTime(totalTime);
@@ -370,5 +388,125 @@ export class PluginLoaderCoordinatorService implements PluginLoaderContext {
 
   getCrossPluginServiceManager(): CrossPluginServiceManager {
     return this.crossPluginServiceManager;
+  }
+
+  // PluginLoaderContext implementation methods
+  async loadPluginWithErrorHandling(pluginName: string): Promise<LoadedPlugin | null> {
+    try {
+      this.setLoadingState(pluginName, PluginLoadingState.LOADING);
+      // Implementation would use the instantiation service
+      // For now, return null as no actual plugin loading logic exists yet
+      this.logger.warn(`loadPluginWithErrorHandling not fully implemented for ${pluginName}`);
+      return null;
+    } catch (error) {
+      this.setLoadingState(pluginName, PluginLoadingState.FAILED);
+      this.logger.error(`Failed to load plugin ${pluginName}:`, error as Error);
+      return null;
+    }
+  }
+
+  getPluginsDependingOn(failedPlugin: string, loadOrder: string[]): string[] {
+    // Find plugins that depend on the failed plugin
+    const dependentPlugins: string[] = [];
+    const failedIndex = loadOrder.indexOf(failedPlugin);
+    
+    if (failedIndex === -1) {
+      return dependentPlugins;
+    }
+
+    // Return plugins that come after the failed plugin in load order
+    // This is a simplified implementation - actual dependency checking would be more complex
+    return loadOrder.slice(failedIndex + 1);
+  }
+
+  isCriticalPlugin(pluginName: string): boolean {
+    // For now, consider all plugins non-critical
+    // This could be enhanced to check plugin manifest or configuration
+    return false;
+  }
+
+  buildDependencyGraph(loadOrder: string[]): Map<string, string[]> {
+    const graph = new Map<string, string[]>();
+    
+    // Build a simple dependency graph based on load order
+    // In a real implementation, this would parse actual plugin dependencies
+    for (let i = 0; i < loadOrder.length; i++) {
+      const plugin = loadOrder[i];
+      const dependencies = loadOrder.slice(0, i); // Plugins loaded before this one
+      graph.set(plugin, dependencies);
+    }
+    
+    return graph;
+  }
+
+  calculateLoadBatches(dependencyGraph: Map<string, string[]>): string[][] {
+    const batches: string[][] = [];
+    const processed = new Set<string>();
+    
+    // Simple batching algorithm: group plugins by dependency level
+    const currentBatch: string[] = [];
+    
+    for (const [plugin, dependencies] of dependencyGraph.entries()) {
+      const allDependenciesProcessed = dependencies.every(dep => processed.has(dep));
+      
+      if (allDependenciesProcessed) {
+        currentBatch.push(plugin);
+        processed.add(plugin);
+      }
+    }
+    
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
+    }
+    
+    // Add remaining plugins to subsequent batches
+    const remaining = Array.from(dependencyGraph.keys()).filter(p => !processed.has(p));
+    if (remaining.length > 0) {
+      batches.push(remaining);
+    }
+    
+    return batches;
+  }
+
+  getLoadingState(): Map<string, PluginStateInfo> {
+    return new Map(this.stateInfos);
+  }
+
+  setLoadingState(pluginName: string, state: PluginLoadingState): void {
+    this.loadingStates.set(pluginName, state);
+    
+    // Convert PluginLoadingState to PluginState (they have same values)
+    const pluginState = state as unknown as PluginState;
+    
+    // Also update state info if we don't have it yet
+    if (!this.stateInfos.has(pluginName)) {
+      const stateInfo: PluginStateInfo = {
+        currentState: pluginState,
+        loadingProgress: 0,
+        startTime: new Date(),
+        metadata: {},
+      };
+      this.stateInfos.set(pluginName, stateInfo);
+    } else {
+      const existingInfo = this.stateInfos.get(pluginName)!;
+      existingInfo.currentState = pluginState;
+      this.stateInfos.set(pluginName, existingInfo);
+    }
+    
+    this.logger.debug(`Plugin ${pluginName} state changed to: ${state}`);
+  }
+
+  getStateMachine(): PluginStateMachine {
+    return this.stateMachine;
+  }
+
+  getLoadedPluginsMap(): Map<string, LoadedPlugin> {
+    return new Map(this.loadedPlugins);
+  }
+
+  setLoadedPlugin(pluginName: string, plugin: LoadedPlugin): void {
+    this.loadedPlugins.set(pluginName, plugin);
+    this.setLoadingState(pluginName, PluginLoadingState.LOADED);
+    this.logger.debug(`Plugin ${pluginName} loaded successfully`);
   }
 }

@@ -5,7 +5,7 @@ import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
 import JSZip from 'jszip';
 import FormData from 'form-data';
-import { PluginManifest, LoadedPlugin, PluginUpdateInfo } from '@plugin/types';
+import { PluginManifest, LoadedPlugin, PluginUpdateInfo } from '@plugin/core';
 
 // Registry-specific interfaces
 export interface RegistryPluginMetadata extends PluginManifest {

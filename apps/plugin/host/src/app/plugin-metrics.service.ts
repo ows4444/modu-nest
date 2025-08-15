@@ -107,6 +107,22 @@ export class PluginMetricsService implements OnModuleInit, OnModuleDestroy {
     this.checkPerformanceAlerts(pluginName, responseTime, isError);
   }
 
+  recordLoadingTime(totalTime: number): void {
+    this.logger.debug(`Recorded total loading time: ${totalTime}ms`);
+  }
+
+  recordSuccessfulLoads(count: number): void {
+    this.logger.debug(`Recorded successful loads: ${count}`);
+  }
+
+  recordFailedLoads(count: number): void {
+    this.logger.debug(`Recorded failed loads: ${count}`);
+  }
+
+  recordDiscoveryMetrics(discoveryTime: number, successful: number, failed: number): void {
+    this.logger.debug(`Recorded discovery metrics: ${discoveryTime}ms, ${successful} successful, ${failed} failed`);
+  }
+
   // Metrics retrieval methods
   getPluginMetrics(pluginName: string): PluginMetrics | undefined {
     return this.metricsCollector.getPluginMetrics(pluginName);

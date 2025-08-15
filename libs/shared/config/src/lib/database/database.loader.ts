@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { EnvironmentType } from '@shared/const';
+import { EnvironmentType } from '@shared/core';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { DatabaseConfigSchema } from './database.schema';

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PluginStateMachine } from '../state-machine';
-import { LoadedPlugin, PluginState } from '@plugin/core';
+import { PluginState } from '@plugin/core';
 import { PluginEventEmitter } from '@plugin/services';
-import { PluginLoadingState } from '../strategies';
+import { PluginStateInfo } from '../strategies';
 
 export interface StateManagerConfig {
   enableStateTransitionLogging: boolean;
@@ -26,7 +26,7 @@ export class PluginStateManagerService {
   private readonly logger = new Logger(PluginStateManagerService.name);
 
   private readonly stateMachine = new PluginStateMachine();
-  private readonly loadingState = new Map<string, PluginLoadingState>();
+  private readonly loadingState = new Map<string, PluginStateInfo>();
   private readonly stateHistory = new Map<string, PluginStateSnapshot[]>();
   private readonly eventEmitter = new PluginEventEmitter();
 
@@ -43,7 +43,7 @@ export class PluginStateManagerService {
   /**
    * Set plugin loading state with history tracking
    */
-  setPluginState(pluginName: string, state: PluginLoadingState): void {
+  setPluginState(pluginName: string, state: PluginStateInfo): void {
     const previousState = this.loadingState.get(pluginName);
     this.loadingState.set(pluginName, state);
 
@@ -72,14 +72,14 @@ export class PluginStateManagerService {
   /**
    * Get current plugin loading state
    */
-  getPluginState(pluginName: string): PluginLoadingState | undefined {
+  getPluginState(pluginName: string): PluginStateInfo | undefined {
     return this.loadingState.get(pluginName);
   }
 
   /**
    * Get all loading states
    */
-  getAllLoadingStates(): Map<string, PluginLoadingState> {
+  getAllLoadingStates(): Map<string, PluginStateInfo> {
     return new Map(this.loadingState);
   }
 
@@ -119,12 +119,17 @@ export class PluginStateManagerService {
 
       if (success) {
         // Update loading state after successful transition
-        const newState = await this.stateMachine.getState(pluginName);
-        const updatedLoadingState: PluginLoadingState = {
+        const newState = this.stateMachine.getCurrentState(pluginName);
+        const updatedLoadingState: PluginStateInfo = {
           ...currentState,
           currentState: newState,
-          lastTransition: transition,
-          transitionTimestamp: new Date(),
+          loadingProgress: currentState.loadingProgress,
+          startTime: currentState.startTime,
+          metadata: {
+            ...currentState.metadata,
+            lastTransition: transition,
+            transitionTimestamp: new Date(),
+          },
         };
 
         this.setPluginState(pluginName, updatedLoadingState);
@@ -165,9 +170,9 @@ export class PluginStateManagerService {
    */
   async resetPluginState(pluginName: string): Promise<boolean> {
     try {
-      await this.stateMachine.reset(pluginName);
+      this.stateMachine.reset(pluginName);
 
-      const initialState: PluginLoadingState = {
+      const initialState: PluginStateInfo = {
         currentState: PluginState.UNLOADED,
         loadingProgress: 0,
         startTime: new Date(),
@@ -198,7 +203,7 @@ export class PluginStateManagerService {
 
     // Initialize state distribution
     Object.values(PluginState).forEach((state) => {
-      stateDistribution[state] = 0;
+      stateDistribution[state as PluginState] = 0;
     });
 
     // Count states and transitions

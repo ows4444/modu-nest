@@ -219,7 +219,7 @@ export class PluginBundleOptimizationService {
         pluginName,
         operation: 'bundle-optimization',
       });
-      handlePluginError(validationError, {
+      throw handlePluginError(validationError, {
         pluginName,
         operation: 'optimizeBundle',
       });

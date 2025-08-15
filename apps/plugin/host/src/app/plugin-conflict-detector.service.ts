@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest, LoadedPlugin } from '@plugin/types';
+import { PluginManifest, LoadedPlugin } from '@plugin/core';
 import { IPluginEventSubscriber } from '@plugin/core';
 import { PluginEventEmitter } from '@plugin/services';
 

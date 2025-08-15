@@ -15,7 +15,7 @@ export interface PluginCleanupConfig {
   };
 }
 
-export interface PluginMemoryStats {
+export interface PluginCleanupStats {
   lastCleanup: number;
   totalCleanupsPerformed: number;
   memoryFreedEstimate: number;
@@ -61,7 +61,7 @@ export class PluginCleanupService {
   private memoryPressureThreshold = 0.85; // 85% of heap limit
 
   // Memory statistics
-  private memoryStats: PluginMemoryStats = {
+  private memoryStats: PluginCleanupStats = {
     lastCleanup: Date.now(),
     totalCleanupsPerformed: 0,
     memoryFreedEstimate: 0,
@@ -246,7 +246,7 @@ export class PluginCleanupService {
   /**
    * Gets memory statistics
    */
-  getMemoryStats(): PluginMemoryStats {
+  getMemoryStats(): PluginCleanupStats {
     return {
       ...this.memoryStats,
       pluginCount: this.pluginInstances.size,

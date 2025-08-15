@@ -170,7 +170,7 @@ This comprehensive checklist contains actionable architectural improvements iden
   - **Suggested Fix:** Implement semantic versioning with proper dependency ranges and API compatibility layers
 
 - [ ] **Remove or migrate deprecated const library**
-  - **File:** `libs/shared/const/src/lib/const.ts`
+  - **File:** `libs/@shared/core/src/lib/const.ts`
   - **Rationale:** Marked deprecated but still included, creates maintenance burden
   - **Priority:** Low
   - **Suggested Fix:** Either remove completely or provide clear migration path to replacement

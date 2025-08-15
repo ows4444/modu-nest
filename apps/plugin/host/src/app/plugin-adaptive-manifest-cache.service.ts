@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest } from '@plugin/types';
+import { PluginManifest } from '@plugin/core';
 import { PluginCacheKeyBuilder, PluginCacheService } from '@plugin/services';
 
 export interface ManifestCacheConfig {

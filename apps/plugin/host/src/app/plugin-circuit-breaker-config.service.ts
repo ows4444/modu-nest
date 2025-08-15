@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PluginManifest } from '@plugin/types';
+import { PluginManifest } from '@plugin/core';
 import { PluginCircuitBreaker } from '@plugin/services';
 
 export interface CircuitBreakerConfig {

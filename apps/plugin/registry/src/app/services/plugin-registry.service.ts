@@ -5,7 +5,7 @@ import {
   PluginManifest,
   CreatePluginDto,
   PluginListResponseDto,
-} from '@plugin/types';
+} from '@plugin/core';
 import {
   RegistryStats,
   IPluginEventSubscriber,
@@ -366,7 +366,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       this.metricsService.recordDownload(Date.now() - startTime, false, name, userAgent, ipAddress);
 
       // Use standardized error handling
-      handlePluginError(this.toPluginError(error, 'downloadPlugin', name), {
+      throw handlePluginError(this.toPluginError(error, 'downloadPlugin', name), {
         pluginName: name,
         operation: 'downloadPlugin',
       });
@@ -525,7 +525,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
   // Event subscription methods
   subscribeToEvents(eventEmitter: PluginEventEmitter): void {
     // Subscribe to validation events for statistics
-    eventEmitter.on('plugin.validation.completed', (event) => {
+    eventEmitter.on('plugin.validation.completed', (event: any) => {
       const validationEvent = event as any;
       this.logger.debug(
         `Validation completed for ${validationEvent.pluginName}: ${validationEvent.validationType} - ${
@@ -535,7 +535,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     });
 
     // Subscribe to security events for monitoring
-    eventEmitter.on('plugin.security.scan.completed', (event) => {
+    eventEmitter.on('plugin.security.scan.completed', (event: any) => {
       const securityEvent = event as any;
       if (securityEvent.threats.length > 0) {
         this.logger.warn(
@@ -546,7 +546,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       }
     });
 
-    eventEmitter.on('plugin.security.violation', (event) => {
+    eventEmitter.on('plugin.security.violation', (event: any) => {
       const violationEvent = event as any;
       this.logger.error(
         `Security violation in ${violationEvent.pluginName}: ${violationEvent.violationType} (Severity: ${violationEvent.severity}, Blocked: ${violationEvent.blocked})`
@@ -554,14 +554,14 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     });
 
     // Subscribe to upload/download events for analytics
-    eventEmitter.on('plugin.upload.started', (event) => {
+    eventEmitter.on('plugin.upload.started', (event: any) => {
       const uploadEvent = event as any;
       this.logger.debug(
         `Plugin upload started: ${uploadEvent.pluginName} (${(uploadEvent.fileSize / 1024 / 1024).toFixed(2)}MB)`
       );
     });
 
-    eventEmitter.on('plugin.downloaded', (event) => {
+    eventEmitter.on('plugin.downloaded', (event: any) => {
       const downloadEvent = event as any;
       this.logger.debug(
         `Plugin downloaded: ${downloadEvent.pluginName} by ${downloadEvent.userAgent || 'unknown'} from ${
@@ -571,7 +571,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     });
 
     // Subscribe to cache events for optimization insights
-    eventEmitter.on('plugin.cache', (event) => {
+    eventEmitter.on('plugin.cache', (event: any) => {
       const cacheEvent = event as any;
       if (cacheEvent.operation === 'hit') {
         this.logger.debug(`Cache hit for ${cacheEvent.pluginName}: ${cacheEvent.cacheType}`);
@@ -581,7 +581,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
     });
 
     // Subscribe to error events for centralized error handling
-    eventEmitter.on('plugin.error', (event) => {
+    eventEmitter.on('plugin.error', (event: any) => {
       const errorEvent = event as any;
       if (errorEvent.severity === 'critical' || errorEvent.severity === 'high') {
         this.logger.error(
@@ -630,7 +630,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'getPluginVersions', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'getPluginVersions', pluginName), {
         pluginName,
         operation: 'getPluginVersions',
       });
@@ -651,7 +651,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'getActivePluginVersion', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'getActivePluginVersion', pluginName), {
         pluginName,
         operation: 'getActivePluginVersion',
       });
@@ -672,7 +672,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'getPluginVersion', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'getPluginVersion', pluginName), {
         pluginName,
         operation: 'getPluginVersion',
       });
@@ -723,7 +723,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       });
 
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'promotePluginVersion', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'promotePluginVersion', pluginName), {
         pluginName,
         operation: 'promotePluginVersion',
       });
@@ -774,7 +774,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       });
 
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'rollbackPluginVersion', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'rollbackPluginVersion', pluginName), {
         pluginName,
         operation: 'rollbackPluginVersion',
       });
@@ -807,7 +807,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'archiveOldPluginVersions', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'archiveOldPluginVersions', pluginName), {
         pluginName,
         operation: 'archiveOldPluginVersions',
       });
@@ -855,7 +855,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       });
 
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'high', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'deletePluginVersion', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'deletePluginVersion', pluginName), {
         pluginName,
         operation: 'deletePluginVersion',
       });
@@ -876,7 +876,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'checkVersionCompatibility', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'checkVersionCompatibility', pluginName), {
         pluginName,
         operation: 'checkVersionCompatibility',
       });
@@ -897,7 +897,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'getPluginVersionStatistics', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'getPluginVersionStatistics', pluginName), {
         pluginName,
         operation: 'getPluginVersionStatistics',
       });
@@ -1022,7 +1022,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'runtime', true);
-      handlePluginError(this.toPluginError(error, 'getPluginTrustLevel', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'getPluginTrustLevel', pluginName), {
         pluginName,
         operation: 'getPluginTrustLevel',
       });
@@ -1053,7 +1053,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(assignment.pluginName, error as Error, 'high', 'security', true);
-      handlePluginError(this.toPluginError(error, 'assignPluginTrustLevel', assignment.pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'assignPluginTrustLevel', assignment.pluginName), {
         pluginName: assignment.pluginName,
         operation: 'assignPluginTrustLevel',
       });
@@ -1090,7 +1090,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'security', true);
-      handlePluginError(this.toPluginError(error, 'validatePluginCapability', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'validatePluginCapability', pluginName), {
         pluginName,
         operation: 'validatePluginCapability',
       });
@@ -1107,7 +1107,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
       if (error instanceof Error) {
         this.errorMetrics.recordError(this.toPluginError(error, 'getTrustPolicy'), { operation: 'getTrustPolicy' });
       }
-      handlePluginError(this.toPluginError(error, 'getTrustPolicy'), {
+      throw handlePluginError(this.toPluginError(error, 'getTrustPolicy'), {
         operation: 'getTrustPolicy',
       });
     }
@@ -1125,7 +1125,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
           operation: 'getPluginCapabilities',
         });
       }
-      handlePluginError(this.toPluginError(error, 'getPluginCapabilities'), {
+      throw handlePluginError(this.toPluginError(error, 'getPluginCapabilities'), {
         operation: 'getPluginCapabilities',
       });
     }
@@ -1143,7 +1143,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
           operation: 'getTrustStatistics',
         });
       }
-      handlePluginError(this.toPluginError(error, 'getTrustStatistics'), {
+      throw handlePluginError(this.toPluginError(error, 'getTrustStatistics'), {
         operation: 'getTrustStatistics',
       });
     }
@@ -1178,7 +1178,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(request.pluginName, error as Error, 'medium', 'security', true);
-      handlePluginError(this.toPluginError(error, 'requestTrustLevelChange', request.pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'requestTrustLevelChange', request.pluginName), {
         pluginName: request.pluginName,
         operation: 'requestTrustLevelChange',
       });
@@ -1199,7 +1199,7 @@ export class PluginRegistryService implements IPluginEventSubscriber {
         });
       }
       this.eventEmitter.emitPluginError(pluginName, error as Error, 'medium', 'security', true);
-      handlePluginError(this.toPluginError(error, 'validatePluginTrustPolicy', pluginName), {
+      throw handlePluginError(this.toPluginError(error, 'validatePluginTrustPolicy', pluginName), {
         pluginName,
         operation: 'validatePluginTrustPolicy',
       });

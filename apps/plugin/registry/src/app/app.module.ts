@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { MulterModule } from '@nestjs/platform-express';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { PluginController } from './controllers/plugin.controller';
 import { HealthController } from './controllers/health.controller';
@@ -17,12 +18,14 @@ import { PluginBundleOptimizationService } from './services/plugin-bundle-optimi
 import { PluginStorageOrchestratorService } from './services/plugin-storage-orchestrator.service';
 import { PluginVersionManager } from './services/plugin-version-manager';
 import { PluginTrustManager } from './services/plugin-trust-manager';
+import { PluginEventEmitter } from '@plugin/services';
 import { SecurityEventLoggerService } from './services/security-event-logger.service';
 import { PluginRegistryMetricsService } from './services/plugin-registry-metrics.service';
 import { ErrorHandlingInterceptor } from './interceptors/error-handling.interceptor';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { SharedConfigModule } from '@shared/config';
 import { RepositoryModule } from './modules/repository.module';
+import { PluginEntity, PluginVersionEntity, PluginDownloadEntity, PluginTrustLevelEntity } from './entities';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { RepositoryModule } from './modules/repository.module';
 
     // Repository module with automatic database type detection
     RepositoryModule.forRoot(),
+
+    // TypeORM feature module for entity repositories
+    TypeOrmModule.forFeature([PluginEntity, PluginVersionEntity, PluginDownloadEntity, PluginTrustLevelEntity]),
 
     MulterModule.register({
       limits: {
@@ -53,6 +59,7 @@ import { RepositoryModule } from './modules/repository.module';
   ],
   controllers: [AppController, PluginController, HealthController, PluginVersionController, PluginTrustController],
   providers: [
+    PluginEventEmitter,
     PluginStorageService,
     PluginValidationCacheService,
     PluginValidationService,

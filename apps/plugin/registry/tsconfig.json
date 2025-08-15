@@ -4,22 +4,19 @@
   "include": [],
   "references": [
     {
-      "path": "../../../libs/shared/const"
+      "path": "../../../libs/shared/core"
     },
     {
       "path": "../../../libs/plugin/validation"
+    },
+    {
+      "path": "../../../libs/shared/config"
     },
     {
       "path": "../../../libs/plugin/services"
     },
     {
       "path": "../../../libs/plugin/core"
-    },
-    {
-      "path": "../../../libs/shared/config"
-    },
-    {
-      "path": "../../../libs/plugin/types"
     },
     {
       "path": "./tsconfig.app.json"

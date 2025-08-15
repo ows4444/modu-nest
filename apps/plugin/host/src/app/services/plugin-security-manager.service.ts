@@ -98,7 +98,7 @@ export class PluginSecurityManagerService {
       this.logger.error(`Security validation failed for plugin ${manifest.name}:`, error);
       return {
         isValid: false,
-        errors: [`Security validation error: ${error.message}`],
+        errors: [`Security validation error: ${error instanceof Error ? error.message : String(error)}`],
         warnings,
         trustLevel: 'untrusted',
       };
@@ -198,7 +198,7 @@ export class PluginSecurityManagerService {
       return {
         isIsolated: false,
         conflictingGuards: [],
-        isolationIssues: [`Isolation verification failed: ${error.message}`],
+        isolationIssues: [`Isolation verification failed: ${error instanceof Error ? error.message : String(error)}`],
       };
     }
   }

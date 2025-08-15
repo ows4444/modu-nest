@@ -16,7 +16,7 @@ import { PluginEntity } from '../entities/plugin.entity';
 import { PluginVersionEntity } from '../entities/plugin-version.entity';
 import { PluginTrustLevelEntity } from '../entities/plugin-trust-level.entity';
 import { PluginEventEmitter } from '@plugin/services';
-import { PluginManifest } from '@plugin/types';
+import { PluginManifest } from '@plugin/core';
 
 export enum TrustLevel {
   INTERNAL = 'internal', // Fully trusted, developed internally

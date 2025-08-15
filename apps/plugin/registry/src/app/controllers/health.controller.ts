@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { PluginRegistryService } from '../services/plugin-registry.service';
-import type { HealthResponse, RootResponse } from '@plugin/types';
+import type { HealthResponse, RootResponse } from '@plugin/core';
 import { RegistryStats } from '@plugin/core';
 
 @Controller()
