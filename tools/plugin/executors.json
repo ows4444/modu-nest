@@ -1,29 +1,19 @@
 {
   "executors": {
-    "plugin-validate": {
-      "implementation": "./dist/executors/plugin-validate",
-      "schema": "./dist/executors/plugin-validate-schema.json",
-      "description": "plugin-validate executor"
+    "lint": {
+      "implementation": "./dist/executors/lint",
+      "schema": "./dist/executors/lint.schema.json",
+      "description": "Lint a plugin project using ESLint"
     },
-    "plugin-publish": {
-      "implementation": "./dist/executors/plugin-publish",
-      "schema": "./dist/executors/plugin-publish-schema.json",
-      "description": "plugin-publish executor"
+    "build": {
+      "implementation": "./dist/executors/build",
+      "schema": "./dist/executors/build.schema.json",
+      "description": "Build a plugin project with TypeScript compilation"
     },
-    "plugin-build": {
-      "implementation": "./dist/executors/plugin-build",
-      "schema": "./dist/executors/schema.json",
-      "description": "plugin-build executor"
-    },
-    "plugin-registry-publish": {
-      "implementation": "./dist/executors/plugin-registry-publish",
-      "schema": "./dist/executors/plugin-publish-schema.json",
-      "description": "plugin-registry-publish executor"
-    },
-    "plugin-zip": {
-      "implementation": "./dist/executors/plugin-zip",
-      "schema": "./dist/executors/plugin-zip-schema.json",
-      "description": "plugin-zip executor"
+    "zip": {
+      "implementation": "./dist/executors/zip",
+      "schema": "./dist/executors/zip.schema.json",
+      "description": "Create a zip package of a built plugin project"
     }
   }
 }

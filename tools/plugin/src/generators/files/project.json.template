@@ -1,57 +1,57 @@
 {
-  "name": "<%= name %>",
+  "name": "@plugin/<%= name %>",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "plugins/<%= name %>/src",
   "projectType": "library",
   "targets": {
-    "plugin-build": {
-      "executor": "@modu-nest/plugin:plugin-build",
+    "build": {
+      "executor": "@tools/plugin:build",
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "options": {
-        "outputPath": "dist",
-        "tsConfig": "tsconfig.lib.json",
-        "assets": ["plugin.manifest.json"]
-      },
-      "dependsOn": ["@modu-nest/plugin-types:typecheck"]
-    },
-    "plugin-validate": {
-      "executor": "@modu-nest/plugin:plugin-validate",
-      "options": {
-        "tsConfig": "tsconfig.lib.json"
+        "outputPath": "plugins/<%= name %>/dist",
+        "tsConfig": "plugins/<%= name %>/tsconfig.lib.json"
       }
     },
-    "plugin-zip": {
-      "executor": "@modu-nest/plugin:plugin-zip",
-      "options": {
-        "inputPath": "dist",
-        "outputPath": "releases",
-        "includeSourceMaps": false
-      },
-      "dependsOn": ["plugin-build"]
-    },
-    "plugin-publish": {
-      "executor": "@modu-nest/plugin:plugin-publish",
-      "options": {
-        "outputPath": "dist",
-        "pluginsDir": "apps/plugin-host/src/assets/plugins",
-        "useZip": true,
-        "zipPath": "releases"
-      },
-      "dependsOn": ["plugin-zip"]
-    },
     "lint": {
-      "executor": "@nx/eslint:lint",
-      "outputs": ["{options.outputFile}"],
+      "executor": "@tools/plugin:lint",
+      "outputs": [
+        "{options.outputFile}"
+      ],
       "options": {
-        "lintFilePatterns": ["plugins/<%= name %>/**/*.ts"]
+        "lintFilePatterns": [
+          "plugins/<%= name %>/**/*.ts"
+        ]
       }
     },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
       "options": {
         "jestConfig": "plugins/<%= name %>/jest.config.ts"
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit --project plugins/<%= name %>/tsconfig.lib.json"
+      }
+    },
+    "zip": {
+      "executor": "@tools/plugin:zip",
+      "dependsOn": ["build"],
+      "outputs": [
+        "{projectRoot}/dist/<%= name %>.zip"
+      ],
+      "options": {
+        "outputPath": "plugins/<%= name %>/dist"
+      }
     }
   },
-  "tags": ["type:plugin"]
+  "tags": [
+    "type:plugin"
+  ]
 }

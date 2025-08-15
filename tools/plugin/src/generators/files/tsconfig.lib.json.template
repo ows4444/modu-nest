@@ -6,13 +6,15 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
     "emitDeclarationOnly": false,
+    "forceConsistentCasingInFileNames": true,
     "types": ["node"],
-    "target": "esnext",
+    "target": "es2022",
     "strictNullChecks": true,
     "noImplicitAny": true,
     "strictBindCallApply": true,
-    "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": false,
+    "inlineSources": false
   },
   "include": ["src/**/*.ts"],
   "references": [],

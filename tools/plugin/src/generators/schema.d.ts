@@ -1,3 +1,3 @@
-export interface PluginGeneratorSchema {
+export interface WithManifestOnlyGeneratorSchema {
   name: string;
 }

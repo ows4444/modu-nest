@@ -1,17 +1,19 @@
 {
-  "$schema": "https://json-schema.org/schema",
-  "$id": "Plugin",
-  "title": "",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "WithManifestOnly",
+  "title": "Generate Nizaami Plugin",
+  "description": "Generate a new Nizaami plugin with controller, service, and manifest configuration",
   "type": "object",
   "properties": {
     "name": {
       "type": "string",
-      "description": "",
+      "description": "The name of the plugin to generate",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9-]*$",
       "$default": {
         "$source": "argv",
         "index": 0
       },
-      "x-prompt": "What name would you like to use?"
+      "x-prompt": "What name would you like to use for the plugin?"
     }
   },
   "required": ["name"]

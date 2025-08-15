@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": 2,
+  "title": "Build executor",
+  "description": "Build a plugin project",
+  "type": "object",
+  "properties": {
+    "outputPath": {
+      "type": "string",
+      "description": "The output path for the built plugin",
+      "default": "dist/plugins"
+    },
+    "sourceRoot": {
+      "type": "string",
+      "description": "The source root of the plugin project"
+    },
+    "tsConfig": {
+      "type": "string",
+      "description": "Path to the TypeScript configuration file",
+      "default": "tsconfig.lib.json"
+    }
+  },
+  "required": ["outputPath"]
+}

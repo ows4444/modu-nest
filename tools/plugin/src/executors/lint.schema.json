@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": 2,
+  "title": "Lint executor",
+  "description": "Lint a plugin project using ESLint",
+  "type": "object",
+  "properties": {
+    "lintFilePatterns": {
+      "type": "array",
+      "description": "One or more glob patterns for files to lint",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "fix": {
+      "type": "boolean",
+      "description": "Automatically fix problems",
+      "default": false
+    }
+  }
+}

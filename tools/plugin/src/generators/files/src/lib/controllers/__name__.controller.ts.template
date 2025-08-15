@@ -1,11 +1,11 @@
-import { PluginRoute, PluginGet } from '@libs/plugin-types';
-import { <%= className %>Service } from './<%= name %>.service';
+import { Controller, Get } from '@nestjs/common';
+import { <%= className %>Service } from '../services/<%= name %>.service';
 
-@PluginRoute('<%= name %>')
+@Controller('<%= name %>')
 export class <%= className %>Controller {
   constructor(private readonly <%= propertyName %>Service: <%= className %>Service) {}
 
-  @PluginGet()
+  @Get()
   getHello(): string {
     return this.<%= propertyName %>Service.getHello();
   }

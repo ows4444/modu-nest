@@ -1,9 +1,20 @@
 {
-  "name": "@modu-nest/<%= name %>",
-  "version": "1.0.0",
-  "description": "<%= className %> plugin for modu-nest",
-  "main": "src/index.ts",
+  "name": "@plugins/<%= name %>",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "dependencies": {
-    "@modu-nest/plugin-types": "0.0.1"
+    "@nestjs/common": "^11.0.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.0"
   }
 }

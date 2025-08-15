@@ -1,21 +1,25 @@
 {
-  "name": "<%= name %>",
-  "version": "1.0.0",
-  "description": "<%= className %> plugin for modu-nest",
+  "name": "@plugins/<%= name %>",
+  "version": "0.1.0",
+  "description": "<%= className %> plugin for Nizaami platform",
   "author": "Plugin Developer",
   "license": "MIT",
+  "keywords": ["nizaami", "plugin", "<%= name %>"],
   "dependencies": [],
   "loadOrder": 100,
+  "critical": false,
+  "security": {
+    "trustLevel": "unverified"
+  },
+  "permissions": {
+    "services": [],
+    "modules": []
+  },
   "module": {
-    "controllers": [
-      "<%= className %>Controller"
-    ],
-    "providers": [
-      "<%= className %>Service"
-    ],
-    "exports": [
-      "<%= className %>Service"
-    ],
-    "imports": []
+    "controllers": ["<%= className %>Controller"],
+    "providers": ["<%= className %>Service"],
+    "exports": ["<%= className %>Service"],
+    "crossPluginServices": [],
+    "guards": []
   }
 }

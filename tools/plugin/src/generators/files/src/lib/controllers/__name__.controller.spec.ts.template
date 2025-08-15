@@ -1,0 +1,31 @@
+import { <%= className %>Controller } from './<%= name %>.controller';
+import { <%= className %>Service } from '../services/<%= name %>.service';
+
+describe('<%= className %>Controller', () => {
+  let controller: <%= className %>Controller;
+  let mock<%= className %>Service: jest.Mocked<<%= className %>Service>;
+
+  beforeEach(() => {
+    mock<%= className %>Service = {
+      getHello: jest.fn(),
+    } as jest.Mocked<<%= className %>Service>;
+    
+    controller = new <%= className %>Controller(mock<%= className %>Service);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('getHello', () => {
+    it('should return hello message from service', () => {
+      const expectedMessage = 'Hello from <%= className %> plugin!';
+      mock<%= className %>Service.getHello.mockReturnValue(expectedMessage);
+
+      const result = controller.getHello();
+
+      expect(result).toBe(expectedMessage);
+      expect(mock<%= className %>Service.getHello).toHaveBeenCalledTimes(1);
+    });
+  });
+});

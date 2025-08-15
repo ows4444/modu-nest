@@ -1,2 +1,2 @@
-export * from './lib/<%= name %>.service';
-export * from './lib/<%= name %>.controller';
+export * from './lib/controllers/<%= name %>.controller';
+export * from './lib/services/<%= name %>.service';

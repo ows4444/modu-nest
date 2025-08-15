@@ -1,6 +1,6 @@
-import { PluginInjectable } from '@libs/plugin-types';
+import { Injectable } from '@nestjs/common';
 
-@PluginInjectable()
+@Injectable()
 export class <%= className %>Service {
   
   getHello(): string {

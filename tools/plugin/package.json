@@ -37,18 +37,56 @@
               "input": "./tools/plugin/src",
               "glob": "**/*.d.ts",
               "output": "."
+            },
+            {
+              "input": "./tools/plugin",
+              "glob": "generators.json",
+              "output": "."
+            },
+            {
+              "input": "./tools/plugin",
+              "glob": "executors.json",
+              "output": "."
+            },
+            {
+              "input": "./tools/plugin/src/generators",
+              "glob": "files/**/*",
+              "output": "./generators"
             }
           ]
+        }
+      },
+      "test": {
+        "executor": "@nx/jest:jest",
+        "outputs": [
+          "{workspaceRoot}/coverage/{projectRoot}"
+        ],
+        "options": {
+          "jestConfig": "tools/plugin/jest.config.ts"
+        }
+      },
+      "lint": {
+        "executor": "@nx/eslint:lint",
+        "outputs": [
+          "{options.outputFile}"
+        ],
+        "options": {
+          "lintFilePatterns": [
+            "tools/plugin/**/*.ts"
+          ]
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsc --noEmit --project tools/plugin/tsconfig.json"
         }
       }
     }
   },
   "dependencies": {
-    "@nx/devkit": "21.3.7",
-    "tslib": "^2.3.0",
-    "axios": "^1.6.0",
-    "form-data": "^4.0.4",
-    "@libs/plugin-types": "0.0.1"
+    "@nx/devkit": "21.4.0",
+    "tslib": "^2.3.0"
   },
   "generators": "./generators.json",
   "files": [

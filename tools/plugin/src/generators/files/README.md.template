@@ -1,36 +1,50 @@
-# <%= name %>
+# <%= className %> Plugin
 
-This plugin was generated with [modu-nest plugin generator](https://github.com/your-org/modu-nest).
+A Nizaami platform plugin generated with the nizaami-plugin generator.
 
-## Description
+## Overview
 
-<%= className %> plugin for modu-nest
+This plugin provides:
+- `<%= className %>Controller` - Main controller for plugin endpoints
+- `<%= className %>Service` - Core business logic service
 
-## Plugin Development
+## Development
 
-### Building the Plugin
+### Building
+```bash
+nx build <%= name %>
+```
 
-Run `nx run <%= name %>:plugin-build` to build the plugin.
-
-### Validating the Plugin
-
-Run `nx run <%= name %>:plugin-validate` to validate the plugin structure and manifest.
-
-### Publishing the Plugin
-
-Run `nx run <%= name %>:plugin-publish` to publish the plugin to the plugin registry.
-
-### Running Unit Tests
-
-Run `nx test <%= name %>` to execute the unit tests via [Jest](https://jestjs.io).
+### Testing
+```bash
+nx test <%= name %>
+```
 
 ### Linting
+```bash
+nx lint <%= name %>
+```
 
-Run `nx lint <%= name %>` to lint the plugin code.
+### Type Checking
+```bash
+nx typecheck <%= name %>
+```
+
+### Creating Distribution Package
+```bash
+nx zip <%= name %>
+```
 
 ## Plugin Structure
 
-- `src/lib/<%= name %>.module.ts` - Main NestJS module
-- `src/lib/<%= name %>.service.ts` - Plugin service with business logic
-- `src/lib/<%= name %>.controller.ts` - REST API endpoints
-- `plugin.manifest.json` - Plugin metadata and configuration
+- `src/lib/controllers/` - Plugin controllers
+- `src/lib/services/` - Plugin services
+- `plugin.manifest.json` - Plugin configuration and metadata
+
+## Plugin Configuration
+
+The plugin manifest (`plugin.manifest.json`) contains:
+- Plugin metadata (name, version, description)
+- Security and trust level settings
+- Permission configurations
+- Module exports and dependencies
