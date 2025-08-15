@@ -10,12 +10,6 @@
       "path": "./apps/plugin/host"
     },
     {
-      "path": "./apps/plugin/registry-e2e"
-    },
-    {
-      "path": "./apps/plugin/registry"
-    },
-    {
       "path": "./libs/plugin/context"
     },
     {
@@ -50,12 +44,6 @@
     },
     {
       "path": "./libs/shared/config"
-    },
-    {
-      "path": "./plugins/product-plugin"
-    },
-    {
-      "path": "./plugins/user-plugin"
     },
     {
       "path": "./tools/plugin"

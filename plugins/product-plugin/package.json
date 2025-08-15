@@ -1,9 +1,0 @@
-{
-  "name": "@plugins/product-plugin",
-  "version": "1.0.0",
-  "description": "ProductPlugin plugin for modu-nest",
-  "main": "src/index.ts",
-  "dependencies": {
-    "@libs/plugin-types": "0.0.1"
-  }
-}
